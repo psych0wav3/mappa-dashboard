@@ -19,20 +19,18 @@ model Client {
   number            String?
   district          String?
   city              String?
-  uf                String? @db.VarChar(2)
+  uf                String? // era @db.VarChar(2) — opcional remover nativo
   cep               String?
-  poolSize          String? // ex: "8x4"
-  cleaningFrequency Int? // 1..5 (dias)
-  cleaningWindow    String? // “8h–12h”, “tarde”, etc
-  payDay            Int? // 1..31
-  notes             String? @db.Text
+  poolSize          String?
+  cleaningFrequency Int?
+  cleaningWindow    String?
+  payDay            Int?
+  notes             String? // era @db.Text — opcional remover nativo
   active            Boolean @default(true)
 
-  // Relações existentes
-  visits Visit[]
-
-  // ⬇️ Lado oposto para VisitPlan (novo)
-  visitPlans VisitPlan[] @relation("ClientToVisitPlan")
+  visits         Visit[]
+  visitPlans     VisitPlan[]     @relation("ClientToVisitPlan")
+  visitInstances VisitInstance[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -46,7 +44,6 @@ model Technician {
   phone     String? @map("phone")
   cpf       String? @unique
 
-  // Endereço separado
   street   String? @map("street")
   number   String? @map("number")
   district String? @map("district")
@@ -59,11 +56,9 @@ model Technician {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  // Relações existentes
-  visits Visit[]
-
-  // ⬇️ Lado oposto para VisitPlan (novo)
-  visitPlans VisitPlan[] @relation("TechnicianToVisitPlan")
+  visits         Visit[]
+  visitPlans     VisitPlan[]     @relation("TechnicianToVisitPlan")
+  visitInstances VisitInstance[]
 }
 
 model Visit {
@@ -71,7 +66,6 @@ model Visit {
   date   DateTime
   status String   @default("pending")
 
-  // Relacionamentos
   clientId String
   client   Client @relation(fields: [clientId], references: [id])
 
@@ -86,18 +80,42 @@ model VisitPlan {
   id           String  @id @default(cuid())
   technicianId String
   clientId     String
-  // 1 = seg ... 7 = dom (usaremos 1..6 para seg..sáb)
-  weekdays     Int[]
-  windowStart  Int // hora inteira 6..18 (ex.: 9)
-  windowEnd    Int // hora inteira > start (ex.: 11)
-  notes        String? @db.Text
+  weekdays     Int[] // 1..6 (Seg..Sáb)
+  windowStart  Int
+  windowEnd    Int
+  notes        String?
   order        Int     @default(0)
   active       Boolean @default(true)
 
-  // ⬇️ Relações nomeadas para não conflitar com Visit
   technician Technician @relation("TechnicianToVisitPlan", fields: [technicianId], references: [id])
   client     Client     @relation("ClientToVisitPlan", fields: [clientId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  instances VisitInstance[]
+}
+
+model VisitInstance {
+  id        String   @id @default(cuid())
+  date      DateTime
+  startHour Int
+  endHour   Int
+  order     Int      @default(100)
+  status    String   @default("planned")
+  notes     String?
+
+  planId String?
+  plan   VisitPlan? @relation(fields: [planId], references: [id])
+
+  technicianId String
+  technician   Technician @relation(fields: [technicianId], references: [id])
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date, technicianId])
 }
