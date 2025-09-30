@@ -1,0 +1,103 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Client {
+  id                String  @id @default(cuid())
+  firstName         String
+  lastName          String
+  email             String  @unique
+  phone             String? @unique
+  cpf               String? @unique
+  street            String?
+  number            String?
+  district          String?
+  city              String?
+  uf                String? @db.VarChar(2)
+  cep               String?
+  poolSize          String? // ex: "8x4"
+  cleaningFrequency Int? // 1..5 (dias)
+  cleaningWindow    String? // “8h–12h”, “tarde”, etc
+  payDay            Int? // 1..31
+  notes             String? @db.Text
+  active            Boolean @default(true)
+
+  // Relações existentes
+  visits Visit[]
+
+  // ⬇️ Lado oposto para VisitPlan (novo)
+  visitPlans VisitPlan[] @relation("ClientToVisitPlan")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Technician {
+  id        String  @id @default(uuid())
+  firstName String  @map("first_name")
+  lastName  String  @map("last_name")
+  email     String  @unique
+  phone     String? @map("phone")
+  cpf       String? @unique
+
+  // Endereço separado
+  street   String? @map("street")
+  number   String? @map("number")
+  district String? @map("district")
+  city     String? @map("city")
+  uf       String? @map("uf")
+  cep      String? @map("cep")
+
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relações existentes
+  visits Visit[]
+
+  // ⬇️ Lado oposto para VisitPlan (novo)
+  visitPlans VisitPlan[] @relation("TechnicianToVisitPlan")
+}
+
+model Visit {
+  id     String   @id @default(uuid())
+  date   DateTime
+  status String   @default("pending")
+
+  // Relacionamentos
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id])
+
+  technicianId String
+  technician   Technician @relation(fields: [technicianId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+}
+
+model VisitPlan {
+  id           String  @id @default(cuid())
+  technicianId String
+  clientId     String
+  // 1 = seg ... 7 = dom (usaremos 1..6 para seg..sáb)
+  weekdays     Int[]
+  windowStart  Int // hora inteira 6..18 (ex.: 9)
+  windowEnd    Int // hora inteira > start (ex.: 11)
+  notes        String? @db.Text
+  order        Int     @default(0)
+  active       Boolean @default(true)
+
+  // ⬇️ Relações nomeadas para não conflitar com Visit
+  technician Technician @relation("TechnicianToVisitPlan", fields: [technicianId], references: [id])
+  client     Client     @relation("ClientToVisitPlan", fields: [clientId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
