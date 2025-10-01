@@ -1,11 +1,11 @@
 // prisma/schema.prisma
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // pooler 6543
+  directUrl = env("DIRECT_URL")   // host direto 5432 (SSL)
+}
 generator client {
   provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model Client {
@@ -38,21 +38,19 @@ model Client {
 
 model Technician {
   id        String  @id @default(uuid())
+  userId    String? @unique @db.Uuid   // <- UUID e opcional na 1ª migração
   firstName String  @map("first_name")
   lastName  String  @map("last_name")
   email     String  @unique
   phone     String? @map("phone")
   cpf       String? @unique
-
-  street   String? @map("street")
-  number   String? @map("number")
-  district String? @map("district")
+  street    String? @map("street")
+  number    String? @map("number")
+  district  String? @map("district")
   city     String? @map("city")
   uf       String? @map("uf")
   cep      String? @map("cep")
-
-  active Boolean @default(true)
-
+  active    Boolean @default(true)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -60,6 +58,7 @@ model Technician {
   visitPlans     VisitPlan[]     @relation("TechnicianToVisitPlan")
   visitInstances VisitInstance[]
 }
+
 
 model Visit {
   id     String   @id @default(uuid())

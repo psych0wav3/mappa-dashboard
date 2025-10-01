@@ -1,3 +1,4 @@
+//serc/components/calendar/TechColumn.tsx
 "use client";
 
 import * as React from "react";
@@ -77,7 +78,7 @@ export default function TechColumn({
 
         {items.length === 0 && (
           <div className="text-center text-sm text-neutral-400 py-10">
-            Nenhuma operação
+            Nenhum roteiro
             <div className="text-xs text-neutral-400">
               Arraste visitas para cá
             </div>
