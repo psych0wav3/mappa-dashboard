@@ -4,6 +4,7 @@ datasource db {
   url       = env("DATABASE_URL") // pooler 6543
   directUrl = env("DIRECT_URL")   // host direto 5432 (SSL)
 }
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -19,13 +20,13 @@ model Client {
   number            String?
   district          String?
   city              String?
-  uf                String? // era @db.VarChar(2) — opcional remover nativo
+  uf                String?
   cep               String?
   poolSize          String?
   cleaningFrequency Int?
   cleaningWindow    String?
   payDay            Int?
-  notes             String? // era @db.Text — opcional remover nativo
+  notes             String?
   active            Boolean @default(true)
 
   visits         Visit[]
@@ -38,7 +39,7 @@ model Client {
 
 model Technician {
   id        String  @id @default(uuid())
-  userId    String? @unique @db.Uuid   // <- UUID e opcional na 1ª migração
+  userId    String? @unique @db.Uuid
   firstName String  @map("first_name")
   lastName  String  @map("last_name")
   email     String  @unique
@@ -47,16 +48,21 @@ model Technician {
   street    String? @map("street")
   number    String? @map("number")
   district  String? @map("district")
-  city     String? @map("city")
-  uf       String? @map("uf")
-  cep      String? @map("cep")
+  city      String? @map("city")
+  uf        String? @map("uf")
+  cep       String? @map("cep")
   active    Boolean @default(true)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  phoneDigits String? @map("phone_digits")  // <- importante
+
   visits         Visit[]
   visitPlans     VisitPlan[]     @relation("TechnicianToVisitPlan")
   visitInstances VisitInstance[]
+
+  @@index([phone])
+  @@index([phoneDigits])
 }
 
 
@@ -104,8 +110,9 @@ model VisitInstance {
   status    String   @default("planned")
   notes     String?
 
+  // 🔵 Importante: CASCADE ao apagar o VisitPlan
   planId String?
-  plan   VisitPlan? @relation(fields: [planId], references: [id])
+  plan   VisitPlan? @relation(fields: [planId], references: [id], onDelete: Cascade)
 
   technicianId String
   technician   Technician @relation(fields: [technicianId], references: [id])
@@ -117,4 +124,5 @@ model VisitInstance {
   updatedAt DateTime @updatedAt
 
   @@index([date, technicianId])
+  @@index([planId]) // 🔵 acelera deleteMany/joins por planId
 }

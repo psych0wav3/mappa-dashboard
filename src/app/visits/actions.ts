@@ -45,19 +45,14 @@ export async function createVisitPlan(data: {
   windowEnd: number;
   notes?: string;
 }) {
-  const tech = await prisma.technician.findUnique({
-    where: { id: data.technicianId },
-  });
+  const tech = await prisma.technician.findUnique({ where: { id: data.technicianId } });
   if (!tech) throw new Error("Técnico inválido");
 
-  const cli = await prisma.client.findUnique({
-    where: { id: data.clientId },
-  });
+  const cli = await prisma.client.findUnique({ where: { id: data.clientId } });
   if (!cli) throw new Error("Cliente inválido");
 
   if (!data.weekdays?.length) throw new Error("Selecione ao menos um dia");
-  if (data.windowStart >= data.windowEnd)
-    throw new Error("Janela de horário inválida");
+  if (data.windowStart >= data.windowEnd) throw new Error("Janela de horário inválida");
 
   await prisma.visitPlan.create({ data });
   revalidatePath("/visits");
@@ -81,6 +76,12 @@ export async function updateVisitPlan(
 }
 
 export async function deleteVisitPlan(id: string) {
-  await prisma.visitPlan.delete({ where: { id } });
+  // 🔵 Remoção em cascata via código, na mesma transação
+  await prisma.$transaction(async (tx) => {
+    await tx.visitInstance.deleteMany({ where: { planId: id } });
+    await tx.visitPlan.delete({ where: { id } });
+  });
+
+  // Revalida a listagem do dashboard
   revalidatePath("/visits");
 }

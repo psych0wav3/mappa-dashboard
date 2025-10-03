@@ -3,6 +3,7 @@
 
 import * as React from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { createClientBrowser } from "@/lib/supabase/client";
@@ -21,6 +22,15 @@ export default function LoginPage() {
   const [senha, setSenha] = React.useState("");
   const [showPass, setShowPass] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
+
+  // 👇 Se o link de recuperação cair no /login, enviamos para /reset-password mantendo o hash
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const { hash } = window.location; // ex.: #access_token=...&type=recovery
+    if (hash && hash.includes("type=recovery")) {
+      router.replace(`/reset-password${hash}`);
+    }
+  }, [router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -135,9 +145,12 @@ export default function LoginPage() {
                 )}
               </Button>
 
-              <p className="text-xs text-neutral-500 text-center">
-                Problemas para entrar? Contate o administrador.
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-neutral-500">Problemas para entrar?</p>
+                <Link href="/forgot-password" className="text-xs underline">
+                  Esqueci minha senha
+                </Link>
+              </div>
             </form>
           </CardContent>
         </Card>

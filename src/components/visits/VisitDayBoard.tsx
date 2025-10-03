@@ -2,8 +2,12 @@
 "use client";
 
 import * as React from "react";
-import { Button } from "@/components/ui/button";
+import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Eye, Pencil, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+
+import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,10 +19,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useTransition } from "react";
-import { toast } from "sonner";
-import { deleteVisitPlan } from "@/app/visits/actions";
+
 import VisitPlanForm from "./VisitPlanForm";
+import { deleteVisitPlan } from "@/app/visits/actions";
 
 function windowLabel(s: number, e: number) {
   return `${String(s).padStart(2, "0")}:00–${String(e).padStart(2, "0")}:00`;
@@ -36,11 +39,12 @@ export default function VisitDayBoard({
     id: string;
     firstName: string;
     lastName: string;
-    street?: string;
-    number?: string;
+    street?: string | null; // <- aceita null
+    number?: string | null; // <- aceita null
   }[];
   selectedTechId?: string;
 }) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   const grouped = selectedTechId
@@ -58,7 +62,7 @@ export default function VisitDayBoard({
   return (
     <div className="space-y-6">
       {Object.entries(grouped).map(([techId, items]) => {
-        const t = items[0]?.technician;
+        const t = (items as any)[0]?.technician;
         return (
           <div key={techId} className="space-y-2">
             <div className="text-sm font-semibold text-neutral-700">
@@ -66,7 +70,7 @@ export default function VisitDayBoard({
             </div>
 
             <div className="grid gap-3">
-              {items.map((p: any) => (
+              {(items as any[]).map((p) => (
                 <div
                   key={p.id}
                   className="rounded-lg border p-4 flex items-start justify-between"
@@ -80,7 +84,8 @@ export default function VisitDayBoard({
                       {p.client.number ? `, ${p.client.number}` : ""}
                     </div>
                     <div className="mt-1 text-sm">
-                      Janela: <strong>{windowLabel(p.windowStart, p.windowEnd)}</strong>
+                      Janela:{" "}
+                      <strong>{windowLabel(p.windowStart, p.windowEnd)}</strong>
                     </div>
                   </div>
 
@@ -134,7 +139,7 @@ export default function VisitDayBoard({
                         <AlertDialogHeader>
                           <AlertDialogTitle>Excluir visita</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Excluir a visita de{" "}
+                            Excluir o plano de visita de{" "}
                             <strong>
                               {p.client.firstName} {p.client.lastName}
                             </strong>
@@ -143,9 +148,23 @@ export default function VisitDayBoard({
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          {/* 🔵 Botão Confirmar azul */}
-                          <AlertDialogAction className="bg-blue-600 hover:bg-blue-700 text-white">
-                            Confirmar
+                          <AlertDialogAction
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            onClick={() =>
+                              startTransition(async () => {
+                                try {
+                                  await deleteVisitPlan(p.id);
+                                  toast.success("Visita excluída.");
+                                  router.refresh();
+                                } catch (e: any) {
+                                  toast.error(
+                                    e?.message ?? "Falha ao excluir a visita."
+                                  );
+                                }
+                              })
+                            }
+                          >
+                            {pending ? "Excluindo..." : "Confirmar"}
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>

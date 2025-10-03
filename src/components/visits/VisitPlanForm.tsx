@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { z } from "zod";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,13 +27,13 @@ import { createVisitPlan, updateVisitPlan } from "@/app/visits/actions";
 import { useTransition } from "react";
 import { toast } from "sonner";
 
-// schema
+/** Schema alinhado com useForm<Values> (sem coerce) */
 const schema = z.object({
   technicianId: z.string().min(1, "Selecione o técnico"),
   clientId: z.string().min(1, "Selecione o cliente"),
   weekdays: z.array(z.number()).min(1, "Escolha ao menos um dia"),
-  windowStart: z.coerce.number().min(6).max(18),
-  windowEnd: z.coerce.number().min(7).max(19),
+  windowStart: z.number().min(6).max(18),
+  windowEnd: z.number().min(7).max(19),
   notes: z.string().optional().or(z.literal("")),
 });
 
@@ -65,15 +65,18 @@ export default function VisitPlanForm({
     id: string;
     firstName: string;
     lastName: string;
-    street?: string;
-    number?: string;
+    street?: string | null;
+    number?: string | null;
   }[];
 }) {
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = useTransition();
 
+  /** ✅ Tipamos explicitamente o resolver para o RHF do seu projeto */
+  const resolver = zodResolver(schema) as unknown as Resolver<Values, any>;
+
   const form = useForm<Values>({
-    resolver: zodResolver(schema),
+    resolver,
     defaultValues: {
       technicianId: defaultValues?.technicianId ?? "",
       clientId: defaultValues?.clientId ?? "",
@@ -85,12 +88,6 @@ export default function VisitPlanForm({
     mode: "onSubmit",
     reValidateMode: "onSubmit",
   });
-
-  const preventClose = (e: Event) => e.preventDefault();
-  const handleCancel = () => {
-    form.reset();
-    setOpen(false);
-  };
 
   // ===== Autocomplete =====
   const [techQuery, setTechQuery] = React.useState("");
@@ -154,21 +151,16 @@ export default function VisitPlanForm({
         )}
       </DialogTrigger>
 
-      <DialogContent
-        className="max-w-2xl"
-        onInteractOutside={preventClose}
-        onEscapeKeyDown={preventClose}
-      >
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{id ? "Editar visita" : "Nova visita"}</DialogTitle>
         </DialogHeader>
 
-        <Form {...form}>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
+        <Form {...(form as any)}>
+          <form className="space-y-4" onSubmit={(form.handleSubmit as any)(onSubmit as any)}>
             {/* Técnico */}
             <FormField
               name="technicianId"
-              control={form.control}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Técnico</FormLabel>
@@ -176,7 +168,7 @@ export default function VisitPlanForm({
                     <div className="relative">
                       <Input
                         placeholder="Digite o nome do técnico"
-                        value={techOpen ? techQuery : selectedTechName}
+                        value={techOpen ? techQuery : (selectedTechName ?? "")}
                         onChange={(e) => {
                           setTechQuery(e.target.value);
                           setTechOpen(true);
@@ -221,7 +213,6 @@ export default function VisitPlanForm({
             {/* Cliente */}
             <FormField
               name="clientId"
-              control={form.control}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Cliente</FormLabel>
@@ -229,7 +220,7 @@ export default function VisitPlanForm({
                     <div className="relative">
                       <Input
                         placeholder="Digite o nome do cliente"
-                        value={cliOpen ? cliQuery : selectedClientName}
+                        value={cliOpen ? cliQuery : (selectedClientName ?? "")}
                         onChange={(e) => {
                           setCliQuery(e.target.value);
                           setCliOpen(true);
@@ -274,7 +265,6 @@ export default function VisitPlanForm({
             {/* Dias da semana */}
             <FormField
               name="weekdays"
-              control={form.control}
               render={() => (
                 <FormItem>
                   <FormLabel>Dias de visita</FormLabel>
@@ -306,7 +296,6 @@ export default function VisitPlanForm({
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 name="windowStart"
-                control={form.control}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Início</FormLabel>
@@ -329,7 +318,6 @@ export default function VisitPlanForm({
               />
               <FormField
                 name="windowEnd"
-                control={form.control}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Fim</FormLabel>
@@ -355,7 +343,6 @@ export default function VisitPlanForm({
             {/* Notas */}
             <FormField
               name="notes"
-              control={form.control}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Informações úteis</FormLabel>
@@ -368,10 +355,9 @@ export default function VisitPlanForm({
             />
 
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={handleCancel}>
+              <Button type="button" variant="outline" onClick={() => { form.reset(); setOpen(false); }}>
                 Cancelar
               </Button>
-              {/* 🔵 Botão Criar/Salvar azul */}
               <Button
                 type="submit"
                 disabled={pending}
