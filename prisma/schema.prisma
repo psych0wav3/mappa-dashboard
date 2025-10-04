@@ -9,6 +9,11 @@ generator client {
   provider = "prisma-client-js"
 }
 
+/**
+ * =========================
+ * Core: Clients / Techs / Visits
+ * =========================
+ */
 model Client {
   id                String  @id @default(cuid())
   firstName         String
@@ -37,25 +42,26 @@ model Client {
   updatedAt DateTime @updatedAt
 }
 
-model Technician {
-  id        String  @id @default(uuid())
-  userId    String? @unique @db.Uuid
-  firstName String  @map("first_name")
-  lastName  String  @map("last_name")
-  email     String  @unique
-  phone     String? @map("phone")
-  cpf       String? @unique
-  street    String? @map("street")
-  number    String? @map("number")
-  district  String? @map("district")
-  city      String? @map("city")
-  uf        String? @map("uf")
-  cep       String? @map("cep")
-  active    Boolean @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+enum TechnicianRole {
+  OWNER
+  TECH
+}
 
-  phoneDigits String? @map("phone_digits")  // <- importante
+model Technician {
+  id           String          @id @default(uuid())
+  userId       String?         @unique @db.Uuid
+  firstName    String          @map("first_name")
+  lastName     String          @map("last_name")
+  email        String          @unique
+  phone        String?         @map("phone")
+  cpf          String?         @unique
+  active       Boolean         @default(true)
+  role         TechnicianRole  @default(TECH)
+
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt      @map("updated_at")
+
+  phoneDigits  String?         @map("phone_digits")
 
   visits         Visit[]
   visitPlans     VisitPlan[]     @relation("TechnicianToVisitPlan")
@@ -64,7 +70,6 @@ model Technician {
   @@index([phone])
   @@index([phoneDigits])
 }
-
 
 model Visit {
   id     String   @id @default(uuid())
@@ -110,7 +115,7 @@ model VisitInstance {
   status    String   @default("planned")
   notes     String?
 
-  // 🔵 Importante: CASCADE ao apagar o VisitPlan
+  // CASCADE ao apagar o VisitPlan
   planId String?
   plan   VisitPlan? @relation(fields: [planId], references: [id], onDelete: Cascade)
 
@@ -124,5 +129,90 @@ model VisitInstance {
   updatedAt DateTime @updatedAt
 
   @@index([date, technicianId])
-  @@index([planId]) // 🔵 acelera deleteMany/joins por planId
+  @@index([planId])
+}
+
+/**
+ * =========================
+ * Rotas (Templates & Ocorrências)
+ * =========================
+ */
+enum ServiceFrequency {
+  ONCE
+  WEEKLY
+  BIWEEKLY_A
+  BIWEEKLY_B
+  MONTHLY_DAY
+  MONTHLY_NTHWEEK
+}
+
+enum EndCondition {
+  NO_END
+  AFTER_OCCURRENCES
+  END_DATE
+}
+
+model RouteTemplate {
+  id           String           @id @default(cuid())
+  workspaceId  String
+  technicianId String
+  weekday      Int // 1..7
+  frequency    ServiceFrequency
+  startDate    DateTime
+  endCondition EndCondition
+  endAfter     Int?
+  endDate      DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  stops       RouteStopTemplate[] @relation("TemplateStops")
+  occurrences RouteOccurrence[]
+}
+
+model RouteStopTemplate {
+  id          String    @id @default(cuid())
+  templateId  String
+  order       Int
+  clientId    String
+  durationMin Int       @default(30)
+  windowStart DateTime?
+  windowEnd   DateTime?
+  note        String?
+  clientLat   Float?
+  clientLng   Float?
+  addressLine String?
+
+  template RouteTemplate @relation("TemplateStops", fields: [templateId], references: [id])
+
+  @@index([templateId, order])
+}
+
+model RouteOccurrence {
+  id          String    @id @default(cuid())
+  templateId  String
+  date        DateTime
+  optimizedAt DateTime?
+  distanceKm  Float?
+  durationMin Int?
+
+  template RouteTemplate @relation(fields: [templateId], references: [id])
+
+  stops RouteStopOccurrence[]
+
+  @@index([templateId, date])
+}
+
+model RouteStopOccurrence {
+  id             String    @id @default(cuid())
+  occurrenceId   String
+  order          Int
+  clientId       String
+  eta            DateTime?
+  etd            DateTime?
+  travelMinPrev  Int?
+  distanceKmPrev Float?
+
+  occurrence RouteOccurrence @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+
+  @@index([occurrenceId, order])
 }

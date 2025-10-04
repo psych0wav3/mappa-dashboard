@@ -65,7 +65,7 @@ export default function LoginPage() {
             <div className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center ring-1 ring-white/20">
               <span className="font-bold">P</span>
             </div>
-            <div className="text-xl font-semibold tracking-tight">PiscinApp</div>
+            <div className="text-xl font-semibold tracking-tight">Aqua Check</div>
           </div>
 
           <div className="space-y-4">

@@ -3,7 +3,7 @@ import "./globals.css";
 import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
-  title: "PiscinApp Dashboard",
+  title: "Aqua Check Dashboard",
   description: "Gestão de rotas e visitas",
 };
 

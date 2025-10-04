@@ -1,4 +1,3 @@
-// src/components/technicians/TechnicianForm.tsx
 "use client";
 
 import * as React from "react";
@@ -6,7 +5,11 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTransition } from "react";
-import { createTechnician, updateTechnician } from "@/app/technicians/actions";
+import {
+  createTechnician,
+  updateTechnician,
+  toggleTechnicianActive,
+} from "@/app/technicians/actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,63 +30,50 @@ import { Input } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/MaskedInput";
 import { toast } from "sonner";
 
-// ------------------ SCHEMA ------------------
 const schema = z.object({
   firstName: z.string().min(2, "Informe o primeiro nome"),
   lastName: z.string().min(2, "Informe o sobrenome"),
   email: z.string().email("Informe um email válido"),
-  phone: z
-    .string()
-    .regex(/^\(\d{2}\) \d{5}-\d{4}$/, "Telefone inválido")
-    .optional(),
-  cpf: z
-    .string()
-    .regex(/^\d{3}\.\d{3}\.\d{3}-\d{2}$/, "CPF inválido")
-    .optional(),
-  street: z.string().optional(),
-  number: z.string().optional(),
-  district: z.string().optional(),
-  city: z.string().optional(),
-  uf: z.string().length(2, "UF inválida").optional(),
-  cep: z.string().regex(/^\d{5}-\d{3}$/, "CEP inválido").optional(),
+  phone: z.string().optional().or(z.literal("")),
+  cpf: z.string().optional().or(z.literal("")),
+  role: z.enum(["OWNER", "TECH"]).default("TECH"),
 });
 
-type TechnicianFormValues = z.infer<typeof schema>;
+type TechnicianFormInput = z.input<typeof schema>;
+type TechnicianFormOutput = z.output<typeof schema>;
 
-// ------------------ COMPONENT ------------------
 export default function TechnicianForm({
   defaultValues,
   trigger = "Novo técnico",
   id,
 }: {
   id?: string;
-  defaultValues?: Partial<TechnicianFormValues>;
-  /** string (rótulo) ou ReactNode (ex.: <Button/>) */
+  defaultValues?: Partial<TechnicianFormInput & { active?: boolean }>;
   trigger?: React.ReactNode;
 }) {
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = useTransition();
 
-  const form = useForm<TechnicianFormValues>({
+  const form = useForm<TechnicianFormInput>({
     resolver: zodResolver(schema),
     defaultValues: {
       firstName: defaultValues?.firstName ?? "",
-      lastName: defaultValues?.lastName ?? "",
-      email: defaultValues?.email ?? "",
-      phone: defaultValues?.phone ?? "",
-      cpf: defaultValues?.cpf ?? "",
-      street: defaultValues?.street ?? "",
-      number: defaultValues?.number ?? "",
-      district: defaultValues?.district ?? "",
-      city: defaultValues?.city ?? "",
-      uf: defaultValues?.uf ?? "",
-      cep: defaultValues?.cep ?? "",
+      lastName:  defaultValues?.lastName  ?? "",
+      email:     defaultValues?.email     ?? "",
+      phone:     defaultValues?.phone     ?? "",
+      cpf:       defaultValues?.cpf       ?? "",
+      role:      (defaultValues?.role as "OWNER" | "TECH") ?? "TECH",
     },
   });
 
-  const onSubmit = (values: TechnicianFormValues) => {
+  const isEditing = Boolean(id);
+  const isActive  = defaultValues?.active !== false;
+
+  const onSubmit = (rawValues: TechnicianFormInput) =>
     startTransition(async () => {
       try {
+        const values: TechnicianFormOutput = schema.parse(rawValues);
+
         if (id) {
           await updateTechnician(id, values);
           toast.success("Técnico atualizado");
@@ -93,44 +83,53 @@ export default function TechnicianForm({
         }
         setOpen(false);
       } catch (e: any) {
-        toast.error(e.message || "Erro ao salvar técnico");
+        toast.error(e?.message || "Erro ao salvar técnico");
       }
     });
-  };
 
   const handleCancel = () => {
     form.reset();
     setOpen(false);
   };
 
+  const toggleActive = () =>
+    id &&
+    startTransition(async () => {
+      try {
+        await toggleTechnicianActive(id, !isActive);
+        toast.success(isActive ? "Técnico inativado" : "Técnico ativado");
+        setOpen(false);
+      } catch (e: any) {
+        toast.error(e?.message || "Falha ao alterar status");
+      }
+    });
+
+  const remove = () => {
+    toast.message("Excluir: abrir confirmação aqui.");
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        {typeof trigger === "string" ? (
-          <Button>{trigger}</Button>
-        ) : (
-          (trigger as React.ReactElement)
-        )}
+        {typeof trigger === "string" ? <Button>{trigger}</Button> : (trigger as React.ReactElement)}
       </DialogTrigger>
 
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>{id ? "Editar técnico" : "Novo técnico"}</DialogTitle>
+          <DialogTitle>{isEditing ? "Editar técnico" : "Novo técnico"}</DialogTitle>
         </DialogHeader>
 
+        {/* Agora Form aceita generics corretamente */}
         <Form {...form}>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
-            {/* Nome + Sobrenome */}
-            <div className="grid grid-cols-2 gap-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField
                 name="firstName"
                 control={form.control}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Nome</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
+                    <FormControl><Input {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -141,41 +140,33 @@ export default function TechnicianForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Sobrenome</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
+                    <FormControl><Input {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
 
-            {/* Email */}
             <FormField
               name="email"
               control={form.control}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input type="email" {...field} />
-                  </FormControl>
+                  <FormControl><Input type="email" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            {/* Telefone + CPF */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField
                 name="phone"
                 control={form.control}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Telefone</FormLabel>
-                    <FormControl>
-                      <MaskedInput mask="(99) 99999-9999" {...field} />
-                    </FormControl>
+                    <FormControl><MaskedInput mask="(99) 99999-9999" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -186,118 +177,81 @@ export default function TechnicianForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>CPF</FormLabel>
-                    <FormControl>
-                      <MaskedInput mask="999.999.999-99" {...field} />
-                    </FormControl>
+                    <FormControl><MaskedInput mask="999.999.999-99" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
 
-            {/* Endereço */}
             <FormField
-              name="street"
+              name="role"
               control={form.control}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Rua</FormLabel>
+                  <FormLabel>Cargo</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <select
+                      className="h-10 w-full rounded-md border border-neutral-300 px-2 text-sm"
+                      value={field.value}
+                      onChange={(e) => field.onChange(e.target.value)}
+                    >
+                      <option value="TECH">Técnico</option>
+                      <option value="OWNER">Administrador</option>
+                    </select>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                name="number"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Número</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                name="district"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Bairro</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <div className="rounded-md border bg-neutral-50 p-3 text-sm leading-relaxed">
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <div className="font-medium">Administrador</div>
+                  <p className="text-neutral-600">
+                    Acesso total ao sistema: pode ver e editar rotas, clientes, técnicos e configurações.
+                  </p>
+                </div>
+                <div>
+                  <div className="font-medium">Técnico</div>
+                  <p className="text-neutral-600">
+                    Vê apenas sua própria rota e registra serviços no app.
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
-              <FormField
-                name="city"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Cidade</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                name="uf"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>UF</FormLabel>
-                    <FormControl>
-                      <Input maxLength={2} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                name="cep"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>CEP</FormLabel>
-                    <FormControl>
-                      <MaskedInput mask="99999-999" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+            <div className="flex items-center justify-between">
+              {isEditing ? (
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={isActive ? "border-orange-500 text-orange-600" : "border-green-600 text-green-700"}
+                    disabled={pending}
+                    onClick={toggleActive}
+                  >
+                    {isActive ? "Inativar" : "Ativar"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-red-500 text-red-600"
+                    disabled={pending}
+                    onClick={remove}
+                  >
+                    Excluir
+                  </Button>
+                </div>
+              ) : <span />}
 
-            {/* Botões */}
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleCancel}
-              >
-                Cancelar
-              </Button>
-              {/* 🔵 Deixa o SALVAR/Abrir azul */}
-              <Button
-                type="submit"
-                disabled={pending}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                {id ? "Salvar" : "Criar"}
-              </Button>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={handleCancel}>Cancelar</Button>
+                <Button type="submit" disabled={pending} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  {isEditing ? "Salvar" : "Criar"}
+                </Button>
+              </div>
             </div>
           </form>
         </Form>

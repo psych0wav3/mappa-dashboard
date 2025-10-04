@@ -21,3 +21,6 @@ export const prisma =
 
 // Mantém uma instância única em dev
 if (process.env.NODE_ENV !== "production") global.prisma = prisma;
+
+
+//pnpm add @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities
