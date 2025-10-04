@@ -1,4 +1,3 @@
-// prisma/schema.prisma
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL") // pooler 6543
@@ -16,30 +15,54 @@ generator client {
  */
 model Client {
   id                String  @id @default(cuid())
+
+  // Pessoa
   firstName         String
   lastName          String
   email             String  @unique
   phone             String? @unique
   cpf               String? @unique
+
+  // Empresa (opcional)
+  companyName       String?
+  cnpj              String? @unique
+
+  // Endereço de cobrança (billing)
   street            String?
   number            String?
   district          String?
   city              String?
   uf                String?
   cep               String?
+
+  // Informações úteis
+  notes             String?
+
+  // Localização da piscina
+  poolStreet        String?
+  poolNumber        String?
+  poolDistrict      String?
+  poolCity          String?
+  poolUf            String?
+  poolCep           String?
+
+  // (legado – mantidos, mas você pode remover depois)
   poolSize          String?
   cleaningFrequency Int?
   cleaningWindow    String?
   payDay            Int?
-  notes             String?
+
   active            Boolean @default(true)
 
-  visits         Visit[]
-  visitPlans     VisitPlan[]     @relation("ClientToVisitPlan")
-  visitInstances VisitInstance[]
+  visits            Visit[]
+  visitPlans        VisitPlan[]     @relation("ClientToVisitPlan")
+  visitInstances    VisitInstance[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([city])
+  @@index([poolCity])
 }
 
 enum TechnicianRole {
