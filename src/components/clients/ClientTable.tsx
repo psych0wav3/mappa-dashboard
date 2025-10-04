@@ -90,7 +90,6 @@ export default function ClientTable({ initialData }: { initialData: Client[] }) 
 
   return (
     <div className="space-y-3">
-      {/* Toolbar igual à de Técnicos */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-center">
         {/* Tabs à esquerda */}
         <div className="flex gap-2">

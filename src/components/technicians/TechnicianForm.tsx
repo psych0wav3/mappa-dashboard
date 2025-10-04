@@ -1,5 +1,3 @@
-// src/components/technicians/TechnicianForm.tsx
-// (sem mudanças estruturais além de aceitar defaultValues com phone/cpf undefined e manter os botões padrões)
 "use client";
 
 import * as React from "react";
@@ -26,7 +24,22 @@ import { Input } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/MaskedInput";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { createTechnician, updateTechnician, deleteTechnician } from "@/app/technicians/actions";
+import {
+  createTechnician,
+  updateTechnician,
+  deleteTechnician,
+} from "@/app/technicians/actions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const schema = z.object({
   firstName: z.string().min(2, "Informe o nome"),
@@ -38,7 +51,7 @@ const schema = z.object({
   active: z.boolean().optional(),
 });
 
-type Values = z.input<typeof schema>
+type Values = z.input<typeof schema>;
 
 export default function TechnicianForm({
   id,
@@ -66,6 +79,7 @@ export default function TechnicianForm({
   });
 
   const isEditing = Boolean(id);
+  const isActive = form.watch("active") ?? true;
 
   const onSubmit = (values: Values) =>
     startTransition(async () => {
@@ -87,6 +101,19 @@ export default function TechnicianForm({
     form.reset();
     setOpen(false);
   };
+
+  const handleToggleActive = () =>
+    startTransition(async () => {
+      if (!id) return;
+      try {
+        const next = !isActive;
+        await updateTechnician(id, { active: next });
+        form.setValue("active", next);
+        toast.success(next ? "Técnico ativado" : "Técnico inativado");
+      } catch (e: any) {
+        toast.error(e?.message || "Não foi possível alterar o status");
+      }
+    });
 
   const handleDelete = () =>
     startTransition(async () => {
@@ -179,28 +206,71 @@ export default function TechnicianForm({
               />
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2">
-              {isEditing && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="border-red-500 text-red-600"
-                  onClick={handleDelete}
-                  disabled={pending}
-                >
-                  Excluir
-                </Button>
+            {/* Ações */}
+            <div className="flex items-center justify-between gap-2 pt-2">
+              {isEditing ? (
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleToggleActive}
+                    disabled={pending}
+                    className={
+                      isActive
+                        ? "border-neutral-400 text-neutral-700"
+                        : "border-green-600 text-green-700"
+                    }
+                  >
+                    {isActive ? "Inativar" : "Ativar"}
+                  </Button>
+
+                  {/* Confirmação de exclusão */}
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-red-500 text-red-600"
+                        disabled={pending}
+                      >
+                        Excluir
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Deseja excluir este técnico? Esta ação não pode ser desfeita.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                          onClick={handleDelete}
+                        >
+                          Confirmar
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              ) : (
+                <span />
               )}
-              <Button type="button" variant="outline" onClick={handleCancel}>
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={pending}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                {isEditing ? "Salvar" : "Criar"}
-              </Button>
+
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" onClick={handleCancel}>
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={pending}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {isEditing ? "Salvar" : "Criar"}
+                </Button>
+              </div>
             </div>
           </form>
         </Form>

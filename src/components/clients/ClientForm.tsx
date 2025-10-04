@@ -1,3 +1,4 @@
+// src/components/clients/ClientForm.tsx
 "use client";
 
 import * as React from "react";
@@ -148,6 +149,7 @@ export default function ClientForm({
 
   const isEditing = Boolean(id);
   const hasCompany = form.watch("hasCompany");
+  const isActive = form.watch("active") ?? true;
 
   const copyBillingToPool = () => {
     const v = form.getValues();
@@ -225,6 +227,19 @@ export default function ClientForm({
         setOpen(false);
       } catch (e: any) {
         toast.error(e?.message || "Erro ao remover cliente");
+      }
+    });
+
+  const handleToggleActive = () =>
+    startTransition(async () => {
+      if (!id) return;
+      try {
+        const next = !isActive;
+        await updateClient(id, { active: next });
+        form.setValue("active", next);
+        toast.success(next ? "Cliente ativado" : "Cliente inativado");
+      } catch (e: any) {
+        toast.error(e?.message || "Não foi possível alterar o status");
       }
     });
 
@@ -463,7 +478,6 @@ export default function ClientForm({
                   </div>
                 </section>
 
-
                 {/* Informações úteis */}
                 <SectionTitle>INFORMAÇÕES ÚTEIS</SectionTitle>
                 <FormField
@@ -594,37 +608,49 @@ export default function ClientForm({
           {/* Footer fixo: sempre visível */}
           <div className="sticky bottom-0 z-20 border-t bg-white px-4 py-3 sm:px-6">
             <div className="flex items-center justify-between gap-3">
-              {/* Excluir apenas no modo edição */}
+              {/* Excluir + Ativar/Inativar apenas no modo edição */}
               {isEditing ? (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="border-red-500 text-red-600"
-                      disabled={pending}
-                    >
-                      Excluir cliente
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Deseja excluir este cliente? Esta ação não pode ser desfeita.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                      <AlertDialogAction
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
-                        onClick={handleDelete}
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleToggleActive}
+                    disabled={pending}
+                    className="border-neutral-400 text-neutral-700"
+                  >
+                    {isActive ? "Inativar" : "Ativar"}
+                  </Button>
+
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-red-500 text-red-600"
+                        disabled={pending}
                       >
-                        Confirmar
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                        Excluir cliente
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Deseja excluir este cliente? Esta ação não pode ser desfeita.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                          onClick={handleDelete}
+                        >
+                          Confirmar
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
               ) : (
                 <span />
               )}

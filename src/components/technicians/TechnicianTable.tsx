@@ -1,11 +1,11 @@
-// src/components/technicians/TechnicianTable.tsx
 "use client";
 
 import * as React from "react";
 import { useMemo, useState } from "react";
 import TechnicianForm from "./TechnicianForm";
 import { Button } from "@/components/ui/button";
-import { Search } from "lucide-react";
+import { Search, Pencil } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 type Tech = {
   id: string;
@@ -22,12 +22,19 @@ export default function TechnicianTable({ initialData }: { initialData: Tech[] }
   const [tab, setTab] = useState<"active" | "inactive">("active");
   const [q, setQ] = useState("");
 
+  const counts = useMemo(() => {
+    const act = initialData.filter(t => t.active).length;
+    const ina = initialData.length - act;
+    return { act, ina };
+  }, [initialData]);
+
   const data = useMemo(() => {
-    const base = initialData.filter((t) => (tab === "active" ? t.active : !t.active));
-    if (!q.trim()) return base;
-    const k = q.toLowerCase();
-    return base.filter((t) =>
-      [t.firstName, t.lastName, t.email, t.phone ?? "", t.cpf ?? ""]
+    const base = initialData.filter(t => (tab === "active" ? t.active : !t.active));
+    const k = q.trim().toLowerCase();
+    if (!k) return base;
+    const f = (s?: string | null) => (s ?? "").toLowerCase();
+    return base.filter(t =>
+      [t.firstName, t.lastName, t.email, f(t.phone || ""), f(t.cpf || "")]
         .join(" ")
         .toLowerCase()
         .includes(k)
@@ -42,48 +49,35 @@ export default function TechnicianTable({ initialData }: { initialData: Tech[] }
     }`;
 
   return (
-    <div className="space-y-4">
-      {/* Toolbar – tabs à esquerda, busca + botão à direita (igual Clientes) */}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-center">
-        {/* Tabs */}
+    <div className="space-y-3">
+      {/* Top bar – igual ao Clientes */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setTab("active")}
-            className={tabBtn(tab === "active")}
-          >
-            Ativos ({initialData.filter((t) => t.active).length})
+          <button onClick={() => setTab("active")} className={tabBtn(tab === "active")}>
+            Ativos ({counts.act})
           </button>
-          <button
-            type="button"
-            onClick={() => setTab("inactive")}
-            className={tabBtn(tab === "inactive")}
-          >
-            Inativos ({initialData.filter((t) => !t.active).length})
+          <button onClick={() => setTab("inactive")} className={tabBtn(tab === "inactive")}>
+            Inativos ({counts.ina})
           </button>
         </div>
 
-        {/* Busca + Novo técnico (alinhados à direita) */}
-        <div className="flex w-full items-center justify-end gap-2">
-          <div className="relative w-full max-w-[420px]">
+        <div className="flex items-center gap-2">
+          <div className="relative w-[260px] sm:w-[320px]">
             <Search
               size={16}
               className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
             />
-            <input
+            <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Buscar por nome, email, telefone…"
-              className="h-9 w-full rounded-md border border-neutral-300 bg-white pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-200"
+              className="pl-9"
             />
           </div>
 
           <TechnicianForm
             trigger={
-              <Button
-                size="sm"
-                className="h-9 rounded-md bg-blue-600 hover:bg-blue-700 text-white"
-              >
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
                 Novo técnico
               </Button>
             }
@@ -107,9 +101,7 @@ export default function TechnicianTable({ initialData }: { initialData: Tech[] }
           <tbody>
             {data.map((t) => (
               <tr key={t.id} className="border-t">
-                <td className="p-3">
-                  {t.firstName} {t.lastName}
-                </td>
+                <td className="p-3">{t.firstName} {t.lastName}</td>
                 <td className="p-3">{t.email}</td>
                 <td className="p-3">{t.phone ?? "—"}</td>
                 <td className="p-3">{t.cpf ?? "—"}</td>
@@ -122,25 +114,16 @@ export default function TechnicianTable({ initialData }: { initialData: Tech[] }
                   <div className="flex justify-end">
                     <TechnicianForm
                       id={t.id}
-                      defaultValues={{
-                        // garante que não passamos null para campos opcionais
-                        firstName: t.firstName,
-                        lastName: t.lastName,
-                        email: t.email,
-                        role: t.role,
-                        phone: t.phone ?? undefined,
-                        cpf: t.cpf ?? undefined,
-                        active: t.active,
-                      }}
+                      defaultValues={t as any}
                       trigger={
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-9 w-9 rounded-md p-0 bg-orange-500 hover:bg-orange-600 text-white"
+                          className="h-9 w-9 p-0 bg-orange-500 hover:bg-orange-600 text-white"
                           title="Editar"
                           aria-label="Editar técnico"
                         >
-                          ✎
+                          <Pencil size={16} />
                         </Button>
                       }
                     />
