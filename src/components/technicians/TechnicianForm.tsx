@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { z } from "zod";
-import { useForm } from "react-hook-form";
+import { useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,13 +45,14 @@ const schema = z.object({
   firstName: z.string().min(2, "Informe o nome"),
   lastName: z.string().min(2, "Informe o sobrenome"),
   email: z.string().email("Email inválido"),
-  role: z.enum(["OWNER", "TECH"]),
+  role: z.enum(["OWNER", "TECH"]).default("TECH"),
   phone: z.string().optional(),
   cpf: z.string().optional(),
   active: z.boolean().optional(),
 });
 
-type Values = z.input<typeof schema>;
+// ⬅️ use o OUTPUT do schema
+type Values = z.infer<typeof schema>;
 
 export default function TechnicianForm({
   id,
@@ -66,7 +67,8 @@ export default function TechnicianForm({
   const [pending, startTransition] = useTransition();
 
   const form = useForm<Values>({
-    resolver: zodResolver(schema),
+    // ⬅️ tipar o resolver com <Values, any, Values>
+    resolver: zodResolver<Values, any, Values>(schema),
     defaultValues: {
       firstName: defaultValues?.firstName ?? "",
       lastName: defaultValues?.lastName ?? "",
@@ -81,7 +83,7 @@ export default function TechnicianForm({
   const isEditing = Boolean(id);
   const isActive = form.watch("active") ?? true;
 
-  const onSubmit = (values: Values) =>
+  const onSubmit: SubmitHandler<Values> = (values: Values) =>
     startTransition(async () => {
       try {
         if (id) {
@@ -131,7 +133,9 @@ export default function TechnicianForm({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {typeof trigger === "string" ? (
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white">{trigger}</Button>
+          <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+            {trigger}
+          </Button>
         ) : (
           (trigger as React.ReactElement)
         )}
@@ -142,7 +146,8 @@ export default function TechnicianForm({
           <DialogTitle>{isEditing ? "Editar técnico" : "Novo técnico"}</DialogTitle>
         </DialogHeader>
 
-        <Form {...form}>
+        {/* ⬅️ usar o genérico ajuda o TS a casar tudo */}
+        <Form<Values> {...form}>
           <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField
@@ -206,25 +211,45 @@ export default function TechnicianForm({
               />
             </div>
 
-            {/* Ações */}
+            <FormField
+              name="role"
+              control={form.control}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Cargo</FormLabel>
+                  <FormControl>
+                    <select
+                      className="h-9 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm"
+                      value={field.value}
+                      onChange={(e) => field.onChange(e.target.value as Values["role"])}
+                    >
+                      <option value="TECH">Técnico</option>
+                      <option value="OWNER">Administrador</option>
+                    </select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3 text-xs leading-5 text-neutral-700">
+              <div><span className="font-medium">Administrador:</span> acesso total ao sistema.</div>
+              <div><span className="font-medium">Técnico:</span> acesso aos clientes/visitas atribuídos.</div>
+            </div>
+
             <div className="flex items-center justify-between gap-2 pt-2">
               {isEditing ? (
                 <div className="flex items-center gap-2">
                   <Button
                     type="button"
                     variant="outline"
+                    className="border-neutral-400 text-neutral-700"
                     onClick={handleToggleActive}
                     disabled={pending}
-                    className={
-                      isActive
-                        ? "border-neutral-400 text-neutral-700"
-                        : "border-green-600 text-green-700"
-                    }
                   >
                     {isActive ? "Inativar" : "Ativar"}
                   </Button>
 
-                  {/* Confirmação de exclusão */}
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button
@@ -250,7 +275,7 @@ export default function TechnicianForm({
                           onClick={handleDelete}
                         >
                           Confirmar
-                        </AlertDialogAction>
+                          </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
