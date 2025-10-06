@@ -1,7 +1,7 @@
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL") // pooler 6543
-  directUrl = env("DIRECT_URL")   // host direto 5432 (SSL)
+  directUrl = env("DIRECT_URL") // host direto 5432 (SSL)
 }
 
 generator client {
@@ -14,55 +14,63 @@ generator client {
  * =========================
  */
 model Client {
-  id                String  @id @default(cuid())
+  id String @id @default(cuid())
 
   // Pessoa
-  firstName         String
-  lastName          String
-  email             String  @unique
-  phone             String? @unique
-  cpf               String? @unique
+  firstName String
+  lastName  String
+  email     String  @unique
+  phone     String? @unique
+  cpf       String? @unique
 
   // Empresa (opcional)
-  companyName       String?
-  cnpj              String? @unique
+  companyName String?
+  cnpj        String? @unique
 
   // Endereço de cobrança (billing)
-  street            String?
-  number            String?
-  district          String?
-  city              String?
-  uf                String?
-  cep               String?
+  street   String?
+  number   String?
+  district String?
+  city     String?
+  uf       String?
+  cep      String?
 
   // Informações úteis
-  notes             String?
+  notes String?
 
   // Localização da piscina
-  poolStreet        String?
-  poolNumber        String?
-  poolDistrict      String?
-  poolCity          String?
-  poolUf            String?
-  poolCep           String?
+  poolStreet   String?
+  poolNumber   String?
+  poolDistrict String?
+  poolCity     String?
+  poolUf       String?
+  poolCep      String?
 
-  // (legado – mantidos, mas você pode remover depois)
+  // Coordenadas da piscina (pins no mapa)
+  poolLat Float? @db.DoublePrecision
+  poolLng Float? @db.DoublePrecision
+
+  // (legado – mantidos)
   poolSize          String?
   cleaningFrequency Int?
   cleaningWindow    String?
   payDay            Int?
 
-  active            Boolean @default(true)
+  active Boolean @default(true)
 
-  visits            Visit[]
-  visitPlans        VisitPlan[]     @relation("ClientToVisitPlan")
-  visitInstances    VisitInstance[]
+  visits         Visit[]
+  visitPlans     VisitPlan[]     @relation("ClientToVisitPlan")
+  visitInstances VisitInstance[]
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  // back-relation para itens de RoutePlan
+  routePlanItems RoutePlanItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([city])
   @@index([poolCity])
+  @@index([poolLat, poolLng])
 }
 
 enum TechnicianRole {
@@ -71,24 +79,27 @@ enum TechnicianRole {
 }
 
 model Technician {
-  id           String          @id @default(uuid())
-  userId       String?         @unique @db.Uuid
-  firstName    String          @map("first_name")
-  lastName     String          @map("last_name")
-  email        String          @unique
-  phone        String?         @map("phone")
-  cpf          String?         @unique
-  active       Boolean         @default(true)
-  role         TechnicianRole  @default(TECH)
+  id        String         @id @default(uuid())
+  userId    String?        @unique @db.Uuid
+  firstName String         @map("first_name")
+  lastName  String         @map("last_name")
+  email     String         @unique
+  phone     String?        @map("phone")
+  cpf       String?        @unique
+  active    Boolean        @default(true)
+  role      TechnicianRole @default(TECH)
 
-  createdAt    DateTime        @default(now()) @map("created_at")
-  updatedAt    DateTime        @updatedAt      @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  phoneDigits  String?         @map("phone_digits")
+  phoneDigits String? @map("phone_digits")
 
   visits         Visit[]
   visitPlans     VisitPlan[]     @relation("TechnicianToVisitPlan")
   visitInstances VisitInstance[]
+
+  // back-relation para RoutePlan
+  routePlans RoutePlan[]
 
   @@index([phone])
   @@index([phoneDigits])
@@ -238,4 +249,51 @@ model RouteStopOccurrence {
   occurrence RouteOccurrence @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
 
   @@index([occurrenceId, order])
+}
+
+/**
+ * =========================
+ * Planejamento de Rotas (novo)
+ * =========================
+ */
+enum RouteFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+model RoutePlan {
+  id           String         @id @default(cuid())
+  technicianId String
+  weekday      Int // 1=Seg ... 7=Dom
+  frequency    RouteFrequency @default(WEEKLY)
+  startsAt     DateTime?
+  endsAt       DateTime?
+  active       Boolean        @default(true)
+
+  items RoutePlanItem[]
+
+  technician Technician @relation(fields: [technicianId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([technicianId, weekday, active])
+}
+
+model RoutePlanItem {
+  id           String @id @default(cuid())
+  routePlanId  String
+  clientId     String
+  order        Int
+  startMinutes Int // 9h00 => 9*60 = 540
+  endMinutes   Int
+
+  routePlan RoutePlan @relation(fields: [routePlanId], references: [id])
+  client    Client    @relation(fields: [clientId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([routePlanId, order])
 }

@@ -87,7 +87,11 @@ export default function RightAssignmentCard({
         </div>
 
         <div className="col-span-12">
-          <Button className="w-full" variant="primary" disabled={!canAdd} onClick={handleAdd}>
+          <Button
+            type="button"
+            className="bg-blue-600 hover:bg-blue-700 text-white w-full"
+            onClick={handleAdd} // mantenha seu handler atual
+          >
             + Adicionar ao planejamento
           </Button>
         </div>

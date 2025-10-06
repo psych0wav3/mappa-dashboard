@@ -13,6 +13,7 @@ import {
   CommandInput,
   CommandEmpty,
   CommandItem,
+  CommandList, // ✅ IMPORTANTE
 } from "@/components/ui/command";
 import { Check, ChevronsUpDown, User } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,7 @@ export default function TechCombobox({
   label?: string;
 }) {
   const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState(""); // para controlar quando mostrar o Empty
 
   const items = React.useMemo(
     () =>
@@ -63,31 +65,44 @@ export default function TechCombobox({
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+
+        <PopoverContent
+          className="w-[var(--radix-popover-trigger-width)] p-0"
+          align="start"
+        >
           <Command shouldFilter>
-            <CommandInput placeholder="Digite para filtrar…" />
-            <CommandEmpty>Nenhum técnico encontrado.</CommandEmpty>
-            <CommandGroup>
-              {items.map((i) => (
-                <CommandItem
-                  key={i.id}
-                  value={i.label}
-                  onSelect={() => {
-                    onChange(i.id);
-                    setOpen(false);
-                  }}
-                  className="cursor-pointer"
-                >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      value === i.id ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                  {i.label}
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            <CommandInput
+              placeholder="Digite para filtrar…"
+              value={query}
+              onValueChange={setQuery}
+            />
+            <CommandList>
+              {/* ✅ Só mostra o Empty quando há termo digitado e nenhum resultado */}
+              {query.trim().length > 0 && (
+                <CommandEmpty>Nenhum técnico encontrado.</CommandEmpty>
+              )}
+              <CommandGroup>
+                {items.map((i) => (
+                  <CommandItem
+                    key={i.id}
+                    value={i.label}
+                    onSelect={() => {
+                      onChange(i.id);
+                      setOpen(false);
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        value === i.id ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    {i.label}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
           </Command>
         </PopoverContent>
       </Popover>
