@@ -1,4 +1,3 @@
-// src/components/routes/RouteBuilder.tsx
 "use client";
 
 import * as React from "react";
@@ -11,13 +10,8 @@ import MapCanvas from "./MapCanvas";
 import { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { toast } from "sonner";
-import {
-  saveWeeklyRoute,
-  saveAdHocRoute,
-  getWeeklyRoute, // ⬅️ novo import
-} from "@/app/routes/actions";
+import { saveWeeklyRoute, saveAdHocRoute, getWeeklyRoute } from "@/app/routes/actions";
 
-// tipos leves
 type Tech = { id: string; firstName: string; lastName: string };
 type ClientLite = {
   id: string;
@@ -41,12 +35,8 @@ type SelectedItem = {
 };
 
 function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
-  const R = 6371,
-    toRad = (x: number) => (x * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat),
-    dLng = toRad(b.lng - a.lng),
-    la1 = toRad(a.lat),
-    la2 = toRad(b.lat);
+  const R = 6371, toRad = (x: number) => (x * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng), la1 = toRad(a.lat), la2 = toRad(b.lat);
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
@@ -60,15 +50,20 @@ export default function RouteBuilder({
 }) {
   const [modo] = React.useState<"weekly" | "adhoc">("weekly");
   const [dia, setDia] = React.useState<number>(1);
-  const [dataISO, setDataISO] = React.useState<string>(() =>
-    new Date().toISOString().slice(0, 10)
-  );
+  const [dataISO, setDataISO] = React.useState<string>(() => new Date().toISOString().slice(0, 10));
   const [techId, setTechId] = React.useState<string>(technicians[0]?.id ?? "");
   const [selecionados, setSelecionados] = React.useState<SelectedItem[]>([]);
 
   const enabled = Boolean(techId) && Boolean(dia);
 
-  // ⬇️ NOVO: carrega o planejamento salvo ao trocar técnico/dia
+  // Índice {clientId -> {lat,lng}} para enriquecer itens carregados
+  const clientIndex = React.useMemo(() => {
+    const idx = new Map<string, { lat?: number | null; lng?: number | null }>();
+    clients.forEach((c) => idx.set(c.id, { lat: c.lat ?? null, lng: c.lng ?? null }));
+    return idx;
+  }, [clients]);
+
+  // Carrega planejamento salvo ao trocar técnico/dia e garante lat/lng
   React.useEffect(() => {
     let cancel = false;
     async function load() {
@@ -78,7 +73,13 @@ export default function RouteBuilder({
       }
       try {
         const items = await getWeeklyRoute({ technicianId: techId, weekday: dia });
-        if (!cancel) setSelecionados(items);
+        const withCoords = items.map((s: SelectedItem) => {
+          const c = clientIndex.get(s.id);
+          return c
+            ? { ...s, lat: s.lat ?? c.lat ?? undefined, lng: s.lng ?? c.lng ?? undefined }
+            : s;
+        });
+        if (!cancel) setSelecionados(withCoords);
       } catch (e: any) {
         console.error("Falha ao carregar planejamento:", e?.message || e);
       }
@@ -87,9 +88,9 @@ export default function RouteBuilder({
     return () => {
       cancel = true;
     };
-  }, [techId, dia]);
+  }, [techId, dia, clientIndex]);
 
-  // adicionar cliente ao painel esquerdo
+  // Adiciona cliente manualmente (painel direito)
   const addClient = (c: ClientLite) => {
     setSelecionados((cur) =>
       cur.some((s) => s.id === c.id)
@@ -127,14 +128,13 @@ export default function RouteBuilder({
     );
   };
 
-  // conflitos
+  // Conflitos de janela
   const conflitos = React.useMemo(() => {
     const list = [...selecionados].sort((a, b) => a.windowStart - b.windowStart || a.order - b.order);
     const bad: Array<{ a: string; b: string }> = [];
     for (let i = 0; i < list.length - 1; i++) {
       for (let j = i + 1; j < list.length; j++) {
-        const A = list[i],
-          B = list[j];
+        const A = list[i], B = list[j];
         if (A.windowStart < B.windowEnd && B.windowStart < A.windowEnd) bad.push({ a: A.id, b: B.id });
       }
     }
@@ -143,13 +143,11 @@ export default function RouteBuilder({
   const hasConflict = (id: string) => conflitos.some((c) => c.a === id || c.b === id);
   const existeConflito = conflitos.length > 0;
 
-  // stats
+  // Stats
   const stats = React.useMemo(() => {
     const minutos = selecionados.reduce((a, s) => a + (s.windowEnd - s.windowStart) * 60, 0);
     let km = 0;
-    const pts = selecionados.filter((s) => s.lat && s.lng) as Array<
-      Required<Pick<SelectedItem, "lat" | "lng">>
-    >;
+    const pts = selecionados.filter((s) => s.lat && s.lng) as Array<Required<Pick<SelectedItem, "lat" | "lng">>>;
     for (let i = 1; i < pts.length; i++) {
       km += haversineKm(
         { lat: pts[i - 1].lat!, lng: pts[i - 1].lng! },
@@ -159,7 +157,7 @@ export default function RouteBuilder({
     return { minutos, km };
   }, [selecionados]);
 
-  // salvar rota
+  // Salvar
   const salvar = async () => {
     try {
       if (!techId) throw new Error("Selecione o técnico.");
@@ -182,7 +180,7 @@ export default function RouteBuilder({
       } else {
         await saveAdHocRoute({
           technicianId: techId,
-          dateISO: dataISO, // ✅ usa a variável correta
+          dateISO: dataISO,
           items: selecionados.map((s, i) => ({
             clientId: s.id,
             startHour: s.windowStart,
@@ -196,6 +194,18 @@ export default function RouteBuilder({
       toast.error(e?.message || "Erro ao salvar rota");
     }
   };
+
+  const getAddress = React.useCallback(
+  (id: string) => {
+    const c = clients.find((x) => x.id === id);
+    if (!c) return undefined;
+    const street = [c.street, c.number].filter(Boolean).join(", ");
+    const cityUf = [c.city, c.uf].filter(Boolean).join(" / ");
+    const line = [street, cityUf].filter(Boolean).join(" — ");
+    return line || undefined;
+  },
+  [clients]
+);
 
   return (
     <div className="space-y-4">
@@ -223,6 +233,7 @@ export default function RouteBuilder({
             stats={stats}
             onChangeItem={updateItem}
             onRemoveItem={removeClient}
+            getAddress={getAddress}
           />
 
           <div className="flex">
@@ -250,6 +261,7 @@ export default function RouteBuilder({
             <div className="px-3 py-2 border-b">
               <Input placeholder="Buscar endereço no mapa…" className="max-w-[320px]" />
             </div>
+
             <MapCanvas
               markers={selecionados
                 .filter((s) => typeof s.lat === "number" && typeof s.lng === "number")

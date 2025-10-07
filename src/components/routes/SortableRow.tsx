@@ -21,6 +21,8 @@ export default function SortableRow({
   conflict,
   onChange,
   onRemove,
+  /** novo: endereço formatado para exibir abaixo do nome */
+  address,
 }: {
   id: string;
   label: string;
@@ -28,6 +30,8 @@ export default function SortableRow({
   conflict?: boolean;
   onChange: (patch: Partial<SelectedItem>) => void;
   onRemove: () => void;
+  /** novo: endereço exibido logo abaixo do nome */
+  address?: string;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id });
@@ -48,21 +52,33 @@ export default function SortableRow({
         {...listeners}
         className="cursor-grab select-none text-neutral-400"
         title="Arrastar"
+        aria-label="Arrastar"
       >
         ⋮⋮
       </button>
 
-      <div className="w-7 h-7 rounded bg-green-600 text-white grid place-items-center text-sm font-semibold shrink-0">
+      <div
+        className="w-7 h-7 rounded bg-green-600 text-white grid place-items-center text-sm font-semibold shrink-0"
+        aria-label={`Ordem ${String(value.order ?? 1)}`}
+      >
         {String(value.order ?? 1)}
       </div>
 
       <div className="flex-1 min-w-0">
         <div className="font-medium truncate">{label}</div>
+
+        {address && (
+          <div className="text-xs text-neutral-500 mt-0.5 truncate" title={address}>
+            {address}
+          </div>
+        )}
+
         <div className="flex items-center gap-2 mt-1">
           <select
             className="h-8 rounded border border-neutral-300 px-2 text-xs"
             value={value.windowStart}
             onChange={(e) => onChange({ windowStart: Number(e.target.value) })}
+            aria-label="Hora inicial"
           >
             {HOURS.map((h) => (
               <option key={h} value={h}>
@@ -75,6 +91,7 @@ export default function SortableRow({
             className="h-8 rounded border border-neutral-300 px-2 text-xs"
             value={value.windowEnd}
             onChange={(e) => onChange({ windowEnd: Number(e.target.value) })}
+            aria-label="Hora final"
           >
             {HOURS.map((h) => (
               <option key={h} value={h}>
@@ -83,6 +100,7 @@ export default function SortableRow({
             ))}
           </select>
         </div>
+
         {conflict && (
           <div className="text-xs text-red-600 mt-1">
             Janela sobreposta. Ajuste horários/ordem.

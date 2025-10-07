@@ -18,6 +18,8 @@ export default function RouteListCard({
   stats,
   onChangeItem,
   onRemoveItem,
+  /** 👇 novo: função que devolve o endereço formatado do cliente */
+  getAddress,
 }: {
   items: SelectedItem[];
   onDragEnd: (e: DragEndEvent) => void;
@@ -25,6 +27,7 @@ export default function RouteListCard({
   stats: { minutos: number; km: number };
   onChangeItem: (id: string, patch: Partial<SelectedItem>) => void;
   onRemoveItem: (id: string) => void;
+  getAddress: (id: string) => string | undefined;
 }) {
   return (
     <div className="rounded-md border bg-white">
@@ -51,6 +54,7 @@ export default function RouteListCard({
                 conflict={hasConflict(s.id)}
                 onChange={(patch) => onChangeItem(s.id, patch)}
                 onRemove={() => onRemoveItem(s.id)}
+                address={getAddress(s.id)}
               />
             ))}
           </SortableContext>

@@ -11,6 +11,8 @@ const CLIENT_FIELDS = new Set([
   "street", "number", "district", "city", "uf", "cep",
   "notes",
   "poolStreet", "poolNumber", "poolDistrict", "poolCity", "poolUf", "poolCep",
+  // ✅ coordenadas da piscina (usadas no planner / mapa)
+  "poolLat", "poolLng",
   // legados (mantidos)
   "poolSize", "cleaningFrequency", "cleaningWindow", "payDay",
   "active",
@@ -20,8 +22,18 @@ function sanitizeClientInput(input: any) {
   const out: Record<string, any> = {};
   for (const k of Object.keys(input || {})) {
     if (!CLIENT_FIELDS.has(k)) continue; // ignora campos desconhecidos (ex.: hasCompany, days etc.)
-    const v = input[k];
-    out[k] = v === "" ? null : v; // string vazia -> null
+    let v = input[k];
+
+    // string vazia -> null
+    if (v === "") v = null;
+
+    // normaliza coords se vierem como string
+    if ((k === "poolLat" || k === "poolLng") && v != null) {
+      const num = typeof v === "string" ? Number(v.trim()) : Number(v);
+      v = Number.isFinite(num) ? num : null;
+    }
+
+    out[k] = v;
   }
 
   // normalizações simples
@@ -88,4 +100,22 @@ export async function updateClient(id: string, data: any) {
 export async function deleteClient(id: string) {
   await prisma.client.delete({ where: { id } });
   revalidatePath("/clients");
+}
+
+export async function saveClientCoords(id: string, lat: number, lng: number) {
+  // normaliza para número
+  const _lat = Number(lat);
+  const _lng = Number(lng);
+  if (!Number.isFinite(_lat) || !Number.isFinite(_lng)) {
+    throw new Error("Coordenadas inválidas");
+  }
+
+  await prisma.client.update({
+    where: { id },
+    data: { poolLat: _lat, poolLng: _lng },
+  });
+
+  // revalida telas que consomem esses dados
+  revalidatePath("/clients");
+  revalidatePath("/routes/builder");
 }

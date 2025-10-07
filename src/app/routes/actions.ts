@@ -2,19 +2,16 @@
 
 import { prisma } from "@/lib/prisma";
 
-/** Listas “lite” para selects/autocomplete */
+/** Técnicos “lite” */
 export async function listTechniciansLite() {
   return prisma.technician.findMany({
-    where: { active: true }, // ⬅️ apenas técnicos ATIVOS
+    where: { active: true },
     select: { id: true, firstName: true, lastName: true },
     orderBy: { firstName: "asc" },
   });
 }
 
-/**
- * Clientes “lite” + coords da piscina mapeadas em { lat, lng }
- * (sem alterar layout do front — RouteBuilder espera lat/lng)
- */
+/** Clientes “lite” + coords (lat/lng) já no formato que o front espera */
 export async function listClientsLite(): Promise<
   Array<{
     id: string;
@@ -37,14 +34,12 @@ export async function listClientsLite(): Promise<
       number: true,
       city: true,
       uf: true,
-      // pega das colunas novas
       poolLat: true,
       poolLng: true,
     },
     orderBy: { firstName: "asc" },
   });
 
-  // renomeia para lat/lng esperado no front
   return rows.map((r) => ({
     id: r.id,
     firstName: r.firstName,
@@ -58,40 +53,28 @@ export async function listClientsLite(): Promise<
   }));
 }
 
-/** Semanal (recorrente): salva/atualiza VisitPlan para 1 dia da semana */
+/** Salva/atualiza rota semanal para 1 dia */
 export async function saveWeeklyRoute(params: {
   technicianId: string;
   weekday: number; // 1..6 (Seg..Sáb)
   items: Array<{ clientId: string; windowStart: number; windowEnd: number; order: number; notes?: string }>;
 }) {
   const { technicianId, weekday, items } = params;
-
-  // validações simples
   if (!technicianId) throw new Error("Técnico obrigatório");
   if (weekday < 1 || weekday > 6) throw new Error("Dia inválido");
   if (!items?.length) throw new Error("Adicione clientes à rota");
 
-  // upsert por (technicianId, clientId, weekday):
-  // Como não há unique composto no schema, fazemos findFirst e atualizamos/criamos.
   await prisma.$transaction(async (tx) => {
     for (const it of items) {
       if (it.windowStart >= it.windowEnd) {
         throw new Error("Há janelas inválidas (início >= fim).");
       }
-
       const existing = await tx.visitPlan.findFirst({
-        where: {
-          technicianId,
-          clientId: it.clientId,
-          weekdays: { has: weekday },
-        },
+        where: { technicianId, clientId: it.clientId, weekdays: { has: weekday } },
       });
 
       if (existing) {
-        // garante que o dia está na lista e atualiza janela/ordem/active
-        const newWeekdays = Array.from(
-          new Set([...(existing.weekdays as unknown as number[]), weekday])
-        ).sort();
+        const newWeekdays = Array.from(new Set([...(existing.weekdays as unknown as number[]), weekday])).sort();
         await tx.visitPlan.update({
           where: { id: existing.id },
           data: {
@@ -120,11 +103,10 @@ export async function saveWeeklyRoute(params: {
     }
   });
 
-  // não removo planos antigos automaticamente — manter histórico; limpeza manual depois se quiser.
   return { ok: true };
 }
 
-/** Avulsa (exceção): cria VisitInstance para uma data específica */
+/** Cria rota avulsa (data específica) */
 export async function saveAdHocRoute(params: {
   technicianId: string;
   dateISO: string; // YYYY-MM-DD
@@ -150,8 +132,6 @@ export async function saveAdHocRoute(params: {
           order: it.order,
           status: "planned",
           notes: it.notes ?? "",
-          // ❌ não enviar planId aqui (avulsa)
-          // ✅ relações aninhadas
           technician: { connect: { id: technicianId } },
           client: { connect: { id: it.clientId } },
         },
@@ -162,10 +142,10 @@ export async function saveAdHocRoute(params: {
   return { ok: true };
 }
 
-/** Salva a mesma lista (ordem + janelas) para vários dias da semana */
+/** Salva a mesma lista para múltiplos dias */
 export async function saveWeeklyRouteBulk(params: {
   technicianId: string;
-  weekdays: number[]; // ex.: [2,3,4]
+  weekdays: number[];
   items: Array<{ clientId: string; windowStart: number; windowEnd: number; order: number; notes?: string }>;
 }) {
   const { technicianId, weekdays, items } = params;
@@ -217,35 +197,20 @@ export async function saveWeeklyRouteBulk(params: {
   return { ok: true };
 }
 
-// 🔎 Buscar planejamento já salvo (por técnico + dia)
-export async function getWeeklyRoute(params: {
-  technicianId: string;
-  weekday: number; // 1..6 (Seg..Sáb)
-}) {
+/** Busca planejamento salvo (tecnico+dia) já com lat/lng do cliente */
+export async function getWeeklyRoute(params: { technicianId: string; weekday: number }) {
   const { technicianId, weekday } = params;
   if (!technicianId) throw new Error("Técnico obrigatório");
   if (weekday < 1 || weekday > 6) throw new Error("Dia inválido");
 
   const plans = await prisma.visitPlan.findMany({
-    where: {
-      technicianId,
-      active: true,
-      weekdays: { has: weekday },
-    },
+    where: { technicianId, active: true, weekdays: { has: weekday } },
     orderBy: { order: "asc" },
     include: {
-      client: {
-        select: {
-          firstName: true,
-          lastName: true,
-          poolLat: true,
-          poolLng: true,
-        },
-      },
+      client: { select: { firstName: true, lastName: true, poolLat: true, poolLng: true } },
     },
   });
 
-  // Mapeia no formato que o RouteBuilder usa (SelectedItem)
   return plans.map((p) => ({
     id: p.clientId,
     label: `${p.client.firstName} ${p.client.lastName}`.trim(),
