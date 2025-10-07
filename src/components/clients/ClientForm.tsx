@@ -26,7 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { MaskedInput } from "@/components/ui/MaskedInput";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { createClient, updateClient, deleteClient } from "@/app/clients/actions";
+import { createClient, updateClient, deleteClient } from "@/app/(private)/clients/actions";
 import {
   AlertDialog,
   AlertDialogAction,

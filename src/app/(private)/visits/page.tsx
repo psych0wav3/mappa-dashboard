@@ -1,5 +1,4 @@
 // src/app/visits/page.tsx
-import Shell from "@/components/shell/Shell";
 import WeekdayTabs from "@/components/visits/WeekdayTabs";
 import VisitPlanForm from "@/components/visits/VisitPlanForm";
 import VisitDayBoard from "@/components/visits/VisitDayBoard";
@@ -26,7 +25,7 @@ export default async function VisitsPage({
   ]);
 
   return (
-    <Shell>
+    
       <div className="min-h-screen bg-neutral-50 px-4 sm:px-6 lg:px-8 py-6">
         <div className="space-y-6">
           {/* Header */}
@@ -66,7 +65,7 @@ export default async function VisitsPage({
           </div>
         </div>
       </div>
-    </Shell>
+    
   );
 }
 

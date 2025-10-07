@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { useTransition } from "react";
-import { deleteVisitPlan } from "@/app/visits/actions";
+import { deleteVisitPlan } from "@/app/(private)/visits/actions";
 import { Eye, Pencil, Trash2 } from "lucide-react";
 
 function windowLabel(s: number, e: number) {

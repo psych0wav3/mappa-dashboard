@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { createVisitPlan, updateVisitPlan } from "@/app/visits/actions";
+import { createVisitPlan, updateVisitPlan } from "@/app/(private)/visits/actions";
 import { useTransition } from "react";
 import { toast } from "sonner";
 

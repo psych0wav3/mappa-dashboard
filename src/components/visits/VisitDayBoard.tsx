@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import VisitPlanForm from "./VisitPlanForm";
-import { deleteVisitPlan } from "@/app/visits/actions";
+import { deleteVisitPlan } from "@/app/(private)/visits/actions";
 
 function windowLabel(s: number, e: number) {
   return `${String(s).padStart(2, "0")}:00–${String(e).padStart(2, "0")}:00`;

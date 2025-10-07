@@ -10,7 +10,7 @@ import MapCanvas from "./MapCanvas";
 import { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { toast } from "sonner";
-import { saveWeeklyRoute, saveAdHocRoute, getWeeklyRoute } from "@/app/routes/actions";
+import { saveWeeklyRoute, saveAdHocRoute, getWeeklyRoute } from "@/app/(private)/routes/actions";
 
 type Tech = { id: string; firstName: string; lastName: string };
 type ClientLite = {

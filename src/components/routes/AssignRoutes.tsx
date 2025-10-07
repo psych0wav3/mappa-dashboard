@@ -4,7 +4,7 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { saveWeeklyRouteBulk } from "@/app/routes/actions";
+import { saveWeeklyRouteBulk } from "@/app/(private)/routes/actions";
 
 type Tech = { id: string; firstName: string; lastName: string };
 

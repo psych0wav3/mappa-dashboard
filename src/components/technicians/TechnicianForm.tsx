@@ -28,7 +28,7 @@ import {
   createTechnician,
   updateTechnician,
   deleteTechnician,
-} from "@/app/technicians/actions";
+} from "@/app/(private)/technicians/actions";
 import {
   AlertDialog,
   AlertDialogAction,

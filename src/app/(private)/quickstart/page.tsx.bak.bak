@@ -1,5 +1,4 @@
 // src/app/quickstart/page.tsx
-import Shell from "@/components/shell/Shell";
 import QuickStart from "@/components/quickstart/QuickStart";
 
 export default function QuickStartPage() {

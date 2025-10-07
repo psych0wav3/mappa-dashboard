@@ -1,4 +1,3 @@
-import Shell from "@/components/shell/Shell";
 import TechnicianTable from "@/components/technicians/TechnicianTable";
 import { listTechnicians } from "./actions";
 

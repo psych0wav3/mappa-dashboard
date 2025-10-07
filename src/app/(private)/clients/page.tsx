@@ -1,5 +1,4 @@
 // src/app/clients/page.tsx
-import Shell from "@/components/shell/Shell";
 import ClientTable from "@/components/clients/ClientTable";
 import { listClients } from "./actions";
 
@@ -7,7 +6,7 @@ export default async function ClientsPage() {
   const data = await listClients();
 
   return (
-    <Shell>
+    
       <div className="min-h-screen bg-neutral-50 px-4 sm:px-6 lg:px-8 py-6">
         <div className="space-y-6">
           {/* Header */}
@@ -23,6 +22,6 @@ export default async function ClientsPage() {
           </div>
         </div>
       </div>
-    </Shell>
+    
   );
 }
