@@ -20,6 +20,39 @@ type Props = {
   maxZoomAfterFit?: number;
 };
 
+// ---------- helpers -----------------------------------------------------------
+
+// pin SVG (fallback sem MapID). PIN_SIZE controla o tamanho visual.
+const PIN_SIZE = 40; // px (a base do desenho)
+function svgPin(bg: string, text: string, textColor: string) {
+  const w = PIN_SIZE, h = PIN_SIZE * 1.25; // “gota”
+  // desenha uma gota + círculo interno e escreve o número no centro
+  const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 40 50">
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.35)"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <path fill="${bg}" d="M20 0c-8.837 0-16 7.163-16 16 0 11.5 16 32 16 32s16-20.5 16-32C36 7.163 28.837 0 20 0z"/>
+    <circle cx="20" cy="16" r="10" fill="white" opacity="0.15"/>
+  </g>
+  <text x="20" y="19.5" text-anchor="middle" font-family="Inter,system-ui,Roboto,Arial" font-size="13" font-weight="700" fill="${textColor}">
+    ${text}
+  </text>
+</svg>`;
+  return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg);
+}
+
+// resolve string | function
+const colorOf = (val: Props["pinColor"], m: Marker, idx: number) =>
+  typeof val === "function" ? val(m, idx) : val;
+const glyphColorOf = (val: Props["pinGlyphColor"], m: Marker, idx: number) =>
+  typeof val === "function" ? val(m, idx) : val;
+
+// ---------------------------------------------------------------------------
+
 export default function MapCanvas({
   markers,
   height = 520,
@@ -37,27 +70,9 @@ export default function MapCanvas({
     google.maps.marker.AdvancedMarkerElement | google.maps.Marker | null
   >(null);
 
-  // util: resolve string | fn
-  const colorOf = (val: Props["pinColor"], m: Marker, idx: number) =>
-    typeof val === "function" ? val(m, idx) : val;
-  const glyphColorOf = (val: Props["pinGlyphColor"], m: Marker, idx: number) =>
-    typeof val === "function" ? val(m, idx) : val;
-
-  // log de entrada para debug
-  React.useEffect(() => {
-    const snapshot = markers.map((m) => ({
-      ...m,
-      latType: typeof m.lat,
-      lngType: typeof m.lng,
-      valid: Number.isFinite(m.lat) && Number.isFinite(m.lng),
-    }));
-    console.log("[MapCanvas] markers prop:", snapshot);
-  }, [markers]);
-
-  // cria o mapa uma vez
+  // cria o mapa
   React.useEffect(() => {
     let cancelled = false;
-
     (async () => {
       await loader.load();
       if (cancelled || !containerRef.current || mapRef.current) return;
@@ -66,34 +81,15 @@ export default function MapCanvas({
       mapRef.current = new google.maps.Map(containerRef.current, {
         center,
         zoom: 11,
-        // Se quiser ativar Advanced Markers no futuro, defina o mapId:
-        // mapId: process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID as string,
+        // mapId: process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID as string, // habilite depois se quiser Advanced Marker
         streetViewControl: false,
         fullscreenControl: true,
         mapTypeControl: false,
       });
 
-      // Smoke test usando Marker "clássico" (sempre funciona)
-      new google.maps.Marker({
-        position: center,
-        map: mapRef.current,
-        title: "smoke-test",
-        label: "T",
-      });
-
-      const Advanced = (google.maps as any).marker?.AdvancedMarkerElement;
-      const PinElement = (google.maps as any).marker?.PinElement;
-      const mapIdFromMap = (mapRef.current as any)?.get?.("mapId");
-      const canUseAdvanced = Boolean(Advanced && PinElement && mapIdFromMap);
-      console.log(
-        "[MapCanvas] AdvancedMarker support?",
-        { Advanced: !!Advanced, PinElement: !!PinElement, mapIdFromMap, canUseAdvanced }
-      );
+      // (Removido) — não criamos mais o marker “T” do smoke test
     })();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   // Autocomplete (Places)
@@ -114,7 +110,6 @@ export default function MapCanvas({
         const place = autocomplete!.getPlace();
         const loc = place.geometry?.location;
         if (!loc) return;
-
         map.panTo(loc);
         map.setZoom(15);
 
@@ -126,10 +121,10 @@ export default function MapCanvas({
         if (canUseAdvanced) {
           const pin = new (PinElement as any)({
             background: "#111827",
-            glyph: "🔍",
+            glyph: "🔎",
             glyphColor: "#ffffff",
             borderColor: "#111827",
-            scale: 1.1,
+            scale: 1.25, // maior
           });
           if (!searchMarkerRef.current || !(searchMarkerRef.current instanceof Advanced)) {
             searchMarkerRef.current = new (Advanced as any)({
@@ -144,14 +139,25 @@ export default function MapCanvas({
             (searchMarkerRef.current as any).map = map;
           }
         } else {
+          // fallback: usa o mesmo SVG grandinho
+          const iconUrl = svgPin("#111827", "🔎", "#ffffff");
           if (!searchMarkerRef.current || !(searchMarkerRef.current instanceof google.maps.Marker)) {
             searchMarkerRef.current = new google.maps.Marker({
               map,
               position: loc,
-              label: "🔍",
+              icon: {
+                url: iconUrl,
+                scaledSize: new google.maps.Size(PIN_SIZE, PIN_SIZE * 1.25),
+                anchor: new google.maps.Point(PIN_SIZE / 2, PIN_SIZE * 1.25), // ponta no ponto
+              },
               zIndex: 9999,
             });
           } else {
+            (searchMarkerRef.current as google.maps.Marker).setIcon({
+              url: iconUrl,
+              scaledSize: new google.maps.Size(PIN_SIZE, PIN_SIZE * 1.25),
+              anchor: new google.maps.Point(PIN_SIZE / 2, PIN_SIZE * 1.25),
+            });
             (searchMarkerRef.current as google.maps.Marker).setPosition(loc);
             (searchMarkerRef.current as google.maps.Marker).setMap(map);
           }
@@ -162,7 +168,7 @@ export default function MapCanvas({
     }
   }, [searchInputRef]);
 
-  // sincroniza pins (clientes)
+  // sincroniza pins dos clientes
   React.useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -172,7 +178,7 @@ export default function MapCanvas({
     const mapIdFromMap = (map as any)?.get?.("mapId");
     const canUseAdvanced = Boolean(Advanced && PinElement && mapIdFromMap);
 
-    // Remover ausentes
+    // remove ausentes
     const incomingIds = new Set(markers.map((m) => m.id));
     Object.keys(advRefs.current).forEach((id) => {
       if (!incomingIds.has(id)) {
@@ -194,14 +200,14 @@ export default function MapCanvas({
       const pos = { lat: m.lat, lng: m.lng } as google.maps.LatLngLiteral;
 
       if (canUseAdvanced) {
+        // Advanced Marker (quando houver MapID)
         const pin = new (PinElement as any)({
           background: colorOf(pinColor, m, idx),
           glyph: (m.label ?? String(idx + 1)).toString(),
           glyphColor: glyphColorOf(pinGlyphColor, m, idx),
           borderColor: colorOf(pinColor, m, idx),
-          scale: 1.0,
+          scale: 1.25, // maior
         });
-
         if (!advRefs.current[m.id]) {
           advRefs.current[m.id] = new (Advanced as any)({
             map,
@@ -214,24 +220,38 @@ export default function MapCanvas({
           advRefs.current[m.id].map = map as any;
         }
       } else {
+        // Fallback (sem MapID): usa SVG custom grandão
+        const bg = colorOf(pinColor, m, idx);
+        const glyph = (m.label ?? String(idx + 1)).toString();
+        const glyphColor = glyphColorOf(pinGlyphColor, m, idx);
+        const url = svgPin(bg, glyph, glyphColor);
+
         if (!markerRefs.current[m.id]) {
           markerRefs.current[m.id] = new google.maps.Marker({
             position: pos,
             map,
-            label: m.label ?? String(idx + 1),
+            icon: {
+              url,
+              scaledSize: new google.maps.Size(PIN_SIZE, PIN_SIZE * 1.25),
+              anchor: new google.maps.Point(PIN_SIZE / 2, PIN_SIZE * 1.25),
+            },
           });
         } else {
           markerRefs.current[m.id].setPosition(pos);
-          markerRefs.current[m.id].setLabel(m.label ?? String(idx + 1));
+          markerRefs.current[m.id].setIcon({
+            url,
+            scaledSize: new google.maps.Size(PIN_SIZE, PIN_SIZE * 1.25),
+            anchor: new google.maps.Point(PIN_SIZE / 2, PIN_SIZE * 1.25),
+          });
           markerRefs.current[m.id].setMap(map);
         }
       }
       created++;
     });
 
-    console.log("[MapCanvas] pins criados/atualizados:", created, "canUseAdvanced:", canUseAdvanced);
+    console.log("[MapCanvas] pins criados/atualizados:", created, "advanced?", canUseAdvanced);
 
-    // Ajusta bounds
+    // fit bounds
     const valid = markers.filter((m) => Number.isFinite(m.lat) && Number.isFinite(m.lng));
     if (valid.length > 0) {
       const bounds = new google.maps.LatLngBounds();
