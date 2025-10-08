@@ -1,4 +1,4 @@
-// app/components/RouteBuilder.tsx
+// app/components/routes/RouteBuilder.tsx
 "use client";
 
 import * as React from "react";
@@ -11,32 +11,34 @@ import MapCanvas from "./MapCanvas";
 import { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { toast } from "sonner";
-import { saveWeeklyRoute, saveAdHocRoute, getWeeklyRoute } from "@/app/(private)/routes/actions";
+import {
+  saveWeeklyRoute,
+  saveAdHocRoute,
+  getWeeklyRoute,
+} from "@/app/(private)/routes/actions";
 
 type Tech = { id: string; firstName: string; lastName: string };
 
-// ClientLite com billing + pool (rota usa pool como prioridade)
+// ClientLite (builder usa lat/lng de pool; demais campos são fallback p/ geocode)
 type ClientLite = {
   id: string;
   firstName: string;
   lastName: string;
 
-  // Endereço de cobrança (fallback)
   street?: string | null;
   number?: string | null;
-  district?: string | null; // bairro (billing)
+  district?: string | null;
   city?: string | null;
   uf?: string | null;
 
-  // Endereço da piscina (prioritário p/ rota)
   poolStreet?: string | null;
   poolNumber?: string | null;
-  poolDistrict?: string | null; // bairro (pool)
+  poolDistrict?: string | null;
   poolCity?: string | null;
   poolUf?: string | null;
 
-  lat?: number | null;
-  lng?: number | null;
+  lat?: number | null; // poolLat
+  lng?: number | null; // poolLng
 };
 
 type SelectedItem = {
@@ -56,6 +58,35 @@ function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: num
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+// ----- helpers endereço + geocode -------------------------------------------
+function buildAddress(c: ClientLite) {
+  const street = c.poolStreet ?? c.street ?? "";
+  const number = c.poolNumber ?? c.number ?? "";
+  const city = c.poolCity ?? c.city ?? "";
+  const uf = c.poolUf ?? c.uf ?? "";
+  const line1 = [street, number].filter(Boolean).join(", ");
+  const line2 = [city, uf].filter(Boolean).join(" / ");
+  return [line1, line2].filter(Boolean).join(" — ");
+}
+
+async function geocodeAddress(addr: string): Promise<{ lat: number; lng: number } | null> {
+  if (!addr.trim()) return null;
+  const gm = (globalThis as any).google?.maps;
+  if (!gm?.Geocoder) return null;
+  const geocoder = new gm.Geocoder();
+  return new Promise((resolve) => {
+    geocoder.geocode({ address: addr }, (results: any, status: any) => {
+      if (status === "OK" && results && results[0]) {
+        const loc = results[0].geometry.location;
+        resolve({ lat: loc.lat(), lng: loc.lng() });
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
+// ---------------------------------------------------------------------------
+
 export default function RouteBuilder({
   technicians,
   clients,
@@ -69,6 +100,9 @@ export default function RouteBuilder({
   const [techId, setTechId] = React.useState<string>(technicians[0]?.id ?? "");
   const [selecionados, setSelecionados] = React.useState<SelectedItem[]>([]);
 
+  // barra de busca (Places Autocomplete é configurado dentro do MapCanvas)
+  const searchRef = React.useRef<HTMLInputElement | null>(null);
+
   const enabled = Boolean(techId) && Boolean(dia);
 
   const clientIndex = React.useMemo(() => {
@@ -77,6 +111,7 @@ export default function RouteBuilder({
     return idx;
   }, [clients]);
 
+  // carrega rota salva (técnico + dia)
   React.useEffect(() => {
     let cancel = false;
     async function load() {
@@ -98,28 +133,47 @@ export default function RouteBuilder({
       }
     }
     load();
-    return () => {
-      cancel = true;
-    };
+    return () => { cancel = true; };
   }, [techId, dia, clientIndex]);
 
-  const addClient = (c: ClientLite) => {
-    setSelecionados((cur) =>
-      cur.some((s) => s.id === c.id)
-        ? cur
-        : [
-            ...cur,
-            {
-              id: c.id,
-              label: `${c.firstName} ${c.lastName}`.trim(),
-              windowStart: 9,
-              windowEnd: 10,
-              order: cur.length + 1,
-              lat: c.lat ?? undefined,
-              lng: c.lng ?? undefined,
-            },
-          ]
-    );
+  // ⚠️ CORREÇÃO PRINCIPAL: função async fora do setState
+  const addClient = async (c: ClientLite) => {
+    // evita duplicado
+    if (selecionados.some((s) => s.id === c.id)) return;
+
+    let lat = c.lat ?? undefined;
+    let lng = c.lng ?? undefined;
+
+    // tenta geocodificar se faltarem coords
+    if (lat == null || lng == null) {
+      try {
+        const addr = buildAddress(c);
+        const hit = await geocodeAddress(addr);
+        if (hit) {
+          lat = hit.lat;
+          lng = hit.lng;
+          // persiste coords no servidor (não bloqueia UI)
+          import("@/app/(private)/clients/actions")
+            .then(({ saveClientCoords }) => saveClientCoords(c.id, hit.lat, hit.lng))
+            .catch(() => {});
+        }
+      } catch {
+        // silencioso
+      }
+    }
+
+    setSelecionados((cur) => [
+      ...cur,
+      {
+        id: c.id,
+        label: `${c.firstName} ${c.lastName}`.trim(),
+        windowStart: 9,
+        windowEnd: 10,
+        order: cur.length + 1,
+        lat,
+        lng,
+      },
+    ]);
   };
 
   const removeClient = (id: string) =>
@@ -207,12 +261,11 @@ export default function RouteBuilder({
     }
   };
 
-  // Legacy: string única (continua funcionando) — PRIORIZA piscina
+  // Endereço compacto (legado)
   const getAddress = React.useCallback(
     (id: string) => {
       const c = clients.find((x) => x.id === id);
       if (!c) return undefined;
-
       const street = [c.poolStreet ?? c.street, c.poolNumber ?? c.number].filter(Boolean).join(", ");
       const cityUf = [c.poolCity ?? c.city, c.poolUf ?? c.uf].filter(Boolean).join(" / ");
       const line = [street, cityUf].filter(Boolean).join(" — ");
@@ -221,18 +274,16 @@ export default function RouteBuilder({
     [clients]
   );
 
-  // Novo: duas linhas - rua, número - bairro  |  cidade / UF — PRIORIZA piscina
+  // Duas linhas (com bairro) — prioriza piscina
   const getAddressParts = React.useCallback(
     (id: string) => {
       const c = clients.find((x) => x.id === id);
       if (!c) return undefined;
-
       const street = c.poolStreet ?? c.street ?? "";
       const number = c.poolNumber ?? c.number ?? undefined;
-      const neighborhood = c.poolDistrict ?? c.district ?? undefined; // <- bairro certo
+      const neighborhood = c.poolDistrict ?? c.district ?? undefined;
       const city = c.poolCity ?? c.city ?? undefined;
       const state = c.poolUf ?? c.uf ?? undefined;
-
       return { street, number, neighborhood, city, state };
     },
     [clients]
@@ -269,10 +320,7 @@ export default function RouteBuilder({
           />
 
           <div className="flex">
-            <Button
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={salvar}
-            >
+            <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white" onClick={salvar}>
               Salvar rota
             </Button>
           </div>
@@ -282,21 +330,22 @@ export default function RouteBuilder({
         <div className="col-span-12 lg:col-span-8 space-y-4">
           <RightAssignmentCard
             clients={clients}
-            enabled={Boolean(techId) && Boolean(dia)}
+            enabled={enabled}
             onAddClient={(c) => {
-              addClient(c);
+              void addClient(c);
               toast.message("Adicionado ao planejamento.");
             }}
           />
 
           <div className="rounded-md border bg-white">
             <div className="px-3 py-2 border-b">
-              <Input placeholder="Buscar endereço no mapa…" className="max-w-[320px]" />
+              <Input ref={searchRef} placeholder="Buscar endereço no mapa…" className="max-w-[320px]" />
             </div>
 
             <MapCanvas
+              searchInputRef={searchRef}
               markers={selecionados
-                .filter((s) => typeof s.lat === "number" && typeof s.lng === "number")
+                .filter((s) => Number.isFinite(s.lat as number) && Number.isFinite(s.lng as number))
                 .map((s, i) => ({
                   id: s.id,
                   lat: s.lat as number,
@@ -304,6 +353,9 @@ export default function RouteBuilder({
                   label: String(i + 1),
                 }))}
               height={520}
+              pinColor={(m) => (hasConflict(m.id) ? "#dc2626" : "#2563eb")}
+              pinGlyphColor={() => "#ffffff"}
+              maxZoomAfterFit={16}
             />
           </div>
         </div>
