@@ -11,16 +11,28 @@ export async function listTechniciansLite() {
   });
 }
 
-/** Clientes “lite” + coords (lat/lng) já no formato que o front espera */
+/** Clientes “lite” para o planner: inclui cobrança + piscina e coords da PISCINA */
 export async function listClientsLite(): Promise<
   Array<{
     id: string;
     firstName: string;
     lastName: string;
+
+    // cobrança (fallback)
     street: string | null;
     number: string | null;
+    district: string | null; // bairro (billing)
     city: string | null;
     uf: string | null;
+
+    // piscina (prioritário)
+    poolStreet: string | null;
+    poolNumber: string | null;
+    poolDistrict: string | null; // bairro (pool)
+    poolCity: string | null;
+    poolUf: string | null;
+
+    // coords (piscina)
     lat: number | null;
     lng: number | null;
   }>
@@ -30,10 +42,22 @@ export async function listClientsLite(): Promise<
       id: true,
       firstName: true,
       lastName: true,
+
+      // cobrança
       street: true,
       number: true,
+      district: true,
       city: true,
       uf: true,
+
+      // piscina
+      poolStreet: true,
+      poolNumber: true,
+      poolDistrict: true,
+      poolCity: true,
+      poolUf: true,
+
+      // coords da piscina
       poolLat: true,
       poolLng: true,
     },
@@ -44,12 +68,24 @@ export async function listClientsLite(): Promise<
     id: r.id,
     firstName: r.firstName,
     lastName: r.lastName,
-    street: r.street,
-    number: r.number,
-    city: r.city,
-    uf: r.uf,
-    lat: r.poolLat,
-    lng: r.poolLng,
+
+    // cobrança
+    street: r.street ?? null,
+    number: r.number ?? null,
+    district: r.district ?? null,
+    city: r.city ?? null,
+    uf: r.uf ?? null,
+
+    // piscina
+    poolStreet: r.poolStreet ?? null,
+    poolNumber: r.poolNumber ?? null,
+    poolDistrict: r.poolDistrict ?? null,
+    poolCity: r.poolCity ?? null,
+    poolUf: r.poolUf ?? null,
+
+    // coords
+    lat: r.poolLat ?? null,
+    lng: r.poolLng ?? null,
   }));
 }
 

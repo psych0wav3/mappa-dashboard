@@ -8,7 +8,7 @@ type Marker = { id: string; lat: number; lng: number; label?: string };
 const loader = new Loader({
   apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string,
   version: "weekly",
-  libraries: ["marker"], // AdvancedMarkerElement
+  libraries: ["marker"], // garante AdvancedMarkerElement
 });
 
 export default function MapCanvas({
@@ -27,24 +27,24 @@ export default function MapCanvas({
   // cria o mapa uma vez
   React.useEffect(() => {
     let cancelled = false;
+
     (async () => {
-      if (!ref.current || mapRef.current) return;
-      await loader.load();
-      if (cancelled) return;
+      await loader.load(); // garante google.maps disponível
+      if (cancelled || !ref.current || mapRef.current) return;
 
       mapRef.current = new google.maps.Map(ref.current, {
         center: { lat: -23.55052, lng: -46.633308 }, // SP (fallback)
         zoom: 11,
-        mapId: process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID, // opcional
+        mapId: (process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || undefined) as string | undefined,
         streetViewControl: false,
         fullscreenControl: true,
         mapTypeControl: false,
       });
     })();
+
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // sincroniza pins
@@ -52,25 +52,31 @@ export default function MapCanvas({
     const map = mapRef.current;
     if (!map) return;
 
-    const ids = new Set(markers.map((m) => m.id));
-    Object.keys(advRefs.current).forEach((id) => {
-      if (!ids.has(id)) {
-        advRefs.current[id].map = null as any;
+    // Remover os que saíram
+    const incomingIds = new Set(markers.map((m) => m.id));
+    for (const id of Object.keys(advRefs.current)) {
+      if (!incomingIds.has(id)) {
+        advRefs.current[id].map = null;
         delete advRefs.current[id];
       }
-    });
-    Object.keys(markerRefs.current).forEach((id) => {
-      if (!ids.has(id)) {
+    }
+    for (const id of Object.keys(markerRefs.current)) {
+      if (!incomingIds.has(id)) {
         markerRefs.current[id].setMap(null);
         delete markerRefs.current[id];
       }
-    });
+    }
 
-    const Advanced = (google.maps as any).marker?.AdvancedMarkerElement;
+    // Adicionar/atualizar os atuais
+    const Advanced = (google.maps as any).marker?.AdvancedMarkerElement as
+      | typeof google.maps.marker.AdvancedMarkerElement
+      | undefined;
+
     markers.forEach((m, idx) => {
-      if (typeof m.lat !== "number" || typeof m.lng !== "number") return;
+      if (!Number.isFinite(m.lat) || !Number.isFinite(m.lng)) return;
 
       if (Advanced) {
+        // conteúdo do pin
         const el = document.createElement("div");
         el.style.width = "28px";
         el.style.height = "28px";
@@ -85,16 +91,18 @@ export default function MapCanvas({
         el.style.boxShadow = "0 1px 8px rgba(0,0,0,.25)";
         el.textContent = (m.label ?? String(idx + 1)).toString();
 
+        const pos = { lat: m.lat, lng: m.lng } as google.maps.LatLngAltitudeLiteral;
+
         if (!advRefs.current[m.id]) {
           advRefs.current[m.id] = new Advanced({
-            position: { lat: m.lat, lng: m.lng },
-            content: el,
             map,
+            position: pos,
+            content: el,
           });
         } else {
-          advRefs.current[m.id].position = { lat: m.lat, lng: m.lng } as any;
-          (advRefs.current[m.id] as any).content = el;
-          advRefs.current[m.id].map = map as any;
+          advRefs.current[m.id].position = pos;
+          advRefs.current[m.id].content = el;
+          advRefs.current[m.id].map = map;
         }
       } else {
         if (!markerRefs.current[m.id]) {
@@ -111,14 +119,15 @@ export default function MapCanvas({
       }
     });
 
+    // Ajuste de bounds
     const valid = markers.filter((m) => Number.isFinite(m.lat) && Number.isFinite(m.lng));
     if (valid.length > 0) {
-      const b = new google.maps.LatLngBounds();
-      valid.forEach((m) => b.extend({ lat: m.lat, lng: m.lng }));
-      if (!b.isEmpty()) {
-        // ✅ use número (ou objeto com top/right/bottom/left)
-        map.fitBounds(b, 60);
-        if ((map.getZoom() || 0) > 16) map.setZoom(16);
+      const bounds = new google.maps.LatLngBounds();
+      valid.forEach((m) => bounds.extend({ lat: m.lat, lng: m.lng }));
+      if (!bounds.isEmpty()) {
+        map.fitBounds(bounds, 60);
+        const z = map.getZoom() ?? 0;
+        if (z > 16) map.setZoom(16);
       }
     }
   }, [markers]);

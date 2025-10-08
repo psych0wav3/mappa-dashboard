@@ -14,18 +14,31 @@ import { toast } from "sonner";
 import { saveWeeklyRoute, saveAdHocRoute, getWeeklyRoute } from "@/app/(private)/routes/actions";
 
 type Tech = { id: string; firstName: string; lastName: string };
+
+// ClientLite com billing + pool (rota usa pool como prioridade)
 type ClientLite = {
   id: string;
   firstName: string;
   lastName: string;
+
+  // Endereço de cobrança (fallback)
   street?: string | null;
   number?: string | null;
-  neighborhood?: string | null; // <- novo (opcional)
+  district?: string | null; // bairro (billing)
   city?: string | null;
   uf?: string | null;
+
+  // Endereço da piscina (prioritário p/ rota)
+  poolStreet?: string | null;
+  poolNumber?: string | null;
+  poolDistrict?: string | null; // bairro (pool)
+  poolCity?: string | null;
+  poolUf?: string | null;
+
   lat?: number | null;
   lng?: number | null;
 };
+
 type SelectedItem = {
   id: string;
   label: string;
@@ -194,31 +207,33 @@ export default function RouteBuilder({
     }
   };
 
-  // Legado: string única (continua funcionando)
+  // Legacy: string única (continua funcionando) — PRIORIZA piscina
   const getAddress = React.useCallback(
     (id: string) => {
       const c = clients.find((x) => x.id === id);
       if (!c) return undefined;
-      const street = [c.street, c.number].filter(Boolean).join(", ");
-      const cityUf = [c.city, c.uf].filter(Boolean).join(" / ");
+
+      const street = [c.poolStreet ?? c.street, c.poolNumber ?? c.number].filter(Boolean).join(", ");
+      const cityUf = [c.poolCity ?? c.city, c.poolUf ?? c.uf].filter(Boolean).join(" / ");
       const line = [street, cityUf].filter(Boolean).join(" — ");
       return line || undefined;
     },
     [clients]
   );
 
-  // Novo: duas linhas - rua, número, bairro  |  cidade / UF
+  // Novo: duas linhas - rua, número - bairro  |  cidade / UF — PRIORIZA piscina
   const getAddressParts = React.useCallback(
     (id: string) => {
       const c = clients.find((x) => x.id === id);
       if (!c) return undefined;
-      return {
-        street: c.street ?? "",
-        number: c.number ?? undefined,
-        neighborhood: c.neighborhood ?? undefined, // se não houver, será omitido
-        city: c.city ?? undefined,
-        state: c.uf ?? undefined,
-      };
+
+      const street = c.poolStreet ?? c.street ?? "";
+      const number = c.poolNumber ?? c.number ?? undefined;
+      const neighborhood = c.poolDistrict ?? c.district ?? undefined; // <- bairro certo
+      const city = c.poolCity ?? c.city ?? undefined;
+      const state = c.poolUf ?? c.uf ?? undefined;
+
+      return { street, number, neighborhood, city, state };
     },
     [clients]
   );
@@ -250,7 +265,7 @@ export default function RouteBuilder({
             onChangeItem={updateItem}
             onRemoveItem={removeClient}
             getAddress={getAddress}
-            getAddressParts={getAddressParts} // <- passa o novo formato
+            getAddressParts={getAddressParts}
           />
 
           <div className="flex">
@@ -267,7 +282,7 @@ export default function RouteBuilder({
         <div className="col-span-12 lg:col-span-8 space-y-4">
           <RightAssignmentCard
             clients={clients}
-            enabled={enabled}
+            enabled={Boolean(techId) && Boolean(dia)}
             onAddClient={(c) => {
               addClient(c);
               toast.message("Adicionado ao planejamento.");

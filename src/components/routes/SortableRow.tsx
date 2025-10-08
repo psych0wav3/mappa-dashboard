@@ -36,6 +36,14 @@ type AddressParts = {
   state?: string; // UF
 };
 
+// util: não descartar "0" e limpar espaços
+function joinClean(parts: Array<string | number | null | undefined>, sep = ", ") {
+  return parts
+    .map((p) => (p === null || p === undefined ? "" : String(p).trim()))
+    .filter((s) => s.length > 0)
+    .join(sep);
+}
+
 export default function SortableRow({
   id,
   label,
@@ -59,23 +67,22 @@ export default function SortableRow({
     useSortable({ id });
   const style = { transform: CSS.Transform.toString(transform), transition };
 
-  // 1ª linha: rua, número, bairro
+  // 1ª linha: rua, número - bairro
   const line1 = addressParts
-    ? [
-        addressParts.street,
-        addressParts.number ? String(addressParts.number) : undefined,
-        addressParts.neighborhood,
-      ]
-        .filter(Boolean)
-        .join(", ")
+    ? (() => {
+        const streetAndNumber = joinClean([addressParts.street, addressParts.number]); // "Rua X, 123"
+        const bairro =
+          addressParts.neighborhood && String(addressParts.neighborhood).trim().length > 0
+            ? ` - ${String(addressParts.neighborhood).trim()}`
+            : "";
+        return `${streetAndNumber}${bairro}`; // "Rua X, 123 - Bairro Y"
+      })()
     : undefined;
 
-  // 2ª linha: cidade / UF  (ajustado para " / ")
-  const line2 = addressParts
-    ? [addressParts.city, addressParts.state].filter(Boolean).join(" / ")
-    : undefined;
+  // 2ª linha: cidade / UF
+  const line2 = addressParts ? joinClean([addressParts.city, addressParts.state], " / ") : undefined;
 
-  const fullAddress = addressParts ? [line1, line2].filter(Boolean).join(" | ") : address;
+  const fullAddress = addressParts ? joinClean([line1, line2], " | ") : address;
 
   return (
     <div
@@ -110,19 +117,13 @@ export default function SortableRow({
       <div className="flex-1 min-w-0">
         <div className="font-medium truncate">{label}</div>
 
-        {/* Endereço (duas linhas quando addressParts for passado) */}
+        {/* Endereço */}
         {addressParts ? (
           <>
-            <div
-              className="text-xs text-neutral-700 mt-0.5 truncate"
-              title={fullAddress}
-            >
+            <div className="text-xs text-neutral-700 mt-0.5 truncate" title={fullAddress}>
               {line1}
             </div>
-            <div
-              className="text-xs text-neutral-500 truncate"
-              title={fullAddress}
-            >
+            <div className="text-xs text-neutral-500 truncate" title={fullAddress}>
               {line2}
             </div>
           </>
@@ -148,7 +149,9 @@ export default function SortableRow({
               </option>
             ))}
           </select>
+
           <span className="text-xs text-neutral-500">—</span>
+
           <select
             className="h-8 rounded border border-neutral-300 px-2 text-xs"
             value={value.windowEnd}
@@ -157,14 +160,14 @@ export default function SortableRow({
           >
             {HOURS.map((h) => (
               <option key={h} value={h}>
-                {String(h).padStart(2, "00")}:00
+                {String(h).padStart(2, "0")}:00
               </option>
             ))}
           </select>
         </div>
 
         {conflict && (
-          <div className="text-xs text-red-600 mt-1">
+          <div className="text-xs text-red-600 mt-1" aria-live="polite">
             Janela sobreposta. Ajuste horários/ordem.
           </div>
         )}
