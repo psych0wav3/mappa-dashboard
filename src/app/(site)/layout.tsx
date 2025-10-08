@@ -29,7 +29,7 @@ export default function SiteLayout({ children }: { children: ReactNode }) {
             </div>
           </div>
           <div className="mt-4 text-xs text-neutral-500">
-            © {new Date().getFullYear()} PiscinApp. Todos os direitos reservados.
+            <span suppressHydrationWarning>© {new Date().getFullYear()} Aqua Check. Todos os direitos reservados.</span> Todos os direitos reservados.
           </div>
         </div>
       </footer>

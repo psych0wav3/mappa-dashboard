@@ -5,6 +5,7 @@ import { LogOut, User, Settings, Menu, Search } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { createClientBrowser } from "@/lib/supabase/client";
 import * as React from "react";
+import { useLayoutEffect } from "react";
 
 const WIDTH_EXPANDED = 280;
 const WIDTH_COLLAPSED = 80;
@@ -27,29 +28,26 @@ export default function AppTopbar({ onOpenMenu }: { onOpenMenu: () => void }) {
     }
   };
 
-  React.useEffect(() => {
-    applyLeftFromStorage();
-
-    const onSidebarWidth = (e: Event) => {
-      if (!isDesktop()) return setLeft(0);
-      const detail = (e as CustomEvent).detail as { width?: number };
-      if (typeof detail?.width === "number") setLeft(detail.width);
-    };
-    const onResize = () => applyLeftFromStorage();
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === "sidebar:collapsed") applyLeftFromStorage();
-    };
-
-    window.addEventListener("sidebar:width", onSidebarWidth as EventListener);
-    window.addEventListener("resize", onResize);
-    window.addEventListener("storage", onStorage);
-
-    return () => {
-      window.removeEventListener("sidebar:width", onSidebarWidth as EventListener);
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("storage", onStorage);
-    };
-  }, []);
+  useLayoutEffect(() => {
+     applyLeftFromStorage();
+     const onSidebarWidth = (e: Event) => {
+       if (!isDesktop()) return setLeft(0);
+       const detail = (e as CustomEvent).detail as { width?: number };
+       if (typeof detail?.width === "number") setLeft(detail.width);
+     };
+     const onResize = () => applyLeftFromStorage();
+     const onStorage = (e: StorageEvent) => {
+       if (e.key === "sidebar:collapsed") applyLeftFromStorage();
+     };
+     window.addEventListener("sidebar:width", onSidebarWidth as EventListener);
+     window.addEventListener("resize", onResize);
+     window.addEventListener("storage", onStorage);
+     return () => {
+       window.removeEventListener("sidebar:width", onSidebarWidth as EventListener);
+       window.removeEventListener("resize", onResize);
+       window.removeEventListener("storage", onStorage);
+     };
+   }, []);
 
   async function handleSignOut() {
     const supabase = createClientBrowser();
@@ -61,7 +59,7 @@ export default function AppTopbar({ onOpenMenu }: { onOpenMenu: () => void }) {
     // ocupa da borda direita da sidebar até a direita da tela
     <header
       className="fixed top-0 right-0 z-[90] h-[64px] border-b bg-white/80 backdrop-blur"
-      style={{ left: isDesktop() ? left : 0 }}
+      style={{ left: "var(--sidebar-w)" }}
     >
       <div className="mx-auto flex h-full max-w-[1400px] items-center gap-3 px-3 lg:px-6">
         {/* Hambúrguer só em mobile/tablet */}

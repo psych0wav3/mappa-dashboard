@@ -3,6 +3,7 @@
 import * as React from "react";
 import AppSidebar from "./AppSidebar";
 import AppTopbar from "./AppTopbar";
+import { useLayoutEffect } from "react";
 
 const WIDTH_EXPANDED = 280;
 const WIDTH_COLLAPSED = 80;
@@ -26,32 +27,28 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     }
   };
 
-  React.useEffect(() => {
-    // inicializa
-    applyLeftFromStorage();
-
-    // ouve alterações disparadas pela sidebar
-    const onSidebarWidth = (e: Event) => {
-      if (!isDesktop()) return setPadLeft(0);
-      const detail = (e as CustomEvent).detail as { width?: number };
-      if (typeof detail?.width === "number") setPadLeft(detail.width);
-    };
-
-    const onResize = () => applyLeftFromStorage();
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === "sidebar:collapsed") applyLeftFromStorage();
-    };
-
-    window.addEventListener("sidebar:width", onSidebarWidth as EventListener);
-    window.addEventListener("resize", onResize);
-    window.addEventListener("storage", onStorage);
-
-    return () => {
-      window.removeEventListener("sidebar:width", onSidebarWidth as EventListener);
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("storage", onStorage);
-    };
-  }, []);
+  useLayoutEffect(() => {
+     // inicializa
+     applyLeftFromStorage();
+     // ouve alterações disparadas pela sidebar
+     const onSidebarWidth = (e: Event) => {
+       if (!isDesktop()) return setPadLeft(0);
+       const detail = (e as CustomEvent).detail as { width?: number };
+       if (typeof detail?.width === "number") setPadLeft(detail.width);
+     };
+     const onResize = () => applyLeftFromStorage();
+     const onStorage = (e: StorageEvent) => {
+       if (e.key === "sidebar:collapsed") applyLeftFromStorage();
+     };
+     window.addEventListener("sidebar:width", onSidebarWidth as EventListener);
+     window.addEventListener("resize", onResize);
+     window.addEventListener("storage", onStorage);
+     return () => {
+       window.removeEventListener("sidebar:width", onSidebarWidth as EventListener);
+       window.removeEventListener("resize", onResize);
+       window.removeEventListener("storage", onStorage);
+     };
+   }, []);
 
   return (
     <div className="min-h-screen w-full bg-neutral-50">
@@ -64,7 +61,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       {/* Conteúdo: compensa topbar e, no desktop, usa padding dinâmico da sidebar */}
       <main
         className="relative z-0 pt-[64px]"
-        style={{ paddingLeft: isDesktop() ? padLeft : 0 }}
+        style={{ paddingLeft: "var(--sidebar-w)" }}
       >
         <div className="mx-auto max-w-[1400px] p-4 sm:p-6">
           {children}

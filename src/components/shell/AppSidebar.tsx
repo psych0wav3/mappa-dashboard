@@ -16,11 +16,34 @@ import {
   UserRound,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useLayoutEffect } from "react";
 
 const LS_KEY = "sidebar:collapsed";
 const WIDTH_EXPANDED = 280;
 const WIDTH_COLLAPSED = 80;
+
+/** Slot de texto que aparece somente quando var(--sidebar-w) > 80px */
+function LabelSlot({
+  children,
+  ready,
+}: {
+  children: React.ReactNode;
+  ready: boolean;
+}) {
+  return (
+    <span
+      className="text-[0.95rem] font-medium whitespace-nowrap overflow-hidden"
+      style={{
+        display: "inline-block",
+        maxWidth: "calc(var(--sidebar-w) - 80px)", // 0 quando fechado (80px)
+        transition: ready ? "max-width 300ms ease, opacity 300ms ease" : "none",
+        opacity: "calc((var(--sidebar-w) - 80px) / 200)", // 0→1 de 80→280
+      }}
+    >
+      {children}
+    </span>
+  );
+}
 
 export default function AppSidebar({
   open,
@@ -30,24 +53,78 @@ export default function AppSidebar({
   onClose: () => void;
 }) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
 
-  useEffect(() => {
+  // Estado inicial: tenta LS; se não houver, infere pela CSS var (definida no <head>)
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
     try {
       const raw = localStorage.getItem(LS_KEY);
-      const col = raw ? JSON.parse(raw) : false;
-      setCollapsed(col);
-      dispatchSidebarWidth(col ? WIDTH_COLLAPSED : WIDTH_EXPANDED);
+      if (raw != null) return JSON.parse(raw);
     } catch {}
-  }, []);
+    const css = getComputedStyle(document.documentElement)
+      .getPropertyValue("--sidebar-w")
+      .trim()
+      .replace("px", "");
+    const w = parseInt(css || "280", 10);
+    return w <= WIDTH_COLLAPSED; // 80px => fechado
+  });
 
+  // NOVO: controla quando podemos habilitar transições (evita animação no 1º paint)
+  const [ready, setReady] = useState(false);
+
+  // Mount: sincroniza CSS var + evento (sem alterar estado → evita ping-pong)
+  // e só habilita transições se o valor já está correto.
+  useLayoutEffect(() => {
+    try {
+      const isDesk = window.matchMedia("(min-width: 1024px)").matches;
+      const target = isDesk ? (collapsed ? WIDTH_COLLAPSED : WIDTH_EXPANDED) : 0;
+
+      const currentCss = getComputedStyle(document.documentElement)
+        .getPropertyValue("--sidebar-w")
+        .trim()
+        .replace("px", "");
+      const current = parseInt(currentCss || "0", 10);
+
+      // Só setar se for diferente (evita animação desnecessária)
+      if (current !== target) {
+        document.documentElement.style.setProperty("--sidebar-w", target + "px");
+      }
+
+      // Emite o evento com o valor final
+      dispatchSidebarWidth(target);
+    } catch {}
+    setReady(true); // a partir daqui, pode animar
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // apenas no mount
+
+  // Ao alterar collapsed (toggle), persiste e atualiza consumidores
   useEffect(() => {
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(collapsed));
     } catch {}
-    dispatchSidebarWidth(collapsed ? WIDTH_COLLAPSED : WIDTH_EXPANDED);
+    const w = collapsed ? WIDTH_COLLAPSED : WIDTH_EXPANDED;
+    dispatchSidebarWidth(w);
+    if (
+      typeof document !== "undefined" &&
+      window.matchMedia("(min-width: 1024px)").matches
+    ) {
+      // só aplica se mudou
+      const currentCss = getComputedStyle(document.documentElement)
+        .getPropertyValue("--sidebar-w")
+        .trim()
+        .replace("px", "");
+      const current = parseInt(currentCss || "0", 10);
+      if (current !== w) {
+        document.documentElement.style.setProperty("--sidebar-w", w + "px");
+      }
+    }
+    // Opcional: cookie para SSR (se você adicionou no layout)
+    try {
+      document.cookie = `sb-collapsed=${collapsed ? "1" : "0"}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    } catch {}
   }, [collapsed]);
 
+  // Fecha o drawer mobile ao navegar
   useEffect(() => {
     if (open) onClose();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -74,18 +151,25 @@ export default function AppSidebar({
           if (e.key === "Escape") onClose();
         }}
       >
-        <SidebarContent pathname={pathname} collapsed={false} onNavigate={onClose} />
+        <SidebarContent
+          pathname={pathname}
+          collapsed={false}
+          onNavigate={onClose}
+          ready={ready}
+        />
       </aside>
 
       {/* Sidebar fixa (desktop) */}
       <aside
-        className={`fixed inset-y-0 left-0 z-[80] hidden lg:flex lg:flex-col bg-[#0077C8] text-white shadow-lg transition-all duration-300
-        ${collapsed ? "w-[80px]" : "w-[280px]"}`}
+        className={`fixed inset-y-0 left-0 z-[80] hidden lg:flex lg:flex-col bg-[#0077C8] text-white shadow-lg ${
+          ready ? "transition-all duration-300" : "" // sem transição no 1º paint
+        }`}
+        style={{ width: "var(--sidebar-w)" }}
         aria-label="Menu lateral"
       >
-        <SidebarContent pathname={pathname} collapsed={collapsed} />
+        <SidebarContent pathname={pathname} collapsed={collapsed} ready={ready} />
 
-        {/* ⬇️ só movi a posição vertical: top-[72px] */}
+        {/* Botão de toggle */}
         <button
           className="absolute -right-3 top-[72px] grid h-8 w-8 place-items-center rounded-full bg-white text-[#0077C8] shadow-md"
           onClick={() => setCollapsed((v) => !v)}
@@ -106,10 +190,12 @@ function SidebarContent({
   pathname,
   collapsed,
   onNavigate,
+  ready,
 }: {
   pathname: string;
   collapsed: boolean;
   onNavigate?: () => void; // fecha o drawer no mobile/tablet
+  ready: boolean;
 }) {
   const router = useRouter();
 
@@ -160,7 +246,7 @@ function SidebarContent({
         >
           <div className={`flex items-center gap-3 ${collapsed ? "justify-center" : ""}`}>
             {IconCmp ? <IconCmp size={18} aria-hidden className="shrink-0" /> : null}
-            {!collapsed && <span className="text-[0.95rem] font-medium">{label}</span>}
+            <LabelSlot ready={ready}>{label}</LabelSlot>
           </div>
         </button>
       );
@@ -174,7 +260,7 @@ function SidebarContent({
         active={active}
         collapsed={collapsed}
       >
-        <span className="text-[0.95rem] font-medium">{label}</span>
+        <LabelSlot ready={ready}>{label}</LabelSlot>
       </SidebarLink>
     );
   };
@@ -190,7 +276,9 @@ function SidebarContent({
         <div className="h-10 w-10 rounded-lg bg-white text-[#0077C8] grid place-items-center text-lg font-bold select-none">
           P
         </div>
-        {!collapsed && <div className="font-semibold text-white text-lg">Aqua Check</div>}
+        <LabelSlot ready={ready}>
+          <span className="font-semibold text-white text-lg">Aqua Check</span>
+        </LabelSlot>
       </div>
 
       {/* Links */}
@@ -210,53 +298,102 @@ function SidebarContent({
               }
             }}
             className={`w-full flex items-center ${
-              collapsed ? "justify-center" : "justify-between"
-            } gap-3 px-3 py-2 rounded-md transition-colors ${
+              collapsed ? "justify-center px-2 gap-0" : "justify-between px-3 gap-3"
+            } py-2 rounded-md transition-colors ${
               isRoutesSection ? "bg-white/20 text-white" : "text-white hover:bg-white/10"
             }`}
             aria-expanded={routesOpen}
             aria-controls="routes-submenu"
           >
-            <div className="flex items-center gap-3">
+            <div className={`flex items-center ${collapsed ? "gap-0" : "gap-3"}`}>
               <RouteIcon size={18} aria-hidden className="shrink-0" />
-              {!collapsed && <span className="text-[0.95rem] font-medium">Rotas</span>}
+              <LabelSlot ready={ready}>Rotas</LabelSlot>
             </div>
-            {!collapsed && (
+
+            {/* chevron só ocupa espaço quando aberto */}
+            <div
+              style={{
+                width: "calc(var(--sidebar-w) - 80px)",
+                overflow: "hidden",
+                transition: ready ? "width 300ms ease" : "none",
+              }}
+            >
               <ChevronDown
                 size={16}
                 className={`transition-transform ${routesOpen ? "rotate-180" : ""}`}
                 aria-hidden="true"
               />
-            )}
+            </div>
           </button>
 
-          {!collapsed && routesOpen && (
-            <div id="routes-submenu" className="mt-1 space-y-1" role="menu">
-              {routeItems.map((it) => {
-                const active =
-                  pathname === it.href || pathname.startsWith(it.href + "/");
-                return (
-                  <SidebarLink
-                    key={it.href}
-                    href={it.href}
-                    active={active}
-                    collapsed={false}
-                    className="ml-8 text-sm"
-                  >
-                    {it.label}
-                  </SidebarLink>
-                );
-              })}
-            </div>
-          )}
+          {/* Submenu: compacto e centralizado no FECHADO; padrão no ABERTO */}
+          <div
+            id="routes-submenu"
+            role="menu"
+            className="mt-1"
+            style={{
+              maxHeight: routesOpen ? 800 : 0,
+              overflow: "hidden",
+              transition: ready ? "max-height 300ms ease, opacity 300ms ease" : "none",
+              opacity: "calc((var(--sidebar-w) - 80px) / 200)", // 0 quando 80px, 1 quando 280px
+              pointerEvents: routesOpen && !collapsed ? "auto" : "none",
+            }}
+          >
+            {collapsed ? (
+              // FECHADO: 3 “bolinhas” centralizadas
+              <div className="flex flex-col items-center gap-2 py-1">
+                {routeItems.map((it) => {
+                  const active =
+                    pathname === it.href || pathname.startsWith(it.href + "/");
+                  const initial = it.label.trim().charAt(0).toUpperCase();
+                  return (
+                    <a
+                      key={it.href}
+                      href={it.href}
+                      className={[
+                        "grid h-7 w-7 place-items-center rounded-md text-xs font-semibold",
+                        active ? "bg-white/30 text-white" : "bg-white/20 text-white",
+                      ].join(" ")}
+                      aria-current={active ? "page" : undefined}
+                    >
+                      {initial}
+                    </a>
+                  );
+                })}
+              </div>
+            ) : (
+              // ABERTO: lista normal (mantém seu layout)
+              <div className="space-y-1" role="menu">
+                {routeItems.map((it) => {
+                  const active =
+                    pathname === it.href || pathname.startsWith(it.href + "/");
+                  return (
+                    <SidebarLink
+                      key={it.href}
+                      href={it.href}
+                      active={active}
+                      collapsed={false}
+                      className="ml-8 text-sm"
+                    >
+                      {it.label}
+                    </SidebarLink>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         {tail.map((l) => renderLink(l.href, l.label, l.icon))}
       </nav>
 
       {/* Footer */}
-      <div className={`p-4 border-t border-white/20 text-xs text-white/80 ${collapsed ? "text-center" : ""}`}>
-        © {new Date().getFullYear()} Brilho Piscinas
+      <div
+        className={`p-4 border-t border-white/20 text-xs text-white/80 ${
+          collapsed ? "text-center" : ""
+        }`}
+      >
+        <span suppressHydrationWarning>© {new Date().getFullYear()} Aqua Check</span>
       </div>
     </div>
   );
