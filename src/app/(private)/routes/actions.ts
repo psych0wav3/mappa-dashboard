@@ -11,28 +11,16 @@ export async function listTechniciansLite() {
   });
 }
 
-/** Clientes “lite” para o planner: inclui cobrança + piscina e coords da PISCINA */
+/** Clientes “lite” + coords (lat/lng) já no formato que o front espera */
 export async function listClientsLite(): Promise<
   Array<{
     id: string;
     firstName: string;
     lastName: string;
-
-    // cobrança (fallback)
     street: string | null;
     number: string | null;
-    district: string | null; // bairro (billing)
     city: string | null;
     uf: string | null;
-
-    // piscina (prioritário)
-    poolStreet: string | null;
-    poolNumber: string | null;
-    poolDistrict: string | null; // bairro (pool)
-    poolCity: string | null;
-    poolUf: string | null;
-
-    // coords (piscina)
     lat: number | null;
     lng: number | null;
   }>
@@ -42,22 +30,10 @@ export async function listClientsLite(): Promise<
       id: true,
       firstName: true,
       lastName: true,
-
-      // cobrança
       street: true,
       number: true,
-      district: true,
       city: true,
       uf: true,
-
-      // piscina
-      poolStreet: true,
-      poolNumber: true,
-      poolDistrict: true,
-      poolCity: true,
-      poolUf: true,
-
-      // coords da piscina
       poolLat: true,
       poolLng: true,
     },
@@ -68,28 +44,16 @@ export async function listClientsLite(): Promise<
     id: r.id,
     firstName: r.firstName,
     lastName: r.lastName,
-
-    // cobrança
-    street: r.street ?? null,
-    number: r.number ?? null,
-    district: r.district ?? null,
-    city: r.city ?? null,
-    uf: r.uf ?? null,
-
-    // piscina
-    poolStreet: r.poolStreet ?? null,
-    poolNumber: r.poolNumber ?? null,
-    poolDistrict: r.poolDistrict ?? null,
-    poolCity: r.poolCity ?? null,
-    poolUf: r.poolUf ?? null,
-
-    // coords
-    lat: r.poolLat ?? null,
-    lng: r.poolLng ?? null,
+    street: r.street,
+    number: r.number,
+    city: r.city,
+    uf: r.uf,
+    lat: r.poolLat,
+    lng: r.poolLng,
   }));
 }
 
-/** Salva/atualiza rota semanal para 1 dia */
+/** Salva/atualiza rota semanal para 1 dia (faz replace e remove ausentes) */
 export async function saveWeeklyRoute(params: {
   technicianId: string;
   weekday: number; // 1..6 (Seg..Sáb)
@@ -103,22 +67,41 @@ export async function saveWeeklyRoute(params: {
   await prisma.$transaction(async (tx) => {
     for (const it of items) {
       if (it.windowStart >= it.windowEnd) {
-        throw new Error("Há janelas inválidas (início >= fim).");
+        throw new Error(`Há janelas inválidas (início >= fim) para cliente ${it.clientId}.`);
       }
-      const existing = await tx.visitPlan.findFirst({
-        where: { technicianId, clientId: it.clientId, weekdays: { has: weekday } },
-      });
+    }
 
-      if (existing) {
-        const newWeekdays = Array.from(new Set([...(existing.weekdays as unknown as number[]), weekday])).sort();
+    const existing = await tx.visitPlan.findMany({
+      where: { technicianId, weekdays: { has: weekday } },
+    });
+
+    const incomingIds = new Set(items.map(i => i.clientId));
+
+    // remover quem saiu
+    for (const row of existing) {
+      if (!incomingIds.has(row.clientId)) {
+        const w = (row.weekdays as unknown as number[]).filter((d) => d !== weekday);
+        if (w.length === 0) {
+          await tx.visitPlan.delete({ where: { id: row.id } });
+        } else {
+          await tx.visitPlan.update({ where: { id: row.id }, data: { weekdays: w } });
+        }
+      }
+    }
+
+    // atualizar/criar os presentes
+    for (const [i, it] of items.entries()) {
+      const found = existing.find((r) => r.clientId === it.clientId);
+      if (found) {
+        const wset = new Set<number>([...(found.weekdays as unknown as number[]), weekday]);
         await tx.visitPlan.update({
-          where: { id: existing.id },
+          where: { id: found.id },
           data: {
-            weekdays: newWeekdays,
+            weekdays: Array.from(wset).sort(),
             windowStart: it.windowStart,
             windowEnd: it.windowEnd,
-            order: it.order,
-            notes: it.notes ?? existing.notes ?? "",
+            order: it.order ?? i + 1,
+            notes: it.notes ?? found.notes ?? "",
             active: true,
           },
         });
@@ -130,7 +113,7 @@ export async function saveWeeklyRoute(params: {
             weekdays: [weekday],
             windowStart: it.windowStart,
             windowEnd: it.windowEnd,
-            order: it.order,
+            order: it.order ?? i + 1,
             notes: it.notes ?? "",
             active: true,
           },
@@ -178,7 +161,7 @@ export async function saveAdHocRoute(params: {
   return { ok: true };
 }
 
-/** Salva a mesma lista para múltiplos dias */
+/** Salva a mesma lista para múltiplos dias (replace por dia) */
 export async function saveWeeklyRouteBulk(params: {
   technicianId: string;
   weekdays: number[];
@@ -190,25 +173,40 @@ export async function saveWeeklyRouteBulk(params: {
   if (!items?.length) throw new Error("Adicione clientes à rota");
 
   await prisma.$transaction(async (tx) => {
-    for (const w of weekdays) {
-      if (w < 1 || w > 6) throw new Error("Dia inválido");
-      for (const it of items) {
-        if (it.windowStart >= it.windowEnd) throw new Error("Há janelas inválidas (início >= fim).");
+    for (const wday of weekdays) {
+      if (wday < 1 || wday > 6) throw new Error("Dia inválido");
 
-        const existing = await tx.visitPlan.findFirst({
-          where: { technicianId, clientId: it.clientId, weekdays: { has: w } },
-        });
+      const existing = await tx.visitPlan.findMany({
+        where: { technicianId, weekdays: { has: wday } },
+      });
 
-        if (existing) {
-          const newWeekdays = Array.from(new Set([...(existing.weekdays as unknown as number[]), w])).sort();
+      const incomingIds = new Set(items.map(i => i.clientId));
+
+      // remover ausentes
+      for (const row of existing) {
+        if (!incomingIds.has(row.clientId)) {
+          const w = (row.weekdays as unknown as number[]).filter((d) => d !== wday);
+          if (w.length === 0) {
+            await tx.visitPlan.delete({ where: { id: row.id } });
+          } else {
+            await tx.visitPlan.update({ where: { id: row.id }, data: { weekdays: w } });
+          }
+        }
+      }
+
+      // atualizar/criar
+      for (const [i, it] of items.entries()) {
+        const found = existing.find((r) => r.clientId === it.clientId);
+        if (found) {
+          const wset = new Set<number>([...(found.weekdays as unknown as number[]), wday]);
           await tx.visitPlan.update({
-            where: { id: existing.id },
+            where: { id: found.id },
             data: {
-              weekdays: newWeekdays,
+              weekdays: Array.from(wset).sort(),
               windowStart: it.windowStart,
               windowEnd: it.windowEnd,
-              order: it.order,
-              notes: it.notes ?? existing.notes ?? "",
+              order: it.order ?? i + 1,
+              notes: it.notes ?? found.notes ?? "",
               active: true,
             },
           });
@@ -217,10 +215,10 @@ export async function saveWeeklyRouteBulk(params: {
             data: {
               technicianId,
               clientId: it.clientId,
-              weekdays: [w],
+              weekdays: [wday],
               windowStart: it.windowStart,
               windowEnd: it.windowEnd,
-              order: it.order,
+              order: it.order ?? i + 1,
               notes: it.notes ?? "",
               active: true,
             },
