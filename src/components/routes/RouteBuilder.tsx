@@ -1,3 +1,4 @@
+// app/components/RouteBuilder.tsx
 "use client";
 
 import * as React from "react";
@@ -19,6 +20,7 @@ type ClientLite = {
   lastName: string;
   street?: string | null;
   number?: string | null;
+  neighborhood?: string | null; // <- novo (opcional)
   city?: string | null;
   uf?: string | null;
   lat?: number | null;
@@ -56,14 +58,12 @@ export default function RouteBuilder({
 
   const enabled = Boolean(techId) && Boolean(dia);
 
-  // Índice {clientId -> {lat,lng}} para enriquecer itens carregados
   const clientIndex = React.useMemo(() => {
     const idx = new Map<string, { lat?: number | null; lng?: number | null }>();
     clients.forEach((c) => idx.set(c.id, { lat: c.lat ?? null, lng: c.lng ?? null }));
     return idx;
   }, [clients]);
 
-  // Carrega planejamento salvo ao trocar técnico/dia e garante lat/lng
   React.useEffect(() => {
     let cancel = false;
     async function load() {
@@ -90,7 +90,6 @@ export default function RouteBuilder({
     };
   }, [techId, dia, clientIndex]);
 
-  // Adiciona cliente manualmente (painel direito)
   const addClient = (c: ClientLite) => {
     setSelecionados((cur) =>
       cur.some((s) => s.id === c.id)
@@ -128,7 +127,7 @@ export default function RouteBuilder({
     );
   };
 
-  // Conflitos de janela
+  // Conflitos
   const conflitos = React.useMemo(() => {
     const list = [...selecionados].sort((a, b) => a.windowStart - b.windowStart || a.order - b.order);
     const bad: Array<{ a: string; b: string }> = [];
@@ -195,17 +194,34 @@ export default function RouteBuilder({
     }
   };
 
+  // Legado: string única (continua funcionando)
   const getAddress = React.useCallback(
-  (id: string) => {
-    const c = clients.find((x) => x.id === id);
-    if (!c) return undefined;
-    const street = [c.street, c.number].filter(Boolean).join(", ");
-    const cityUf = [c.city, c.uf].filter(Boolean).join(" / ");
-    const line = [street, cityUf].filter(Boolean).join(" — ");
-    return line || undefined;
-  },
-  [clients]
-);
+    (id: string) => {
+      const c = clients.find((x) => x.id === id);
+      if (!c) return undefined;
+      const street = [c.street, c.number].filter(Boolean).join(", ");
+      const cityUf = [c.city, c.uf].filter(Boolean).join(" / ");
+      const line = [street, cityUf].filter(Boolean).join(" — ");
+      return line || undefined;
+    },
+    [clients]
+  );
+
+  // Novo: duas linhas - rua, número, bairro  |  cidade / UF
+  const getAddressParts = React.useCallback(
+    (id: string) => {
+      const c = clients.find((x) => x.id === id);
+      if (!c) return undefined;
+      return {
+        street: c.street ?? "",
+        number: c.number ?? undefined,
+        neighborhood: c.neighborhood ?? undefined, // se não houver, será omitido
+        city: c.city ?? undefined,
+        state: c.uf ?? undefined,
+      };
+    },
+    [clients]
+  );
 
   return (
     <div className="space-y-4">
@@ -234,6 +250,7 @@ export default function RouteBuilder({
             onChangeItem={updateItem}
             onRemoveItem={removeClient}
             getAddress={getAddress}
+            getAddressParts={getAddressParts} // <- passa o novo formato
           />
 
           <div className="flex">

@@ -1,15 +1,24 @@
+// app/components/RouteListCard.tsx
 "use client";
 
 import * as React from "react";
-import { DndContext, closestCenter, DragEndEvent } from "@dnd-kit/core";
+import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import SortableRow, { SelectedItem } from "./SortableRow";
+import SortableRow, { type SelectedItem } from "./SortableRow";
 
 function formatDuration(min: number) {
   const h = Math.floor(min / 60);
   const m = Math.round(min % 60);
   return `${h}h ${String(m).padStart(2, "0")}m`;
 }
+
+type AddressParts = {
+  street: string;
+  number?: string | number;
+  neighborhood?: string; // bairro
+  city?: string;
+  state?: string; // UF
+};
 
 export default function RouteListCard({
   items,
@@ -18,8 +27,8 @@ export default function RouteListCard({
   stats,
   onChangeItem,
   onRemoveItem,
-  /** 👇 novo: função que devolve o endereço formatado do cliente */
   getAddress,
+  getAddressParts,
 }: {
   items: SelectedItem[];
   onDragEnd: (e: DragEndEvent) => void;
@@ -28,6 +37,7 @@ export default function RouteListCard({
   onChangeItem: (id: string, patch: Partial<SelectedItem>) => void;
   onRemoveItem: (id: string) => void;
   getAddress: (id: string) => string | undefined;
+  getAddressParts?: (id: string) => AddressParts | undefined;
 }) {
   return (
     <div className="rounded-md border bg-white">
@@ -45,18 +55,24 @@ export default function RouteListCard({
             {items.length === 0 && (
               <div className="text-sm text-neutral-500">Escolha um técnico e um dia.</div>
             )}
-            {items.map((s) => (
-              <SortableRow
-                key={s.id}
-                id={s.id}
-                label={s.label}
-                value={s}
-                conflict={hasConflict(s.id)}
-                onChange={(patch) => onChangeItem(s.id, patch)}
-                onRemove={() => onRemoveItem(s.id)}
-                address={getAddress(s.id)}
-              />
-            ))}
+
+            {items.map((s) => {
+              const parts = getAddressParts?.(s.id);
+              const legacy = getAddress(s.id);
+              return (
+                <SortableRow
+                  key={s.id}
+                  id={s.id}
+                  label={s.label}
+                  value={s}
+                  conflict={hasConflict(s.id)}
+                  onChange={(patch) => onChangeItem(s.id, patch)}
+                  onRemove={() => onRemoveItem(s.id)}
+                  addressParts={parts}
+                  address={!parts ? legacy : undefined}
+                />
+              );
+            })}
           </SortableContext>
         </DndContext>
       </div>
