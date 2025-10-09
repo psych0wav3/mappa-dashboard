@@ -1,4 +1,3 @@
-// app/components/routes/RouteBuilder.tsx
 "use client";
 
 import * as React from "react";
@@ -102,6 +101,19 @@ export default function RouteBuilder({
 
   // barra de busca (Places Autocomplete é configurado dentro do MapCanvas)
   const searchRef = React.useRef<HTMLInputElement | null>(null);
+  const [search, setSearch] = React.useState("");
+
+  // 🔗 Mantém o estado 'search' sincronizado com o valor que o Autocomplete coloca no input
+  React.useEffect(() => {
+    const el = searchRef.current;
+    if (!el) return;
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<string>;
+      if (typeof ce.detail === "string") setSearch(ce.detail);
+    };
+    el.addEventListener("gm-place", handler as EventListener);
+    return () => el.removeEventListener("gm-place", handler as EventListener);
+  }, []);
 
   const enabled = Boolean(techId) && Boolean(dia);
 
@@ -136,9 +148,8 @@ export default function RouteBuilder({
     return () => { cancel = true; };
   }, [techId, dia, clientIndex]);
 
-  // ⚠️ CORREÇÃO PRINCIPAL: função async fora do setState
+  // ⚠️ async fora do setState
   const addClient = async (c: ClientLite) => {
-    // evita duplicado
     if (selecionados.some((s) => s.id === c.id)) return;
 
     let lat = c.lat ?? undefined;
@@ -339,7 +350,36 @@ export default function RouteBuilder({
 
           <div className="rounded-md border bg-white">
             <div className="px-3 py-2 border-b">
-              <Input ref={searchRef} placeholder="Buscar endereço no mapa…" className="max-w-[320px]" />
+              <div className="relative w-full max-w-[320px]">
+                <Input
+                  ref={searchRef}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar endereço no mapa…"
+                  className="pr-8"
+                />
+                {search.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearch("");
+                      if (searchRef.current) {
+                        searchRef.current.value = "";
+                        const evt = new Event("input", { bubbles: true });
+                        searchRef.current.dispatchEvent(evt);
+                        searchRef.current.focus();
+                      }
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700"
+                    aria-label="Limpar busca"
+                    title="Limpar"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                )}
+              </div>
             </div>
 
             <MapCanvas
