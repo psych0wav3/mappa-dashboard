@@ -24,33 +24,6 @@ Focado em **gestão de técnicos, clientes, visitas e rotas**, com recursos avan
 
 ---
 
-## 📂 Estrutura de pastas
-
-src/
-├─ app/
-│ ├─ (private)/
-│ │ ├─ clients/ → gestão de clientes
-│ │ ├─ technicians/ → gestão de técnicos
-│ │ ├─ routes/ → criar rota, atribuir rota, dashboard da rota
-│ │ ├─ dashboard/ → painel de controle
-│ │ └─ quickstart/ → onboarding (passo a passo inicial)
-│ └─ (site)/
-│ ├─ builder/ → página de apresentação
-│ ├─ dashboard/ → landing interna
-│ └─ using/ → guias de uso
-│
-├─ components/
-│ ├─ routes/ → RouteBuilder, RouteDashboard, RouteListCard, etc.
-│ ├─ clients/ → tabelas e formulários de clientes
-│ ├─ calendar/ → calendário custom
-│ ├─ ui/ → base shadcn + custom (botões, inputs, etc.)
-│ └─ shell/ → layout geral (sidebar + topbar)
-│
-├─ lib/ → utilitários (ex.: geocode, helpers)
-├─ server/ → lógica server-side (geocodificação, ações Prisma)
-└─ prisma/ → schema Prisma
-
-
 ## 📌 Principais módulos
 
 - **Quickstart**  
@@ -123,16 +96,104 @@ Rodar localmente
 npm run dev
 App rodará em http://localhost:3000
 
-#🔄 Fluxos principais
 
-Criação de rota → seleção de clientes e técnicos → grava em RoutePlan.
+## 🔄 Fluxos Principais
 
-Execução de rota → gera VisitInstance para o dia.
+### 1. Gestão de Técnicos
+- Cadastrar e gerenciar técnicos (nome, email, CPF, telefone, ativo/inativo, função).
+- Técnicos podem ser **OWNER** ou **TECH**.
+- Tabela com edição inline, ativação/desativação e exclusão com confirmação.
 
-Dashboard da rota → agrupa visitas/instâncias e exibe em cards + mapa.
+### 2. Gestão de Clientes
+- Cadastro de clientes com **dados pessoais e empresariais** (CPF/CNPJ, email, telefone).
+- Endereços separados: cobrança e piscina.
+- Geocodificação automática da piscina (gera lat/lng para pins no mapa).
+- Tabela de clientes com busca, edição e exclusão.
 
-Atualização em tempo real → conforme técnico dá check-in/checkout, progresso aparece no card (3/10).
+### 3. Planejamento de Rotas
+- **Weekly Route Builder**: criar rotas semanais por técnico e dia da semana.
+- **Ad-hoc Routes**: rotas ocasionais fora do planejamento fixo.
+- Interface drag & drop para ordenar visitas.
+- Armazenamento de rotas no banco via Prisma.
 
-#📅 Roadmap interno
-Finalizar integração de status em tempo real no Dashboard (via Supabase Realtime).
-Finalizar integração de status em tempo real no Dashboard (via Supabase Realtime).
+### 4. Dashboard de Rotas
+- Calendário semanal/mensal para seleção de data.
+- Coluna 1: **Técnicos do dia** com progresso em tempo real (ex: `3/10 concluídas`).
+- Coluna 2: **Rota detalhada** do técnico (ordem, cliente, endereço, status).
+- Coluna 3: **Mapa interativo** com pins coloridos (por técnico ou rota selecionada).
+- Alternância entre **“Rota Selecionada”** e **“Todas as Rotas”**.
+
+### 5. Quickstart & Onboarding
+- Checklist guiado para configuração inicial:
+  - Cadastro de técnicos
+  - Cadastro de clientes
+  - Criação de rotas
+- Armazena progresso no `localStorage`.
+- Botões de ação diretos para cada etapa.
+
+### 6. Infraestrutura e Integração
+- **Banco**: PostgreSQL (via Supabase).
+- **ORM**: Prisma, com tipagem forte e migrations.
+- **Frontend**: Next.js (App Router) + React + Tailwind + shadcn/ui.
+- **Mapas**: Google Maps API (Markers, Advanced Markers, Autocomplete).
+- **Realtime**: Supabase Realtime (para status das visitas).
+
+
+
+## 📅 Roadmap Interno
+
+- [ ] **Rotas**
+  - [ ] Finalizar integração de status em tempo real no **Dashboard de Rotas** (via Supabase Realtime).
+  - [ ] Melhorar visualização de métricas (distância total, tempo estimado).
+  - [ ] Implementar otimização automática de rotas.
+
+- [ ] **Clientes**
+  - [ ] Adicionar upload de fotos/documentos do cliente.
+  - [ ] Melhorar validação de endereço + geocodificação.
+
+- [ ] **Técnicos**
+  - [ ] Permitir cadastro em massa via CSV/Excel.
+  - [ ] Registro de localização em tempo real (mobile app futuro).
+
+- [ ] **UI/UX**
+  - [ ] Melhorar design do calendário (integração semanal/mensal).
+  - [ ] Criar dark mode.
+  - [ ] Ajustar responsividade para mobile.
+
+- [ ] **Infraestrutura**
+  - [ ] Deploy no Vercel (preview + produção).
+  - [ ] Configuração de CI/CD com testes automatizados.
+  - [ ] Monitoramento de erros (Sentry).
+
+- [ ] **Onboarding & Quickstart**
+  - [ ] Finalizar guia inicial com integração de rotas e clientes.
+  - [ ] Adicionar dicas de uso (tooltips interativos).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
