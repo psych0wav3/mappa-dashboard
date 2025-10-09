@@ -89,10 +89,10 @@ NEXT_PUBLIC_GOOGLE_MAPS_API_KEY="..."
 NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID="..."
 
 
-Instalação
+##Instalação
 npm install
 
-Rodar localmente
+##Rodar localmente
 npm run dev
 App rodará em http://localhost:3000
 
