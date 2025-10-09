@@ -4,9 +4,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { SidebarLink } from "./SidebarLink";
 import {
   LayoutDashboard,
-  ListChecks,
   Camera,
-  Settings,
+  Settings as SettingsIcon,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -14,9 +13,13 @@ import {
   Rocket,
   Wrench,
   UserRound,
+  LogOut,
+  User as UserIcon,
+  Cog,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState, useLayoutEffect } from "react";
+import { createClientBrowser } from "@/lib/supabase/client";
 
 const LS_KEY = "sidebar:collapsed";
 const WIDTH_EXPANDED = 280;
@@ -205,10 +208,10 @@ function SidebarContent({
     { href: "/clients", label: "Clientes", icon: UserRound },
   ] as const;
 
+  // ⚠️ Removido "Visitas" aqui
   const tail = [
-    { href: "/visits", label: "Visitas", icon: ListChecks },
     { href: "/gallery", label: "Fotos", icon: Camera },
-    { href: "/settings", label: "Configurações", icon: Settings },
+    // Configurações será um GRUPO colapsável logo abaixo
   ] as const;
 
   const isRoutesSection = pathname.startsWith("/routes");
@@ -216,6 +219,14 @@ function SidebarContent({
   useEffect(() => {
     if (isRoutesSection) setRoutesOpen(true);
   }, [isRoutesSection]);
+
+  // Settings (configurações) — grupo colapsável
+  const isSettingsSection =
+    pathname.startsWith("/settings") || pathname.startsWith("/account");
+  const [settingsOpen, setSettingsOpen] = useState<boolean>(isSettingsSection);
+  useEffect(() => {
+    if (isSettingsSection) setSettingsOpen(true);
+  }, [isSettingsSection]);
 
   const routeItems = useMemo(
     () => [
@@ -264,6 +275,17 @@ function SidebarContent({
     );
   };
 
+  async function handleSignOut() {
+    try {
+      const supabase = createClientBrowser();
+      await supabase.auth.signOut();
+      router.push("/login");
+      onNavigate?.();
+    } catch {
+      // silencioso
+    }
+  }
+
   return (
     <div className="flex h-full flex-col">
       {/* Brand */}
@@ -283,7 +305,7 @@ function SidebarContent({
         </LabelSlot>
       </div>
 
-      {/* Links */}
+      {/* Links principais */}
       <nav className="flex-1 p-2 space-y-1">
         {links.map((l) => renderLink(l.href, l.label, l.icon))}
 
@@ -312,7 +334,6 @@ function SidebarContent({
               <LabelSlot ready={ready}>Rotas</LabelSlot>
             </div>
 
-            {/* chevron só ocupa espaço quando aberto */}
             <div
               style={{
                 width: "calc(var(--sidebar-w) - 80px)",
@@ -328,7 +349,7 @@ function SidebarContent({
             </div>
           </button>
 
-          {/* Submenu */}
+          {/* Submenu Rotas */}
           <div
             id="routes-submenu"
             role="menu"
@@ -384,7 +405,94 @@ function SidebarContent({
           </div>
         </div>
 
+        {/* Tail (sem Visitas) */}
         {tail.map((l) => renderLink(l.href, l.label, l.icon))}
+
+        {/* Grupo: Configurações (colapsável) */}
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => {
+              if (collapsed) {
+                router.push("/settings"); // no fechado, navega direto
+                onNavigate?.();
+              } else {
+                setSettingsOpen((v) => !v);
+              }
+            }}
+            className={`w-full flex items-center ${
+              collapsed ? "justify-center px-2 gap-0" : "justify-between px-3 gap-3"
+            } py-2 rounded-md transition-colors ${
+              isSettingsSection ? "bg-white/20 text-white" : "text-white hover:bg-white/10"
+            }`}
+            aria-expanded={settingsOpen}
+            aria-controls="settings-submenu"
+          >
+            <div className={`flex items-center ${collapsed ? "gap-0" : "gap-3"}`}>
+              <SettingsIcon size={18} aria-hidden className="shrink-0" />
+              <LabelSlot ready={ready}>Configurações</LabelSlot>
+            </div>
+
+            <div
+              style={{
+                width: "calc(var(--sidebar-w) - 80px)",
+                overflow: "hidden",
+                transition: ready ? "width 300ms ease" : "none",
+              }}
+            >
+              <ChevronDown
+                size={16}
+                className={`transition-transform ${settingsOpen ? "rotate-180" : ""}`}
+                aria-hidden="true"
+              />
+            </div>
+          </button>
+
+          <div
+            id="settings-submenu"
+            role="menu"
+            className="mt-1"
+            style={{
+              maxHeight: settingsOpen ? 300 : 0,
+              overflow: "hidden",
+              transition: ready ? "max-height 300ms ease, opacity 300ms ease" : "none",
+              opacity: "calc((var(--sidebar-w) - 80px) / 200)",
+              pointerEvents: settingsOpen && !collapsed ? "auto" : "none",
+            }}
+          >
+            {!collapsed && (
+              <div className="space-y-1">
+                <SidebarLink
+                  href="/account"
+                  active={pathname.startsWith("/account")}
+                  collapsed={false}
+                  className="ml-8 text-sm"
+                  icon={UserIcon}
+                >
+                  Meu perfil
+                </SidebarLink>
+                <SidebarLink
+                  href="/settings"
+                  active={pathname.startsWith("/settings")}
+                  collapsed={false}
+                  className="ml-8 text-sm"
+                  icon={Cog}
+                >
+                  Preferências
+                </SidebarLink>
+
+                {/* Sair como “link” */}
+                <button
+                  onClick={handleSignOut}
+                  className="ml-8 flex w-[calc(100%-2rem)] items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-white/90 hover:bg-white/10"
+                >
+                  <LogOut size={18} className="shrink-0" />
+                  Sair
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </nav>
 
       {/* Footer */}
