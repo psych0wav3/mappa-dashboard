@@ -221,7 +221,7 @@ function SidebarContent({
     () => [
       { href: "/routes/builder", label: "Criar rota" },
       { href: "/routes/assignments", label: "Atribuir rota" },
-      { href: "/routes/dashboard", label: "Dashboard da rota" },
+      { href: "/routes/dashboard", label: "Controle das rotas" },
     ],
     []
   );

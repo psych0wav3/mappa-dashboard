@@ -47,6 +47,7 @@
   --ac-blue-900: #0A4B84;
   --ac-blue-700: #0077C8;
   --ac-blue-500: #00BBD3;
+  --ac-blue-300:#7CC7EA;
   --ac-sidebar-bg: linear-gradient(180deg, var(--ac-blue-900) 0%, var(--ac-blue-700) 55%, var(--ac-blue-500) 100%);
   --radius: 0.625rem;
   --background: oklch(1 0 0);
