@@ -34,7 +34,7 @@ export default function MonthNavigator({ dateISO, onChangeDate, className }: Pro
       <Button variant="outline" size="sm" onClick={() => onChangeDate(toISO(addMonths(cur, +12)))}>»</Button>
 
       <Button
-        className="ml-2 bg-blue-600 hover:bg-blue-700 text-white"
+        className="ml-2 btn-brand text-white"
         size="sm"
         onClick={() => onChangeDate(toISO(new Date()))}
       >

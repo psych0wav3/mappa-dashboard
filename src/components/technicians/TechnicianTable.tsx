@@ -44,7 +44,7 @@ export default function TechnicianTable({ initialData }: { initialData: Tech[] }
   const tabBtn = (active: boolean) =>
     `h-9 rounded-md px-3 text-sm border ${
       active
-        ? "bg-blue-600 text-white border-blue-600"
+        ? "btn-brand text-white"
         : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50"
     }`;
 
@@ -77,7 +77,7 @@ export default function TechnicianTable({ initialData }: { initialData: Tech[] }
 
           <TechnicianForm
             trigger={
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+              <Button className="btn-brand text-white">
                 Novo técnico
               </Button>
             }

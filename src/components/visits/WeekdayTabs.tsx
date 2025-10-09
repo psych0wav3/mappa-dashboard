@@ -38,7 +38,7 @@ export default function WeekdayTabs() {
             className={
               "rounded-xl px-4 py-2 text-sm border transition " +
               (active
-                ? "bg-blue-600 text-white border-blue-600" // 🔵 ativo azul como o sidebar
+                ? "btn-brand text-white"
                 : "bg-white border-neutral-300 hover:bg-blue-50")
             }
           >

@@ -93,7 +93,7 @@ export default function VisitDayBoard({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-9 w-9 p-0 bg-blue-600 hover:bg-blue-700 text-white"
+                      className="h-9 w-9 p-0 btn-brand text-white"
                       title="Ver"
                     >
                       <Eye size={16} />
@@ -149,7 +149,7 @@ export default function VisitDayBoard({
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancelar</AlertDialogCancel>
                           <AlertDialogAction
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            className="btn-brand text-white"
                             onClick={() =>
                               startTransition(async () => {
                                 try {

@@ -143,13 +143,12 @@ export default function AppSidebar({
 
       {/* Drawer mobile/tablet */}
       <aside
-        className={`fixed inset-y-0 left-0 z-[110] w-[80vw] max-w-[320px] bg-[#0077C8] text-white shadow-xl lg:hidden
+        className={`fixed inset-y-0 left-0 z-[110] w-[80vw] max-w-[320px] text-white shadow-xl lg:hidden
           transition-transform ${open ? "translate-x-0" : "-translate-x-full"}`}
         role="dialog"
         aria-label="Menu lateral"
-        onKeyDown={(e) => {
-          if (e.key === "Escape") onClose();
-        }}
+        style={{ background: "var(--ac-sidebar-bg)" }}  // usa a var global
+        onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}
       >
         <SidebarContent
           pathname={pathname}
@@ -161,19 +160,19 @@ export default function AppSidebar({
 
       {/* Sidebar fixa (desktop) */}
       <aside
-        className={`fixed inset-y-0 left-0 z-[80] hidden lg:flex lg:flex-col bg-[#0077C8] text-white shadow-lg ${
-          ready ? "transition-all duration-300" : "" // sem transição no 1º paint
-        }`}
-        style={{ width: "var(--sidebar-w)" }}
+        className={`fixed inset-y-0 left-0 z-[80] hidden lg:flex lg:flex-col text-white shadow-lg ${
+          ready ? "transition-all duration-300" : ""}`}
+        style={{ width: "var(--sidebar-w)", background: "var(--ac-sidebar-bg)" }} // usa a var global
         aria-label="Menu lateral"
       >
         <SidebarContent pathname={pathname} collapsed={collapsed} ready={ready} />
 
         {/* Botão de toggle */}
         <button
-          className="absolute -right-3 top-[72px] grid h-8 w-8 place-items-center rounded-full bg-white text-[#0077C8] shadow-md"
+          className="absolute -right-3 top-[72px] grid h-8 w-8 place-items-center rounded-full bg-white shadow-md"
           onClick={() => setCollapsed((v) => !v)}
           aria-label={collapsed ? "Expandir sidebar" : "Recolher sidebar"}
+          style={{ color: "var(--ac-blue-700)" }} // cor do ícone no padrão da marca
         >
           {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
         </button>
@@ -273,7 +272,10 @@ function SidebarContent({
           collapsed ? "justify-center" : ""
         }`}
       >
-        <div className="h-10 w-10 rounded-lg bg-white text-[#0077C8] grid place-items-center text-lg font-bold select-none">
+        <div
+          className="h-10 w-10 rounded-lg bg-white grid place-items-center text-lg font-bold select-none"
+          style={{ color: "var(--ac-blue-700)" }}  // letra “P” na cor da marca
+        >
           P
         </div>
         <LabelSlot ready={ready}>
@@ -326,7 +328,7 @@ function SidebarContent({
             </div>
           </button>
 
-          {/* Submenu: compacto e centralizado no FECHADO; padrão no ABERTO */}
+          {/* Submenu */}
           <div
             id="routes-submenu"
             role="menu"
@@ -335,12 +337,11 @@ function SidebarContent({
               maxHeight: routesOpen ? 800 : 0,
               overflow: "hidden",
               transition: ready ? "max-height 300ms ease, opacity 300ms ease" : "none",
-              opacity: "calc((var(--sidebar-w) - 80px) / 200)", // 0 quando 80px, 1 quando 280px
+              opacity: "calc((var(--sidebar-w) - 80px) / 200)",
               pointerEvents: routesOpen && !collapsed ? "auto" : "none",
             }}
           >
             {collapsed ? (
-              // FECHADO: 3 “bolinhas” centralizadas
               <div className="flex flex-col items-center gap-2 py-1">
                 {routeItems.map((it) => {
                   const active =
@@ -362,7 +363,6 @@ function SidebarContent({
                 })}
               </div>
             ) : (
-              // ABERTO: lista normal (mantém seu layout)
               <div className="space-y-1" role="menu">
                 {routeItems.map((it) => {
                   const active =

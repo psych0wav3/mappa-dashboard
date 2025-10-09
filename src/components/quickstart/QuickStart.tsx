@@ -72,7 +72,7 @@ export default function QuickStart({
           </div>
           <div className="h-2 rounded bg-neutral-100">
             <div
-              className="h-2 rounded bg-blue-600 transition-all"
+              className="h-2 rounded btn-brand transition-all"
               style={{ width: `${pct}%` }}
               aria-label={`Progresso: ${pct}%`}
             />
@@ -124,7 +124,7 @@ export default function QuickStart({
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Button
                         size="sm"
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        className="btn-brand hover:bg-blue-700 text-white"
                         onClick={() => {
                           if (p.acao?.onClick) p.acao.onClick();
                           if (p.acao?.href) router.push(p.acao.href);

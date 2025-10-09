@@ -71,7 +71,7 @@ export default function AssignRoutes({ technicians }: { technicians: Tech[] }) {
             return (
               <button
                 key={t.id}
-                className={`h-9 px-3 rounded-md border text-sm ${active ? "bg-blue-600 text-white border-blue-600" : "border-neutral-300 hover:bg-neutral-50"}`}
+                className={`h-9 px-3 rounded-md border text-sm ${active ? "btn-brand text-white" : "border-neutral-300 hover:bg-neutral-50"}`}
                 onClick={() => toggleDstTech(t.id)}
               >
                 {t.firstName}
@@ -89,7 +89,7 @@ export default function AssignRoutes({ technicians }: { technicians: Tech[] }) {
             return (
               <button
                 key={d}
-                className={`h-9 px-3 rounded-md border text-sm ${active ? "bg-blue-600 text-white border-blue-600" : "border-neutral-300 hover:bg-neutral-50"}`}
+                className={`h-9 px-3 rounded-md border text-sm ${active ? "btn-brand text-white" : "border-neutral-300 hover:bg-neutral-50"}`}
                 onClick={() => toggleDstDay(d)}
               >
                 {["Seg","Ter","Qua","Qui","Sex","Sáb"][d-1]}
@@ -110,7 +110,7 @@ export default function AssignRoutes({ technicians }: { technicians: Tech[] }) {
         />
       </div>
 
-      <Button onClick={run} className="bg-blue-600 hover:bg-blue-700 text-white">
+      <Button onClick={run} className="btn-brand text-white">
         Atribuir
       </Button>
     </div>

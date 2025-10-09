@@ -57,7 +57,7 @@ type Values = z.infer<typeof schema>;
 export default function TechnicianForm({
   id,
   defaultValues,
-  trigger = "Novo técnico",
+  trigger = "Novo Técnico",
 }: {
   id?: string;
   defaultValues?: Partial<Values>;
@@ -133,7 +133,7 @@ export default function TechnicianForm({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {typeof trigger === "string" ? (
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button className="btn-brand text-white">
             {trigger}
           </Button>
         ) : (
@@ -143,7 +143,7 @@ export default function TechnicianForm({
 
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Editar técnico" : "Novo técnico"}</DialogTitle>
+          <DialogTitle>{isEditing ? "Editar Técnico" : "Novo Técnico"}</DialogTitle>
         </DialogHeader>
 
         {/* ⬅️ usar o genérico ajuda o TS a casar tudo */}
@@ -271,7 +271,7 @@ export default function TechnicianForm({
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
                         <AlertDialogAction
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                          className="btn-brand text-white"
                           onClick={handleDelete}
                         >
                           Confirmar
@@ -291,7 +291,7 @@ export default function TechnicianForm({
                 <Button
                   type="submit"
                   disabled={pending}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  className="btn-brand text-white"
                 >
                   {isEditing ? "Salvar" : "Criar"}
                 </Button>

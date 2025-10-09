@@ -22,7 +22,7 @@ export default function TechFilter({
             onClick={() => toggle(t.id)}
             className={[
               "px-3 py-1.5 rounded-full text-sm border",
-              checked ? "bg-blue-600 text-white border-blue-600" : "bg-white hover:bg-neutral-50"
+              checked ? "btn-brand text-white" : "bg-white hover:bg-neutral-50"
             ].join(" ")}
           >
             {t.firstName} {t.lastName}

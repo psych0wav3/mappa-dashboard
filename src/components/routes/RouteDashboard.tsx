@@ -127,7 +127,7 @@ function VisitRow({ v, idx }: { v: Visit; idx: number }) {
   };
   return (
     <div className="grid grid-cols-[2rem_1fr_auto] items-center gap-3 border-b py-2">
-      <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-semibold">
+      <div className="w-8 h-8 rounded-full btn-brand text-white flex items-center justify-center text-sm font-semibold">
         {idx + 1}
       </div>
       <div className="min-w-0">
@@ -319,13 +319,13 @@ export default function RouteDashboard() {
             <div className="inline-flex rounded-md border overflow-hidden">
               <button
                 onClick={() => setMapMode("selected")}
-                className={`px-3 py-1.5 text-sm ${mapMode === "selected" ? "bg-blue-600 text-white" : "hover:bg-neutral-50"}`}
+                className={`px-3 py-1.5 text-sm ${mapMode === "selected" ? "btn-brand text-white" : "hover:bg-neutral-50"}`}
               >
                 Rota selecionada
               </button>
               <button
                 onClick={() => setMapMode("all")}
-                className={`px-3 py-1.5 text-sm border-l ${mapMode === "all" ? "bg-blue-600 text-white" : "hover:bg-neutral-50"}`}
+                className={`px-3 py-1.5 text-sm border-l ${mapMode === "all" ? "btn-brand text-white" : "hover:bg-neutral-50"}`}
               >
                 Todas as rotas
               </button>

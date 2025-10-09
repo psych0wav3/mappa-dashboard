@@ -16,10 +16,10 @@ export default function SiteLayout({ children }: { children: ReactNode }) {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 text-sm text-neutral-600">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-blue-600 text-white grid place-items-center text-xs font-bold">
-                P
+              <div className="h-8 w-8 rounded-lg btn-brand text-white grid place-items-center text-xs font-bold">
+                A
               </div>
-              <span className="font-medium">PiscinApp</span>
+              <span className="font-medium">Aqua Check</span>
             </div>
             <div className="flex items-center gap-6">
               <a href="/features" className="hover:text-neutral-900">Recursos</a>

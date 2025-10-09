@@ -37,7 +37,7 @@ export default async function VisitsPage({
             {/* 🔵 Botão "Nova visita" no mesmo azul do sidebar */}
             <VisitPlanForm
               trigger={
-                <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Button className="btn-brand text-white">
                   Nova visita
                 </Button>
               }

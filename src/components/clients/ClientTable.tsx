@@ -84,7 +84,7 @@ export default function ClientTable({ initialData }: { initialData: Client[] }) 
   const tabBtn = (active: boolean) =>
     `h-9 rounded-md px-3 text-sm border ${
       active
-        ? "bg-blue-600 text-white border-blue-600"
+        ? "btn-brand text-white"
         : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50"
     }`;
 
@@ -118,7 +118,7 @@ export default function ClientTable({ initialData }: { initialData: Client[] }) 
 
           <ClientForm
             trigger={
-              <Button size="sm" className="h-9 rounded-md bg-blue-600 hover:bg-blue-700 text-white">
+              <Button size="sm" className="h-9 rounded-md btn-brand text-white">
                 Novo cliente
               </Button>
             }

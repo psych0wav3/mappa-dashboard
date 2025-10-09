@@ -31,7 +31,7 @@ export default function DayStrip({ dateISO, onSelectDay, className }: Props) {
             className={[
               "min-w-10 rounded-xl px-3 py-2 text-sm border transition",
               active
-                ? "bg-blue-600 text-white border-blue-600"
+                ? "btn-brand text-white border-blue-600"
                 : "bg-white border-neutral-300 hover:bg-neutral-50",
             ].join(" ")}
           >

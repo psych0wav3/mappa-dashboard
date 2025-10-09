@@ -38,7 +38,7 @@ export default function TechColumn({
       <div className="bg-blue-50/80 border-b px-4 py-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           {/* Avatar simples com iniciais */}
-          <div className="h-9 w-9 rounded-full bg-blue-600 text-white grid place-items-center font-semibold">
+          <div className="h-9 w-9 rounded-full btn-brand text-white grid place-items-center font-semibold">
             {initials(tech)}
           </div>
 

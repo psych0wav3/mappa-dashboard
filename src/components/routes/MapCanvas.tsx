@@ -25,15 +25,15 @@ const ORANGE = "#f97316";
 
 function svgPin(bg: string, text: string, textColor: string) {
   const svg = `
-<svg xmlns="http://www.w3.org/2000/svg" width="${PIN_SIZE}" height="${PIN_SIZE * 1.25}" viewBox="0 0 40 50">
-  <defs><filter id="s"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,.35)"/></filter></defs>
-  <g filter="url(#s)">
-    <path fill="${bg}" d="M20 0c-8.837 0-16 7.163-16 16 0 11.5 16 32 16 32s16-20.5 16-32C36 7.163 28.837 0 20 0z"/>
-    <circle cx="20" cy="16" r="10" fill="white" opacity=".15"/>
-  </g>
-  <text x="20" y="19.5" text-anchor="middle" font-family="Inter,system-ui,Roboto,Arial"
-        font-size="13" font-weight="700" fill="${textColor}">${text}</text>
-</svg>`;
+    <svg xmlns="http://www.w3.org/2000/svg" width="${PIN_SIZE}" height="${PIN_SIZE * 1.25}" viewBox="0 0 40 50">
+      <defs><filter id="s"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,.35)"/></filter></defs>
+      <g filter="url(#s)">
+        <path fill="${bg}" d="M20 0c-8.837 0-16 7.163-16 16 0 11.5 16 32 16 32s16-20.5 16-32C36 7.163 28.837 0 20 0z"/>
+        <circle cx="20" cy="16" r="10" fill="white" opacity=".15"/>
+      </g>
+      <text x="20" y="19.5" text-anchor="middle" font-family="Inter,system-ui,Roboto,Arial"
+            font-size="13" font-weight="700" fill="${textColor}">${text}</text>
+    </svg>`;
   return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg);
 }
 
@@ -41,7 +41,7 @@ export default function MapCanvas({
   markers,
   height = 520,
   searchInputRef,
-  pinColor = "#2563eb",
+  pinColor = "#0077C8",
   pinGlyphColor = "#ffffff",
   maxZoomAfterFit = 16,
 }: Props) {

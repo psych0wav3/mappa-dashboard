@@ -101,7 +101,7 @@ export default function CalendarPage() {
             </h1>
             <Button
               onClick={refresh}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="btn-brand text-white"
             >
               Atualizar
             </Button>

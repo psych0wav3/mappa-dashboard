@@ -47,7 +47,7 @@ export default function MonthNav({ date }: { date: string }) {
       </Button>
 
       <Button
-        className="ml-3 bg-blue-600 hover:bg-blue-700 text-white"
+        className="ml-3 btn-brand text-white"
         size="sm"
         onClick={() => pushDate(new Date())}
       >

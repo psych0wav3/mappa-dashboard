@@ -11,7 +11,7 @@ function formatWeekday(isoDate: string) {
 
 export default function DayBanner({ dateISO }: { dateISO: string }) {
   return (
-    <div className="w-full bg-blue-600 text-white px-4 lg:px-6 py-3">
+    <div className="w-full btn-brand text-white px-4 lg:px-6 py-3">
       <div className="text-base font-medium tracking-wide">
         {formatWeekday(dateISO)}
       </div>

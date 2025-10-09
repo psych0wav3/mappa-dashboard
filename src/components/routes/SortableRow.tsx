@@ -195,7 +195,7 @@ export default function SortableRow({
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="btn-brand text-white"
               onClick={onRemove}
             >
               Confirmar

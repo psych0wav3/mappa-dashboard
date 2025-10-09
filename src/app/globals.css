@@ -44,6 +44,10 @@
 }
 
 :root {
+  --ac-blue-900: #0A4B84;
+  --ac-blue-700: #0077C8;
+  --ac-blue-500: #00BBD3;
+  --ac-sidebar-bg: linear-gradient(180deg, var(--ac-blue-900) 0%, var(--ac-blue-700) 55%, var(--ac-blue-500) 100%);
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -119,4 +123,30 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+.btn-brand {
+  color: #fff;
+  background-image: linear-gradient(
+    90deg,
+    var(--ac-blue-700) 0%,
+    var(--ac-blue-500) 100%
+  );
+  background-size: 200% 100%;          /* permite “deslizar” no hover */
+  background-position: 0% 0%;
+  transition: background-position .3s ease, transform .02s ease;
+}
+
+.btn-brand:hover {
+  background-position: 100% 0%;
+}
+
+.btn-brand:focus-visible {
+  outline: 2px solid rgba(255,255,255,.9);
+  outline-offset: 2px;
+}
+
+.btn-brand:disabled {
+  opacity: .6;
+  pointer-events: none;
 }

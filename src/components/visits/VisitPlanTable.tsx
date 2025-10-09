@@ -54,7 +54,7 @@ export default function VisitPlanTable({
 
             <div className="flex gap-2">
               {/* Visualizar simples (reusa o form em modo read-only no futuro; por ora apenas Eye sem ação) */}
-              <Button variant="outline" size="sm" className="h-9 w-9 p-0 bg-blue-600 hover:bg-blue-700 text-white" title="Ver">
+              <Button variant="outline" size="sm" className="h-9 w-9 p-0 btn-brand text-white" title="Ver">
                 <Eye size={16} />
               </Button>
 

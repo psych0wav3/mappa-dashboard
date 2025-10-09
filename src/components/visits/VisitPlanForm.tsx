@@ -145,7 +145,7 @@ export default function VisitPlanForm({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {typeof trigger === "string" ? (
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white">{trigger}</Button>
+          <Button className="btn-brand text-white">{trigger}</Button>
         ) : (
           (trigger as React.ReactElement)
         )}
@@ -277,7 +277,7 @@ export default function VisitPlanForm({
                           type="button"
                           className={`h-9 px-3 rounded-md border text-sm ${
                             active
-                              ? "bg-blue-600 text-white border-blue-600"
+                              ? "btn-brand text-white"
                               : "border-neutral-300 hover:bg-neutral-50"
                           }`}
                           onClick={() => toggleDay(d.v)}
@@ -361,7 +361,7 @@ export default function VisitPlanForm({
               <Button
                 type="submit"
                 disabled={pending}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="btn-brand text-white"
               >
                 {id ? "Salvar" : "Criar"}
               </Button>

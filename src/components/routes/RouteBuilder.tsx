@@ -331,7 +331,7 @@ export default function RouteBuilder({
           />
 
           <div className="flex">
-            <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white" onClick={salvar}>
+            <Button className="w-full btn-brand hover:bg-blue-700 text-white" onClick={salvar}>
               Salvar rota
             </Button>
           </div>

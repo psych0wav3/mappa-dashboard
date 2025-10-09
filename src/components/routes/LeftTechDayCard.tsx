@@ -42,14 +42,14 @@ export default function LeftTechDayCard({
         />
 
         <div>
-          <label className="text-xs font-medium text-neutral-600">Dia da semana</label>
+          <label className="text-xs font-medium text-neutral-600">Dia da Semana</label>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {WEEKDAYS.map((d) => (
               <button
                 key={d.v}
                 className={`h-8 px-2 rounded border text-xs ${
                   weekday === d.v
-                    ? "bg-blue-600 text-white border-blue-600"
+                    ? "btn-brand text-white border-blue-600"
                     : "border-neutral-300 hover:bg-neutral-50"
                 }`}
                 onClick={() => onWeekdayChange(d.v)}
