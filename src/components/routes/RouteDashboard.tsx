@@ -33,7 +33,6 @@ type TechDay = {
 type ApiResult = { items: TechDay[] };
 
 /* ===== Utils ===== */
-const BRAND_BLUE = "#0077C8";
 const pad2 = (n: number) => String(n).padStart(2, "0");
 const toISODate = (d: Date) =>
   `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -44,7 +43,6 @@ const addDays = (iso: string, delta: number) => {
 };
 function formatLongDate(iso: string) {
   const d = new Date(`${iso}T00:00:00`);
-  // pt-BR por padrão do app
   return d.toLocaleDateString("pt-BR", {
     weekday: "short",
     year: "numeric",
@@ -54,7 +52,7 @@ function formatLongDate(iso: string) {
 }
 function getWeekStrip(centerISO: string) {
   const d = new Date(centerISO + "T00:00:00");
-  const dow = d.getDay(); // 0..6
+  const dow = d.getDay();
   const start = new Date(d);
   start.setDate(d.getDate() - dow);
   const todayISO = toISODate(new Date());
@@ -166,7 +164,9 @@ export default function RouteDashboard() {
     }
   }, [dateISO, selectedTechId]);
 
-  React.useEffect(() => { void load(); }, [load]);
+  React.useEffect(() => {
+    void load();
+  }, [load]);
 
   const selected = items.find((t) => t.techId === selectedTechId) || null;
   const week = getWeekStrip(dateISO);
@@ -195,15 +195,19 @@ export default function RouteDashboard() {
     return out;
   }, [items, selected, mapMode]);
 
+  // usa o azul da marca (aciona degradê no MapCanvas)
   const pinColor = React.useCallback(
-    (m: any) => (mapMode === "selected" ? "#2563eb" : m.techId === selectedTechId ? "#2563eb" : "#9ca3af"),
+    (m: any) => (mapMode === "selected" ? "#0077C8" : m.techId === selectedTechId ? "#0077C8" : "#9ca3af"),
     [mapMode, selectedTechId]
   );
 
   return (
     <div className="rounded-xl border bg-white p-0 overflow-hidden">
-      {/* ===== Calendário no azul ===== */}
-      <div className="px-4 py-3" style={{ backgroundColor: BRAND_BLUE, color: "white" }}>
+      {/* ===== Calendário no azul da marca ===== */}
+      <div
+        className="px-4 py-3"
+        style={{ background: "var(--ac-blue-700)", color: "white" }}
+      >
         <div className="flex flex-wrap items-center gap-3">
           {/* Data por extenso */}
           <div className="font-semibold">{formatLongDate(dateISO)}</div>
@@ -226,11 +230,12 @@ export default function RouteDashboard() {
                   onClick={() => setDateISO(d.iso)}
                   className={`px-3 py-1.5 text-sm border-l border-white/20 first:border-l-0 ${
                     d.iso === dateISO
-                      ? "bg-white text-blue-700 font-semibold"
+                      ? "bg-white font-semibold"
                       : d.isToday
                       ? "bg-white/10"
                       : "bg-transparent hover:bg-white/10"
                   }`}
+                  style={d.iso === dateISO ? { color: "var(--ac-blue-700)" } : undefined}
                 >
                   <div className="leading-none">{d.wd}</div>
                   <div className="text-xs opacity-90">{d.dd}</div>
@@ -251,11 +256,15 @@ export default function RouteDashboard() {
           <div className="ml-auto flex items-center gap-2">
             <button
               onClick={() => setDateISO(toISODate(new Date()))}
-              className="h-8 rounded-md bg-white text-blue-700 px-3 text-sm font-medium hover:bg-neutral-100"
+              className="h-8 rounded-md bg-white px-3 text-sm font-medium hover:bg-neutral-100"
+              style={{ color: "var(--ac-blue-700)" }}
             >
               Hoje
             </button>
-            <label className="h-8 rounded-md bg-white text-blue-700 px-3 text-sm font-medium hover:bg-neutral-100 inline-flex items-center gap-2 cursor-pointer">
+            <label
+              className="h-8 rounded-md bg-white px-3 text-sm font-medium hover:bg-neutral-100 inline-flex items-center gap-2 cursor-pointer"
+              style={{ color: "var(--ac-blue-700)" }}
+            >
               <CalendarIcon className="h-4 w-4" />
               <span>Calendário</span>
               <input
@@ -267,7 +276,8 @@ export default function RouteDashboard() {
             </label>
             <button
               onClick={() => void load()}
-              className="h-8 rounded-md bg-white text-blue-700 px-3 text-sm font-medium hover:bg-neutral-100 inline-flex items-center gap-2"
+              className="h-8 rounded-md bg-white px-3 text-sm font-medium hover:bg-neutral-100 inline-flex items-center gap-2"
+              style={{ color: "var(--ac-blue-700)" }}
             >
               <RefreshCcw className="h-4 w-4" />
               Atualizar
@@ -319,13 +329,17 @@ export default function RouteDashboard() {
             <div className="inline-flex rounded-md border overflow-hidden">
               <button
                 onClick={() => setMapMode("selected")}
-                className={`px-3 py-1.5 text-sm ${mapMode === "selected" ? "btn-brand text-white" : "hover:bg-neutral-50"}`}
+                className={`px-3 py-1.5 text-sm ${
+                  mapMode === "selected" ? "btn-brand text-white" : "hover:bg-neutral-50"
+                }`}
               >
                 Rota selecionada
               </button>
               <button
                 onClick={() => setMapMode("all")}
-                className={`px-3 py-1.5 text-sm border-l ${mapMode === "all" ? "btn-brand text-white" : "hover:bg-neutral-50"}`}
+                className={`px-3 py-1.5 text-sm border-l ${
+                  mapMode === "all" ? "btn-brand text-white" : "hover:bg-neutral-50"
+                }`}
               >
                 Todas as rotas
               </button>
@@ -336,7 +350,9 @@ export default function RouteDashboard() {
             <MapCanvas
               markers={markers.map((m) => ({ id: m.id, lat: m.lat, lng: m.lng, label: m.label }))}
               height={520}
-              pinColor={(m) => pinColor({ ...m, techId: (markers.find(x => x.id === m.id) as any)?.techId })}
+              pinColor={(m) =>
+                pinColor({ ...m, techId: (markers.find((x) => x.id === m.id) as any)?.techId })
+              }
               pinGlyphColor={() => "#ffffff"}
               maxZoomAfterFit={15}
             />
