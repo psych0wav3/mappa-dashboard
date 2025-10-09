@@ -1,183 +1,138 @@
-# Supabase CLI
+# 📘 Aqua Check Dashboard
 
-[![Coverage Status](https://coveralls.io/repos/github/supabase/cli/badge.svg?branch=main)](https://coveralls.io/github/supabase/cli?branch=main) [![Bitbucket Pipelines](https://img.shields.io/bitbucket/pipelines/supabase-cli/setup-cli/master?style=flat-square&label=Bitbucket%20Canary)](https://bitbucket.org/supabase-cli/setup-cli/pipelines) [![Gitlab Pipeline Status](https://img.shields.io/gitlab/pipeline-status/sweatybridge%2Fsetup-cli?label=Gitlab%20Canary)
-](https://gitlab.com/sweatybridge/setup-cli/-/pipelines)
+Painel administrativo e operacional do **Aqua Check**, desenvolvido em **Next.js + React**.  
+Focado em **gestão de técnicos, clientes, visitas e rotas**, com recursos avançados de calendário, planejamento de rotas e integração com mapas.
 
-[Supabase](https://supabase.io) is an open source Firebase alternative. We're building the features of Firebase using enterprise-grade open source tools.
+---
 
-This repository contains all the functionality for Supabase CLI.
+## 🚀 Tecnologias principais
 
-- [x] Running Supabase locally
-- [x] Managing database migrations
-- [x] Creating and deploying Supabase Functions
-- [x] Generating types directly from your database schema
-- [x] Making authenticated HTTP requests to [Management API](https://supabase.com/docs/reference/api/introduction)
+- **Frontend**
+  - [Next.js](https://nextjs.org/) (App Router)
+  - [React](https://react.dev/) + Server Actions
+  - [Tailwind CSS](https://tailwindcss.com/)
+  - [shadcn/ui](https://ui.shadcn.com/) (componentes UI)
+  - [Lucide Icons](https://lucide.dev/) (ícones)
+  - [DnD Kit](https://dndkit.com/) (drag-and-drop nas rotas)
 
-## Getting started
+- **Backend**
+  - [Prisma ORM](https://www.prisma.io/)  
+  - [Postgres](https://www.postgresql.org/) (hospedado no Supabase)
 
-### Install the CLI
+- **Integrações**
+  - Google Maps JavaScript API (mapas, geocodificação, autocomplete, advanced markers)
 
-Available via [NPM](https://www.npmjs.com) as dev dependency. To install:
+---
 
-```bash
-npm i supabase --save-dev
-```
+## 📂 Estrutura de pastas
 
-To install the beta release channel:
+src/
+├─ app/
+│ ├─ (private)/
+│ │ ├─ clients/ → gestão de clientes
+│ │ ├─ technicians/ → gestão de técnicos
+│ │ ├─ routes/ → criar rota, atribuir rota, dashboard da rota
+│ │ ├─ dashboard/ → painel de controle
+│ │ └─ quickstart/ → onboarding (passo a passo inicial)
+│ └─ (site)/
+│ ├─ builder/ → página de apresentação
+│ ├─ dashboard/ → landing interna
+│ └─ using/ → guias de uso
+│
+├─ components/
+│ ├─ routes/ → RouteBuilder, RouteDashboard, RouteListCard, etc.
+│ ├─ clients/ → tabelas e formulários de clientes
+│ ├─ calendar/ → calendário custom
+│ ├─ ui/ → base shadcn + custom (botões, inputs, etc.)
+│ └─ shell/ → layout geral (sidebar + topbar)
+│
+├─ lib/ → utilitários (ex.: geocode, helpers)
+├─ server/ → lógica server-side (geocodificação, ações Prisma)
+└─ prisma/ → schema Prisma
 
-```bash
-npm i supabase@beta --save-dev
-```
 
-When installing with yarn 4, you need to disable experimental fetch with the following nodejs config.
+## 📌 Principais módulos
 
-```
-NODE_OPTIONS=--no-experimental-fetch yarn add supabase
-```
+- **Quickstart**  
+  Onboarding guiado em formato de checklist com progresso salvo em `localStorage`.
 
-> **Note**
-For Bun versions below v1.0.17, you must add `supabase` as a [trusted dependency](https://bun.sh/guides/install/trusted) before running `bun add -D supabase`.
+- **Dashboard**  
+  Painel principal com visão geral (em evolução).
 
-<details>
-  <summary><b>macOS</b></summary>
+- **Técnicos**  
+  Cadastro, edição, ativação/desativação e papéis (`OWNER`, `TECH`).
 
-  Available via [Homebrew](https://brew.sh). To install:
+- **Clientes**  
+  Cadastro com informações pessoais, cobrança e localização da piscina.  
+  Inclui **geocodificação automática** e **coordenadas** (`poolLat`, `poolLng`) para pins no mapa.
 
-  ```sh
-  brew install supabase/tap/supabase
-  ```
+- **Rotas**
+  - **Criar rota** → montagem manual de rota semanal ou ad-hoc.
+  - **Atribuir rota** → distribuição de clientes entre técnicos.  
+  - **Dashboard da rota** → visão diária com:
+    - Coluna 1: técnicos do dia (com progresso em tempo real `x/y` piscinas feitas).  
+    - Coluna 2: rota detalhada do técnico (ordem das visitas, cliente, endereço, status).  
+    - Coluna 3: mapa interativo (visualização da rota do técnico ou todas as rotas).
 
-  To install the beta release channel:
-  
-  ```sh
-  brew install supabase/tap/supabase-beta
-  brew link --overwrite supabase-beta
-  ```
-  
-  To upgrade:
+- **Configurações**  
+  Inclui também o gerenciamento de conta e logout.
 
-  ```sh
-  brew upgrade supabase
-  ```
-</details>
+---
 
-<details>
-  <summary><b>Windows</b></summary>
+## 🗄️ Banco de dados (Prisma)
 
-  Available via [Scoop](https://scoop.sh). To install:
+Principais modelos:
 
-  ```powershell
-  scoop bucket add supabase https://github.com/supabase/scoop-bucket.git
-  scoop install supabase
-  ```
+- **Client** → informações de clientes e piscinas.  
+- **Technician** → técnicos (usuários operacionais).  
+- **VisitPlan / VisitInstance** → planos semanais de visitas e ocorrências.  
+- **RoutePlan / RoutePlanItem** → planejamento de rotas.  
+- **RouteTemplate / RouteOccurrence** → templates e execuções otimizadas.  
 
-  To upgrade:
+Todos os relacionamentos já estão indexados para **consultas de calendário e rotas**.
 
-  ```powershell
-  scoop update supabase
-  ```
-</details>
+---
 
-<details>
-  <summary><b>Linux</b></summary>
+## ⚙️ Setup do projeto
 
-  Available via [Homebrew](https://brew.sh) and Linux packages.
+### Pré-requisitos
+- Node.js 18+
+- Postgres (via Supabase)
+- API Key do Google Maps
 
-  #### via Homebrew
+### Variáveis de ambiente
 
-  To install:
-
-  ```sh
-  brew install supabase/tap/supabase
-  ```
-
-  To upgrade:
-
-  ```sh
-  brew upgrade supabase
-  ```
-
-  #### via Linux packages
-
-  Linux packages are provided in [Releases](https://github.com/supabase/cli/releases). To install, download the `.apk`/`.deb`/`.rpm`/`.pkg.tar.zst` file depending on your package manager and run the respective commands.
-
-  ```sh
-  sudo apk add --allow-untrusted <...>.apk
-  ```
-
-  ```sh
-  sudo dpkg -i <...>.deb
-  ```
-
-  ```sh
-  sudo rpm -i <...>.rpm
-  ```
-
-  ```sh
-  sudo pacman -U <...>.pkg.tar.zst
-  ```
-</details>
-
-<details>
-  <summary><b>Other Platforms</b></summary>
-
-  You can also install the CLI via [go modules](https://go.dev/ref/mod#go-install) without the help of package managers.
-
-  ```sh
-  go install github.com/supabase/cli@latest
-  ```
-
-  Add a symlink to the binary in `$PATH` for easier access:
-
-  ```sh
-  ln -s "$(go env GOPATH)/bin/cli" /usr/bin/supabase
-  ```
-
-  This works on other non-standard Linux distros.
-</details>
-
-<details>
-  <summary><b>Community Maintained Packages</b></summary>
-
-  Available via [pkgx](https://pkgx.sh/). Package script [here](https://github.com/pkgxdev/pantry/blob/main/projects/supabase.com/cli/package.yml).
-  To install in your working directory:
-
-  ```bash
-  pkgx install supabase
-  ```
-
-  Available via [Nixpkgs](https://nixos.org/). Package script [here](https://github.com/NixOS/nixpkgs/blob/master/pkgs/development/tools/supabase-cli/default.nix).
-</details>
-
-### Run the CLI
+Criar um arquivo `.env.local` na raiz com:
 
 ```bash
-supabase bootstrap
-```
+# Banco
+DATABASE_URL="postgres://..."
+DIRECT_URL="postgres://..."
 
-Or using npx:
+# Google Maps
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY="..."
 
-```bash
-npx supabase bootstrap
-```
+# Map style (opcional)
+NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID="..."
 
-The bootstrap command will guide you through the process of setting up a Supabase project using one of the [starter](https://github.com/supabase-community/supabase-samples/blob/main/samples.json) templates.
 
-## Docs
+Instalação
+npm install
 
-Command & config reference can be found [here](https://supabase.com/docs/reference/cli/about).
+Rodar localmente
+npm run dev
+App rodará em http://localhost:3000
 
-## Breaking changes
+#🔄 Fluxos principais
 
-We follow semantic versioning for changes that directly impact CLI commands, flags, and configurations.
+Criação de rota → seleção de clientes e técnicos → grava em RoutePlan.
 
-However, due to dependencies on other service images, we cannot guarantee that schema migrations, seed.sql, and generated types will always work for the same CLI major version. If you need such guarantees, we encourage you to pin a specific version of CLI in package.json.
+Execução de rota → gera VisitInstance para o dia.
 
-## Developing
+Dashboard da rota → agrupa visitas/instâncias e exibe em cards + mapa.
 
-To run from source:
+Atualização em tempo real → conforme técnico dá check-in/checkout, progresso aparece no card (3/10).
 
-```sh
-# Go >= 1.22
-go run . help
-```
+#📅 Roadmap interno
+Finalizar integração de status em tempo real no Dashboard (via Supabase Realtime).
+Finalizar integração de status em tempo real no Dashboard (via Supabase Realtime).
