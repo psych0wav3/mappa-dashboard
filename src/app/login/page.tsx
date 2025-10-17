@@ -57,37 +57,34 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen grid grid-cols-1 md:grid-cols-2">
       {/* Lado esquerdo (hero) */}
-      <div className="relative hidden md:block">
-        <div className="absolute inset-0 bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700" />
-        <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-20" />
-        <div className="relative h-full w-full flex flex-col justify-between p-8 text-white">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center ring-1 ring-white/20">
-              <span className="font-bold">P</span>
+        <div className="relative hidden md:block">
+          <div className="absolute inset-0 btn-brand" />
+          <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-20" />
+
+          {/* ↓ troquei justify-between por estrutura com flex-1 para centralizar o texto */}
+          <div className="relative h-full w-full flex flex-col p-8 text-white">
+            {/* topo (logo) */}
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center ring-1 ring-white/20">
+                <span className="font-bold">P</span>
+              </div>
+              <div className="text-xl font-semibold tracking-tight">Aqqua</div>
             </div>
-            <div className="text-xl font-semibold tracking-tight">Aqua Check</div>
-          </div>
 
-          <div className="space-y-4">
-            <h2 className="text-4xl font-bold leading-tight">
-              Gerencie rotas, <br /> visitas e relatórios
-            </h2>
-            <p className="max-w-md text-white/80">
-              Dashboard para criar agendas, acompanhar técnicos e centralizar fotos, checklist e medições.
-            </p>
-          </div>
-
-          <div className="relative aspect-[3/2] w-4/5 max-w-lg self-end">
-            <Image
-              src="/hero-pool.jpg"
-              alt="Piscina"
-              fill
-              className="object-cover rounded-2xl ring-1 ring-white/20 shadow-2xl"
-              priority
-            />
+            {/* meio (texto) — agora centralizado verticalmente */}
+            <div className="flex-1 flex items-center">
+              <div className="space-y-4">
+                <h2 className="text-4xl font-bold leading-tight">
+                  Gerencie rotas, <br /> visitas e relatórios
+                </h2>
+                <p className="max-w-md text-white/80">
+                  Dashboard para criar agendas, acompanhar técnicos e centralizar fotos, checklist e medições.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+
 
       {/* Lado direito (form) */}
       <div className="flex items-center justify-center p-6 md:p-10">
