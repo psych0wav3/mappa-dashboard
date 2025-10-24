@@ -3,5 +3,14 @@
 const nextConfig = {
   reactStrictMode: true,
   experimental: { appDir: true },
-}
-export default nextConfig
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+      },
+    ],
+  },
+};
+
+export default nextConfig;

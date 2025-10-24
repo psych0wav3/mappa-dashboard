@@ -298,10 +298,10 @@ function SidebarContent({
           className="h-10 w-10 rounded-lg bg-white grid place-items-center text-lg font-bold select-none"
           style={{ color: "var(--ac-blue-700)" }}  // letra “P” na cor da marca
         >
-          P
+          A
         </div>
         <LabelSlot ready={ready}>
-          <span className="font-semibold text-white text-lg">Aqua Check</span>
+          <span className="font-semibold text-white text-lg">Aqqua</span>
         </LabelSlot>
       </div>
 
@@ -501,7 +501,7 @@ function SidebarContent({
           collapsed ? "text-center" : ""
         }`}
       >
-        <span suppressHydrationWarning>© {new Date().getFullYear()} Aqua Check</span>
+        <span suppressHydrationWarning>© {new Date().getFullYear()} Aqqua</span>
       </div>
     </div>
   );

@@ -37,7 +37,7 @@ export default function QuickStartPage() {
     
       <div className="min-h-screen bg-neutral-50 px-4 sm:px-6 lg:px-8 py-6">
         <QuickStart
-          titulo="Siga o caminho rápido para dominar o Aqua Check"
+          titulo="Siga o caminho rápido para dominar o Aqqua"
           subtitulo="Complete estes passos para começar a operar em minutos."
           passos={passos as any}
           storageKey="quickstart:aquacheck"

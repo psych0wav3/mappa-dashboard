@@ -1,83 +1,118 @@
-// src/components/site/Hero.tsx
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Waves, ArrowRight, CalendarClock } from "lucide-react";
+
 export default function Hero() {
   return (
-    <section className="relative overflow-hidden">
-      {/* fundo azul escuro */}
-      <div className="absolute inset-0 bg-[#121637]" />
+    <section
+      className="relative overflow-hidden"
+      style={{ backgroundColor: "var(--ac-blue-700)" }} // fundo sólido azul-escuro (sem degradê)
+    >
+      {/* ondas decorativas – canto direito */}
+      <WavesPattern className="pointer-events-none absolute -right-6 top-10 hidden text-white/15 md:block" />
 
-      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 lg:py-24 grid lg:grid-cols-2 gap-10 items-center">
-        {/* COPY (esquerda) */}
-        <div className="text-white">
-          <h1 className="text-4xl/tight md:text-5xl font-extrabold tracking-tight">
-            O software nº1 para{" "}
-            <span className="text-orange-400">gestão de rotas</span> e
+      <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-4 py-16 sm:px-6 md:grid-cols-2 md:py-24">
+        {/* Texto */}
+        <div>
+          <motion.h1
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="text-balance text-4xl font-extrabold tracking-tight text-white sm:text-5xl"
+          >
+            O software&nbsp;nº&nbsp;1 para{" "}
+            <span className="text-amber-400">fidelizar mais clientes</span> de
             manutenção de piscinas
-          </h1>
-          <p className="mt-5 text-lg text-white/80">
-            Economize tempo, aumente a receita e encante seus clientes com a
-            plataforma all-in-one do PiscinApp: rotas, visitas, checklists,
-            químicos, fotos e relatórios.
+          </motion.h1>
+
+          <p className="mt-4 text-lg leading-relaxed text-white/80">
+            Economize tempo, aumente a receita e ofereça uma experiência
+            impecável ao cliente com o Aqqua: rotas, checklists com fotos,
+            leituras e cobrança — tudo em um só lugar.
           </p>
 
-          <div className="mt-8 flex flex-wrap gap-3">
-            <a
-              href="/login"
-              className="rounded-xl bg-orange-400 text-[#121637] px-5 py-3 font-semibold hover:bg-orange-300"
-            >
-              Começar agora
-            </a>
-            <a
-              href="/contato"
-              className="rounded-xl bg-white/10 px-5 py-3 font-semibold hover:bg-white/20"
-            >
-              Agendar uma demo
-            </a>
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <Link href="/pricing">
+              <Button className="btn-brand border-0 shadow-sm inline-flex items-center gap-2">
+                Começar agora <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+
+            <Link href="/contato">
+              <Button className="inline-flex items-center gap-2 bg-white text-slate-900 hover:bg-white/90">
+                <CalendarClock className="h-4 w-4" />
+                Agendar demo
+              </Button>
+            </Link>
+          </div>
+
+          <div className="mt-5 flex items-center gap-3 text-xs text-white/70">
+            <span>Sem burocracia</span>
+            <span className="h-1 w-1 rounded-full bg-white/50" />
+            <span>7 dias grátis</span>
+            <span className="h-1 w-1 rounded-full bg-white/50" />
+            <span>Cancelamento a qualquer momento</span>
           </div>
         </div>
 
-        {/* IMAGEM (direita, card 4:3 como no primeiro hero) */}
-        <div className="relative">
-          <div className="relative aspect-[4/3] w-full max-w-[640px] ml-auto rounded-3xl overflow-hidden ring-1 ring-white/10 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
-            <img
-              src="/hero-pool.jpg"
-              alt="App em uso à beira da piscina"
-              className="h-full w-full object-cover"
-            />
-            {/* ondas decorativas no canto superior direito */}
-            <svg
-              className="absolute -right-6 top-6 opacity-70"
-              width="120"
-              height="120"
-              viewBox="0 0 120 120"
-              fill="none"
-              aria-hidden
-            >
-              {Array.from({ length: 5 }).map((_, i) => (
-                <path
-                  key={i}
-                  d="M0,20 C20,35 40,5 60,20 C80,35 100,5 120,20"
-                  stroke="white"
-                  strokeOpacity="0.55"
-                  strokeWidth="2"
-                  transform={`translate(0 ${i * 16})`}
+        {/* Imagem */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.1 }}
+          className="relative"
+        >
+          <Card className="mx-auto w-full max-w-xl overflow-hidden rounded-2xl border-0 bg-white/5 shadow-[0_10px_40px_rgba(0,0,0,.35)] backdrop-blur">
+            <CardContent className="p-0">
+              <div className="relative aspect-[16/10] w-full">
+                <Image
+                  src="/hero-pool.jpg"
+                  alt="Aqqua em uso no campo"
+                  fill
+                  className="object-cover"
+                  priority
                 />
-              ))}
-            </svg>
-          </div>
-        </div>
-      </div>
+                {/* leve vinheta para destacar a tela */}
+                <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-white/10" />
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* separador “onda” */}
-      <svg className="block w-full" viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden>
-        <path
-          d="M0,80 C240,120 360,0 600,40 C840,80 1080,0 1440,60 L1440,120 L0,120 Z"
-          fill="#121637"
-        />
-        <path
-          d="M0,95 C240,135 360,15 600,55 C840,95 1080,15 1440,75 L1440,120 L0,120 Z"
-          fill="#e0f2ff"
-        />
-      </svg>
+          {/* ondas decorativas – canto inferior esquerdo da imagem */}
+          <WavesPattern className="pointer-events-none absolute -left-8 -bottom-8 hidden rotate-6 text-white/15 md:block" />
+        </motion.div>
+      </div>
     </section>
+  );
+}
+
+/* ====== pequeno componente de “ondas” ====== */
+function WavesPattern({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width="160"
+      height="160"
+      viewBox="0 0 160 160"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {Array.from({ length: 8 }).map((_, i) => (
+        <path
+          key={i}
+          d={`M0 ${10 + i * 18}c12-8 24-8 36 0s24 8 36 0 24-8 36 0 24 8 36 0`}
+          stroke="currentColor"
+          strokeWidth="2"
+          fill="none"
+          opacity="1"
+        />
+      ))}
+    </svg>
   );
 }
