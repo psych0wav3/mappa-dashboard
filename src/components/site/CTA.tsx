@@ -17,7 +17,7 @@ export default function CTA() {
 
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         {/* 🔹 CARD sem borda, com fundo azulado suave */}
-        <div className="mx-auto max-w-4xl rounded-3xl bg-gradient-to-br from-sky-50 to-cyan-50 px-8 py-12 text-center shadow-xl sm:px-12">
+        <div className="mx-auto max-w-4xl rounded-3xl px-8 py-12 text-center shadow-xl sm:px-12">
           <div className="mx-auto mb-3 w-fit rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-700">
             7 dias grátis • Sem cartão de crédito
           </div>

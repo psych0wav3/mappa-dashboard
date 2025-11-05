@@ -74,7 +74,7 @@ export default function PricingTable() {
 
   return (
     <section
-      id="pricing"
+      id="valores"
       className="py-16"
       style={{
         backgroundImage:

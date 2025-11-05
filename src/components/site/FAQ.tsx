@@ -20,7 +20,7 @@ export default function FAQ() {
     },
     {
       q: "Quanto custa o Aqua Mappa?",
-      a: "O Aqua Mappa é cobrado mensalmente por local de serviço. Consulte a nossa página de preços para mais detalhes.",
+      a: "O Aqua Mappa é cobrado mensalmente por local de serviço. Consulte a nossa página de valores para mais detalhes.",
     },
     {
       q: "O Aqua Mappa tem suporte ao cliente?",

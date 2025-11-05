@@ -38,16 +38,9 @@ export default function Hero() {
           </p>
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Link href="/pricing">
+            <Link href="/valores">
               <Button className="btn-brand border-0 shadow-sm inline-flex items-center gap-2">
                 Começar agora <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
-
-            <Link href="/contato">
-              <Button className="inline-flex items-center gap-2 bg-white text-slate-900 hover:bg-white/90">
-                <CalendarClock className="h-4 w-4" />
-                Agendar demo
               </Button>
             </Link>
           </div>

@@ -14,6 +14,12 @@ export default function Footer() {
 
         {/* Navegação */}
         <div className="flex flex-wrap items-center justify-center gap-6 text-white/90">
+        <Link
+            href="/"
+            className="transition hover:text-white hover:underline"
+          >
+            Home
+          </Link>
           <Link
             href="/features"
             className="transition hover:text-white hover:underline"
@@ -21,16 +27,16 @@ export default function Footer() {
             Recursos
           </Link>
           <Link
-            href="/pricing"
+            href="/valores"
             className="transition hover:text-white hover:underline"
           >
             Planos
           </Link>
           <Link
-            href="/contato"
+            href="/app"
             className="transition hover:text-white hover:underline"
           >
-            Contato
+            Sobre o App
           </Link>
           <Link
             href="/login"

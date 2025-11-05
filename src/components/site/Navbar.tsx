@@ -2,15 +2,25 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Waves, Phone } from "lucide-react";
+import { Waves, Phone, ChevronDown, MonitorCog, Wrench, Users, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export default function Navbar() {
   const [open, setOpen] = React.useState(false);
+  const [appOpen, setAppOpen] = React.useState(false); // dropdown desktop
+  const [appOpenMobile, setAppOpenMobile] = React.useState(false); // dropdown mobile
+
+  const appMenu = [
+    { href: "/backoffice", label: "Recursos de Back Office", icon: <MonitorCog className="h-4 w-4" /> },
+    { href: "/tecnicos",   label: "Recursos para Técnicos", icon: <Wrench className="h-4 w-4" /> },
+    { href: "/clientes",   label: "Recursos para Clientes", icon: <Users className="h-4 w-4" /> },
+    { href: "/cobranca",   label: "Cobrança e Pagamentos", icon: <CreditCard className="h-4 w-4" /> },
+  ];
 
   return (
     <header className="sticky top-0 z-40 w-full">
-      {/* Top strip (degradê azul) */}
+      {/* Faixa superior (degradê azul) */}
       <div
         className="text-white"
         style={{
@@ -18,22 +28,10 @@ export default function Navbar() {
             "linear-gradient(90deg, var(--ac-blue-700) 0%, var(--ac-blue-500) 100%)",
         }}
       >
-        <div className="mx-auto flex h-9 max-w-6xl items-center justify-between px-4 text-xs sm:px-6">
-          {/* <div className="hidden items-center gap-4 sm:flex opacity-95">
-            <span className="cursor-default">Conditions</span>
-            <Dot />
-            <span className="cursor-default">Quality</span>
-            <Dot />
-            <span className="cursor-default">Stay Connected</span>
-          </div>
-
-          <div className="ml-auto flex items-center gap-4">
-            <TopLink href="https://instagram.com">Instagram</TopLink>
-          </div> */}
-        </div>
+        <div className="mx-auto flex h-9 max-w-6xl items-center justify-between px-4 text-xs sm:px-6" />
       </div>
 
-      {/* Main bar */}
+      {/* Barra principal */}
       <div className="border-b border-slate-200/70 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           {/* Logo */}
@@ -45,11 +43,57 @@ export default function Navbar() {
           </Link>
 
           {/* Nav (desktop) */}
-          <nav className="hidden items-center gap-6 text-sm font-medium sm:flex">
+          <nav className="relative hidden items-center gap-6 text-sm font-medium sm:flex">
             <NavItem href="/">Home</NavItem>
             <NavItem href="/features">Recursos</NavItem>
-            <NavItem href="/pricing">Planos</NavItem>
-            <NavItem href="/contato">Contato</NavItem>
+            <NavItem href="/valores">Planos</NavItem>
+
+{/* Sobre o App (dropdown) */}
+<div
+  className={cn(
+    "relative",
+    // ponte invisível para evitar gap entre o botão e o menu
+    "before:absolute before:top-full before:left-0 before:h-3 before:w-full before:content-['']"
+  )}
+  onPointerEnter={() => setAppOpen(true)}
+  onPointerLeave={() => setAppOpen(false)}
+>
+  <button
+    className={cn(
+      "inline-flex items-center gap-1.5 text-slate-800 hover:text-[color:var(--ac-blue-600,#0ea5e9)]"
+    )}
+    aria-expanded={appOpen}
+  >
+    Sobre o App
+    <ChevronDown
+      className={cn(
+        "h-4 w-4 transition-transform",
+        appOpen && "rotate-180"
+      )}
+    />
+  </button>
+
+  {appOpen && (
+    <div
+      className="absolute left-1/2 top-full z-40 mt-1 w-72 -translate-x-1/2 rounded-xl border border-slate-200 bg-white p-2 shadow-lg"
+    >
+      {appMenu.map((item) => (
+        <Link
+          key={item.href}
+          href={item.href}
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-slate-800 hover:bg-slate-50"
+          onClick={() => setAppOpen(false)}
+        >
+          <span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-[#0077C8] to-[#00AEEF] text-white">
+            {item.icon}
+          </span>
+          <span className="text-sm">{item.label}</span>
+        </Link>
+      ))}
+    </div>
+  )}
+</div>
+
           </nav>
 
           {/* Phone + login (desktop) */}
@@ -89,8 +133,32 @@ export default function Navbar() {
               <div className="grid gap-3">
                 <MobileLink href="/" onClick={() => setOpen(false)}>Home</MobileLink>
                 <MobileLink href="/features" onClick={() => setOpen(false)}>Recursos</MobileLink>
-                <MobileLink href="/pricing" onClick={() => setOpen(false)}>Planos</MobileLink>
-                <MobileLink href="/contato" onClick={() => setOpen(false)}>Contato</MobileLink>
+                <MobileLink href="/valores" onClick={() => setOpen(false)}>Planos</MobileLink>
+
+                {/* Sobre o App (colapsável) */}
+                <button
+                  className="flex w-full items-center justify-between text-left text-slate-800"
+                  onClick={() => setAppOpenMobile(v => !v)}
+                >
+                  <span>Sobre o App</span>
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 transition-transform",
+                      appOpenMobile && "rotate-180"
+                    )}
+                  />
+                </button>
+
+                {appOpenMobile && (
+                  <div className="ml-3 grid gap-2 border-l border-slate-200 pl-3">
+                    {appMenu.map((item) => (
+                      <MobileLink key={item.href} href={item.href} onClick={() => { setOpen(false); setAppOpenMobile(false); }}>
+                        {item.label}
+                      </MobileLink>
+                    ))}
+                  </div>
+                )}
+
                 <div className="pt-2">
                   <Link href="/login" onClick={() => setOpen(false)}>
                     <Button className="w-full btn-brand">Acessar</Button>
@@ -106,18 +174,6 @@ export default function Navbar() {
 }
 
 /* Helpers */
-function Dot() {
-  return <span className="mx-1 inline-block h-1 w-1 rounded-full bg-white/80 align-middle" />;
-}
-
-function TopLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <a href={href} target="_blank" rel="noreferrer" className="hover:underline underline-offset-2">
-      {children}
-    </a>
-  );
-}
-
 function NavItem({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <Link

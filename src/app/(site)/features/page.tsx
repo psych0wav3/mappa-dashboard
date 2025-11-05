@@ -16,6 +16,7 @@ export default function FeaturesPage() {
   return (
     <div className="min-h-screen bg-white text-slate-900">
       <Navbar />
+
       <section className="mx-auto max-w-5xl px-4 py-14 sm:px-6">
         <h1 className="text-pretty text-4xl font-extrabold tracking-tight">
           Tudo que sua operação precisa
@@ -25,10 +26,14 @@ export default function FeaturesPage() {
           no campo e garanta registro com fotos e leituras.
         </p>
       </section>
+
       <FeatureShowcase />
-      <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
+
+      {/* FAQ em largura total */}
+      <div className="w-full">
         <FAQ />
-      </section>
+      </div>
+
       <Footer />
     </div>
   );
