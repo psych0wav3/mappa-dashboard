@@ -45,15 +45,22 @@ export default function FAQ() {
   return (
     <section
       id="faq"
-      className="bg-gradient-to-b from-[#0077C8] to-[#00AEEF] py-20 text-slate-900"
+      className="relative overflow-hidden bg-gradient-to-b from-[#0077C8] to-[#00AEEF] py-20 text-slate-900"
     >
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+      {/* Marca d’água no fundo */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center">
+        <span className="select-none text-[16vw] font-black leading-none tracking-tight text-white/10">
+          PERGUNTAS
+        </span>
+      </div>
+
+      <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
         {/* Título */}
         <div className="mx-auto max-w-3xl text-center text-white">
           <h2 className="text-pretty text-3xl font-bold tracking-tight sm:text-4xl">
             Perguntas frequentes
           </h2>
-          <p className="mt-2 text-white/80 text-sm">
+          <p className="mt-2 text-sm text-white/80">
             Tudo o que você precisa saber antes de começar
           </p>
         </div>
