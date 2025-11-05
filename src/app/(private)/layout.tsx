@@ -5,7 +5,7 @@ import { createClientServer } from "@/lib/supabase/server";
 import Shell from "@/components/shell/Shell";
 
 export const metadata = {
-  title: "Aqqua — Dashboard",
+  title: "Aqua Mappa — Dashboard",
   description: "Gestão de rotas e visitas",
 };
 

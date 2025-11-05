@@ -4,20 +4,45 @@ import { Waves } from "lucide-react";
 
 export default function Footer() {
   return (
-    <footer className="border-t border-slate-200/70 bg-white">
-      <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm text-slate-600 sm:flex-row sm:px-6">
-        <div className="flex items-center gap-2 text-slate-700">
-          <Waves className="h-5 w-5" />
-          <span className="font-medium">Aqqua</span>
+    <footer className="bg-gradient-to-r from-[#0077C8] to-[#00AEEF] text-white">
+      <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm sm:flex-row sm:px-6">
+        {/* Marca */}
+        <div className="flex items-center gap-2 text-white/90">
+          <Waves className="h-5 w-5 text-white" />
+          <span className="font-semibold tracking-wide">Aqua Mappa</span>
         </div>
-        <div className="flex items-center gap-6">
-          <Link href="/features">Recursos</Link>
-          <Link href="/pricing">Planos</Link>
-          <Link href="/contato">Contato</Link>
-          <Link href="/login">Acessar</Link>
+
+        {/* Navegação */}
+        <div className="flex flex-wrap items-center justify-center gap-6 text-white/90">
+          <Link
+            href="/features"
+            className="transition hover:text-white hover:underline"
+          >
+            Recursos
+          </Link>
+          <Link
+            href="/pricing"
+            className="transition hover:text-white hover:underline"
+          >
+            Planos
+          </Link>
+          <Link
+            href="/contato"
+            className="transition hover:text-white hover:underline"
+          >
+            Contato
+          </Link>
+          <Link
+            href="/login"
+            className="transition hover:text-white hover:underline"
+          >
+            Acessar
+          </Link>
         </div>
-        <p className="text-xs">
-          © {new Date().getFullYear()} Aqqua. Todos os direitos reservados.
+
+        {/* Direitos autorais */}
+        <p className="text-xs text-white/80">
+          © {new Date().getFullYear()} Aqua Mappa. Todos os direitos reservados.
         </p>
       </div>
     </footer>

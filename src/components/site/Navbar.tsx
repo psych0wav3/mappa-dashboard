@@ -19,7 +19,7 @@ export default function Navbar() {
         }}
       >
         <div className="mx-auto flex h-9 max-w-6xl items-center justify-between px-4 text-xs sm:px-6">
-          <div className="hidden items-center gap-4 sm:flex opacity-95">
+          {/* <div className="hidden items-center gap-4 sm:flex opacity-95">
             <span className="cursor-default">Conditions</span>
             <Dot />
             <span className="cursor-default">Quality</span>
@@ -28,12 +28,8 @@ export default function Navbar() {
           </div>
 
           <div className="ml-auto flex items-center gap-4">
-            <TopLink href="https://facebook.com">Facebook</TopLink>
-            <Dot />
-            <TopLink href="https://twitter.com">Twitter</TopLink>
-            <Dot />
             <TopLink href="https://instagram.com">Instagram</TopLink>
-          </div>
+          </div> */}
         </div>
       </div>
 
@@ -45,7 +41,7 @@ export default function Navbar() {
             <div className="h-8 w-8 rounded-lg btn-brand grid place-items-center text-xs font-bold">
               A
             </div>
-            <span className="font-semibold tracking-tight text-slate-900">Aqqua</span>
+            <span className="font-semibold tracking-tight text-slate-900">Aqua Mappa</span>
           </Link>
 
           {/* Nav (desktop) */}

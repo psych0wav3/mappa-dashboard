@@ -7,9 +7,9 @@ import FeatureShowcase from "@/components/site/FeatureShowcase";
 import FAQ from "@/components/site/FAQ";
 
 export const metadata: Metadata = {
-  title: "Recursos — Aqqua",
+  title: "Recursos — Aqua Mappa",
   description:
-    "Veja em detalhes os recursos do Aqqua: rotas, app do técnico, checklists com fotos e cobranças.",
+    "Veja em detalhes os recursos do Aqua Mappa: rotas, app do técnico, checklists com fotos e cobranças.",
 };
 
 export default function FeaturesPage() {

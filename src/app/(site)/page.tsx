@@ -12,11 +12,11 @@ import CTA from "@/components/site/CTA";
 import Footer from "@/components/site/Footer";
 
 export const metadata: Metadata = {
-  title: "Aqqua — Gestão inteligente para empresas de piscina",
+  title: "Aqua Mappa",
   description:
     "Rotas, checklists com fotos, leituras e cobrança — tudo em um só lugar.",
   openGraph: {
-    title: "Aqqua — Gestão inteligente para empresas de piscina",
+    title: "Aqua Mappa — Gestão inteligente para empresas de piscina",
     description:
       "Rotas, checklists com fotos, leituras e cobrança — tudo em um só lugar.",
   },

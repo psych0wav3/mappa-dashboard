@@ -7,7 +7,7 @@ import PricingTable from "@/components/site/PricingTable";
 import CTA from "@/components/site/CTA";
 
 export const metadata: Metadata = {
-  title: "Planos e Preços — Aqqua",
+  title: "Planos e Preços — Aqua Mappa",
   description:
     "Planos simples, sem surpresa. Comece hoje e faça upgrade quando precisar.",
 };

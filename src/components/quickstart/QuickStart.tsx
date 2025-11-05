@@ -23,7 +23,7 @@ type Props = {
 
 export default function QuickStart({
   titulo = "Bem-vindo(a)! Vamos começar",
-  subtitulo = "Siga os passos abaixo para colocar o Aqqua para rodar rapidinho.",
+  subtitulo = "Siga os passos abaixo para colocar o Aqua Mappa para rodar rapidinho.",
   storageKey = "quickstart:aquacheck",
   passos,
   classe,
@@ -57,7 +57,7 @@ export default function QuickStart({
     <div className={cn("rounded-xl border bg-white", classe)}>
       {/* Cabeçalho */}
       <div className="border-b px-4 py-3">
-        <div className="text-lg font-semibold">Guia Aqqua</div>
+        <div className="text-lg font-semibold">Guia Aqua Mappa</div>
       </div>
 
       {/* Título + Progresso */}

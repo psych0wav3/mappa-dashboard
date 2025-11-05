@@ -33,7 +33,7 @@ export default function Hero() {
 
           <p className="mt-4 text-lg leading-relaxed text-white/80">
             Economize tempo, aumente a receita e ofereça uma experiência
-            impecável ao cliente com o Aqqua: rotas, checklists com fotos,
+            impecável ao cliente com o Aqua Mappa: rotas, checklists com fotos,
             leituras e cobrança — tudo em um só lugar.
           </p>
 
@@ -73,7 +73,7 @@ export default function Hero() {
               <div className="relative aspect-[16/10] w-full">
                 <Image
                   src="/hero-pool.jpg"
-                  alt="Aqqua em uso no campo"
+                  alt="Aqua Mappa em uso no campo"
                   fill
                   className="object-cover"
                   priority

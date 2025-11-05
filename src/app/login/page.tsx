@@ -68,7 +68,7 @@ export default function LoginPage() {
               <div className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center ring-1 ring-white/20">
                 <span className="font-bold">P</span>
               </div>
-              <div className="text-xl font-semibold tracking-tight">Aqqua</div>
+              <div className="text-xl font-semibold tracking-tight">Aqua Mappa</div>
             </div>
 
             {/* meio (texto) — agora centralizado verticalmente */}

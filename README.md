@@ -1,6 +1,6 @@
-# 📘 Aqqua Dashboard
+# 📘 Aqua Mappa Dashboard
 
-Painel administrativo e operacional do **Aqqua**, desenvolvido em **Next.js + React**.  
+Painel administrativo e operacional do **Aqua Mappa**, desenvolvido em **Next.js + React**.  
 Focado em **gestão de técnicos, clientes, visitas e rotas**, com recursos avançados de calendário, planejamento de rotas e integração com mapas.
 
 ---

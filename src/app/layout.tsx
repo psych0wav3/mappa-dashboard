@@ -5,7 +5,7 @@ import { Toaster } from "sonner";
 import { cookies } from "next/headers"; // ⬅️ novo
 
 export const metadata: Metadata = {
-  title: "Aqqua Dashboard",
+  title: "Aqua Mappa Dashboard",
   description: "Gestão de rotas e visitas",
 };
 

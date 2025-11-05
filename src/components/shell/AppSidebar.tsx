@@ -301,7 +301,7 @@ function SidebarContent({
           A
         </div>
         <LabelSlot ready={ready}>
-          <span className="font-semibold text-white text-lg">Aqqua</span>
+          <span className="font-semibold text-white text-lg">Aqua Mappa</span>
         </LabelSlot>
       </div>
 
@@ -501,7 +501,7 @@ function SidebarContent({
           collapsed ? "text-center" : ""
         }`}
       >
-        <span suppressHydrationWarning>© {new Date().getFullYear()} Aqqua</span>
+        <span suppressHydrationWarning>© {new Date().getFullYear()} Aqua Mappa</span>
       </div>
     </div>
   );
