@@ -32,18 +32,6 @@ export default function Footer() {
           >
             Planos
           </Link>
-          <Link
-            href="/app"
-            className="transition hover:text-white hover:underline"
-          >
-            Sobre o App
-          </Link>
-          <Link
-            href="/login"
-            className="transition hover:text-white hover:underline"
-          >
-            Acessar
-          </Link>
         </div>
 
         {/* Direitos autorais */}
