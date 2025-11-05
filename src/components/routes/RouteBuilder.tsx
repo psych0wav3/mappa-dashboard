@@ -1,3 +1,4 @@
+// src/components/routes/RouteBuilder.tsx
 "use client";
 
 import * as React from "react";
@@ -93,9 +94,11 @@ export default function RouteBuilder({
   technicians: Tech[];
   clients: ClientLite[];
 }) {
+  // 🔹 Hooks no topo (ordem estável)
+  const [mounted, setMounted] = React.useState(false);
   const [modo] = React.useState<"weekly" | "adhoc">("weekly");
   const [dia, setDia] = React.useState<number>(1);
-  const [dataISO, setDataISO] = React.useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [dataISO, setDataISO] = React.useState<string>("");
   const [techId, setTechId] = React.useState<string>(technicians[0]?.id ?? "");
   const [selecionados, setSelecionados] = React.useState<SelectedItem[]>([]);
 
@@ -103,7 +106,13 @@ export default function RouteBuilder({
   const searchRef = React.useRef<HTMLInputElement | null>(null);
   const [search, setSearch] = React.useState("");
 
-  // 🔗 Mantém o estado 'search' sincronizado com o valor que o Autocomplete coloca no input
+  // Montagem no cliente + dataISO calculada no client (evita hydration)
+  React.useEffect(() => {
+    setMounted(true);
+    setDataISO(new Date().toISOString().slice(0, 10));
+  }, []);
+
+  // Mantém o estado 'search' sincronizado com o valor que o Autocomplete coloca no input
   React.useEffect(() => {
     const el = searchRef.current;
     if (!el) return;
@@ -123,30 +132,70 @@ export default function RouteBuilder({
     return idx;
   }, [clients]);
 
-  // carrega rota salva (técnico + dia)
+  // 🔁 carrega rota salva (técnico + dia) **e completa coords faltantes**
   React.useEffect(() => {
     let cancel = false;
-    async function load() {
+
+    async function loadAndFill() {
       if (!techId || !dia) {
         setSelecionados([]);
         return;
       }
+
       try {
+        // 1) carrega itens salvos
         const items = await getWeeklyRoute({ technicianId: techId, weekday: dia });
-        const withCoords = items.map((s: SelectedItem) => {
+
+        // 2) junta com coords conhecidas (clientIndex)
+        let base = items.map((s: SelectedItem) => {
           const c = clientIndex.get(s.id);
           return c
             ? { ...s, lat: s.lat ?? c.lat ?? undefined, lng: s.lng ?? c.lng ?? undefined }
             : s;
         });
-        if (!cancel) setSelecionados(withCoords);
+
+        // 3) quem ainda não tem coords?
+        const missing = base.filter((s) => s.lat == null || s.lng == null);
+
+        if (missing.length > 0) {
+          // geocodifica e persiste
+          const updates = await Promise.all(
+            missing.map(async (s) => {
+              const full = clients.find((x) => x.id === s.id);
+              if (!full) return null;
+              const addr = buildAddress(full);
+              const hit = await geocodeAddress(addr);
+              if (!hit) return null;
+
+              try {
+                const { saveClientCoords } = await import("@/app/(private)/clients/actions");
+                await saveClientCoords(s.id, hit.lat, hit.lng);
+              } catch {
+                // não bloqueia UI
+              }
+
+              return { id: s.id, ...hit };
+            })
+          );
+
+          const mapUpdates = new Map<string, { lat: number; lng: number }>();
+          for (const u of updates) if (u) mapUpdates.set(u.id, { lat: u.lat, lng: u.lng });
+
+          base = base.map((s) => (mapUpdates.has(s.id) ? { ...s, ...mapUpdates.get(s.id)! } : s));
+        }
+
+        if (!cancel) setSelecionados(base);
       } catch (e: any) {
-        console.error("Falha ao carregar planejamento:", e?.message || e);
+        console.error("Falha ao carregar/geo rota:", e?.message || e);
+        if (!cancel) setSelecionados([]);
       }
     }
-    load();
-    return () => { cancel = true; };
-  }, [techId, dia, clientIndex]);
+
+    loadAndFill();
+    return () => {
+      cancel = true;
+    };
+  }, [techId, dia, clientIndex, clients]);
 
   // ⚠️ async fora do setState
   const addClient = async (c: ClientLite) => {
@@ -299,6 +348,15 @@ export default function RouteBuilder({
     },
     [clients]
   );
+
+  // Guard de montagem só no retorno (não antes dos hooks)
+  if (!mounted) {
+    return (
+      <div className="flex items-center justify-center h-96 text-neutral-500">
+        Carregando mapa…
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
