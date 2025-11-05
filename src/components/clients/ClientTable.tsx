@@ -1,4 +1,3 @@
-// src/components/clients/ClientTable.tsx
 "use client";
 
 import * as React from "react";

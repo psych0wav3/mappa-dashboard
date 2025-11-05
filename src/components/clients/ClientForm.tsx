@@ -1,4 +1,3 @@
-// src/components/clients/ClientForm.tsx
 "use client";
 
 import * as React from "react";
@@ -97,6 +96,48 @@ async function fetchViaCep(cepDigits: string) {
   };
 }
 
+// Defaults builder centralizado (evita vazamento de estado antigo)
+function buildDefaults(src?: Partial<Values>): Values {
+  return {
+    // pessoa
+    firstName: src?.firstName ?? "",
+    lastName: src?.lastName ?? "",
+    email: src?.email ?? "",
+    phone: src?.phone ?? "",
+    cpf: src?.cpf ?? "",
+
+    // empresa
+    hasCompany: Boolean(src?.companyName || src?.cnpj) ?? false,
+    companyName: src?.companyName ?? "",
+    cnpj: src?.cnpj ?? "",
+
+    // billing
+    cep: src?.cep ?? "",
+    street: src?.street ?? "",
+    number: src?.number ?? "",
+    district: src?.district ?? "",
+    city: src?.city ?? "",
+    uf: src?.uf ?? "",
+
+    // úteis
+    notes: src?.notes ?? "",
+
+    // pool
+    poolCep: src?.poolCep ?? "",
+    poolStreet: src?.poolStreet ?? "",
+    poolNumber: src?.poolNumber ?? "",
+    poolDistrict: src?.poolDistrict ?? "",
+    poolCity: src?.poolCity ?? "",
+    poolUf: src?.poolUf ?? "",
+
+    // rota
+    technicianId: src?.technicianId ?? "",
+    days: src?.days ?? [],
+
+    active: src?.active ?? true,
+  };
+}
+
 export default function ClientForm({
   id,
   defaultValues,
@@ -111,40 +152,12 @@ export default function ClientForm({
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = useTransition();
 
+  // derive defaults das props
+  const defaults = React.useMemo(() => buildDefaults(defaultValues), [defaultValues]);
+
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      // pessoa
-      firstName: defaultValues?.firstName ?? "",
-      lastName: defaultValues?.lastName ?? "",
-      email: defaultValues?.email ?? "",
-      phone: defaultValues?.phone ?? "",
-      cpf: defaultValues?.cpf ?? "",
-      // empresa
-      hasCompany: Boolean(defaultValues?.companyName || defaultValues?.cnpj),
-      companyName: defaultValues?.companyName ?? "",
-      cnpj: defaultValues?.cnpj ?? "",
-      // billing
-      cep: defaultValues?.cep ?? "",
-      street: defaultValues?.street ?? "",
-      number: defaultValues?.number ?? "",
-      district: defaultValues?.district ?? "",
-      city: defaultValues?.city ?? "",
-      uf: defaultValues?.uf ?? "",
-      // úteis
-      notes: defaultValues?.notes ?? "",
-      // pool location
-      poolCep: defaultValues?.poolCep ?? "",
-      poolStreet: defaultValues?.poolStreet ?? "",
-      poolNumber: defaultValues?.poolNumber ?? "",
-      poolDistrict: defaultValues?.poolDistrict ?? "",
-      poolCity: defaultValues?.poolCity ?? "",
-      poolUf: defaultValues?.poolUf ?? "",
-      // rota
-      technicianId: defaultValues?.technicianId ?? "",
-      days: defaultValues?.days ?? [],
-      active: defaultValues?.active ?? true,
-    },
+    defaultValues: defaults,
   });
 
   const isEditing = Boolean(id);
@@ -193,6 +206,11 @@ export default function ClientForm({
     }
   };
 
+  // ✅ sincroniza quando mudar id/defaults (abrir outro cliente p/ editar)
+  React.useEffect(() => {
+    form.reset(defaults);
+  }, [id, defaults, form]);
+
   const onSubmit = (values: Values) =>
     startTransition(async () => {
       try {
@@ -203,18 +221,22 @@ export default function ClientForm({
         if (id) {
           await updateClient(id, values);
           toast.success("Cliente atualizado");
+          setOpen(false);
         } else {
           await createClient(values);
           toast.success("Cliente criado");
+          // ✅ limpa o formulário para próxima inclusão
+          form.reset(buildDefaults({}));
+          setOpen(false);
         }
-        setOpen(false);
       } catch (e: any) {
         toast.error(e?.message || "Erro ao salvar cliente");
       }
     });
 
   const handleCancel = () => {
-    form.reset();
+    // ✅ cancelar volta aos defaults do modo atual
+    form.reset(isEditing ? defaults : buildDefaults({}));
     setOpen(false);
   };
 
@@ -244,7 +266,17 @@ export default function ClientForm({
     });
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        // ✅ ao abrir em modo "novo", zera os campos
+        if (next && !isEditing) {
+          form.reset(buildDefaults({}));
+        }
+        // em modo edição, o useEffect acima já garante sync via `defaults`
+      }}
+    >
       <DialogTrigger asChild>
         {typeof trigger === "string" ? (
           <Button className="btn-brand text-white">
@@ -272,7 +304,7 @@ export default function ClientForm({
             </DialogHeader>
           </div>
 
-          {/* Conteúdo (com padding-bottom para não ficar atrás do footer fixo) */}
+          {/* Conteúdo */}
           <div className="flex-1 overflow-y-auto p-4 pb-24 sm:p-6 sm:pb-28">
             <Form {...form}>
               <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
@@ -382,7 +414,7 @@ export default function ClientForm({
                 {/* Endereço de cobrança */}
                 <SectionTitle>ENDEREÇO DE COBRANÇA</SectionTitle>
                 <section className="space-y-4">
-                  {/* CEP, Cidade, UF (estreito) e Bairro */}
+                  {/* CEP, Cidade, UF e Bairro */}
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
                     <FormField
                       name="cep"
@@ -449,7 +481,7 @@ export default function ClientForm({
                       )}
                     />
                   </div>
-                  {/* Rua e Número (número menor) */}
+                  {/* Rua e Número */}
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                     <FormField
                       name="street"
@@ -501,7 +533,7 @@ export default function ClientForm({
                 </div>
 
                 <section className="space-y-4">
-                  {/* CEP, Cidade, UF (estreito) e Bairro */}
+                  {/* CEP, Cidade, UF e Bairro */}
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
                     <FormField
                       name="poolCep"
@@ -569,7 +601,7 @@ export default function ClientForm({
                     />
                   </div>
 
-                  {/* Endereço e Número (número menor) */}
+                  {/* Endereço e Número */}
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                     <FormField
                       name="poolStreet"
