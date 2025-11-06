@@ -235,7 +235,7 @@ function SidebarContent({
   // Itens de OS (ajustados)
   const workorderItems = useMemo(
     () => [
-      { href: "/workorders", label: "Adicionar OS" }, // principal
+      { href: "/workorders", label: "Dashboard da OS" }, // principal
       { href: "/workorders/approved", label: "OS's Aprovadas" }, // criar depois
     ],
     []

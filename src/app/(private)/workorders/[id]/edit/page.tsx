@@ -61,6 +61,7 @@ async function getInitial(id: string) {
   if (!w) return null;
   return {
     id: w.id,
+    code: w.code, // 👈 precisamos do código para o título
     clientId: w.clientId,
     technicianId: w.technicianId,
     title: w.title,
@@ -83,8 +84,9 @@ export default async function EditWorkOrderPage({ params }: { params: { id: stri
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6">
+      {/* Título usa o CÓDIGO, não o id */}
       <div className="mb-4 mt-4 rounded-xl border border-slate-200 bg-white px-5 py-3 text-slate-800 shadow-sm">
-        <h1 className="text-lg font-semibold">Editando OS {initial.id}</h1>
+        <h1 className="text-lg font-semibold">Editando OS {initial.code}</h1>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

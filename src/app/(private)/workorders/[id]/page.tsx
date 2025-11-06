@@ -1,7 +1,22 @@
-// src/app/(private)/workorders/[id]/page.tsx
 import { notFound, redirect } from "next/navigation";
-import { getWorkOrderById, cancelWorkOrder, sendWorkOrderForApproval } from "../actions";
+import {
+  getWorkOrderById,
+  cancelWorkOrder,
+  sendWorkOrderForApproval,
+} from "../actions";
 import Link from "next/link";
+
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -18,7 +33,8 @@ export default async function WorkOrderViewPage({ params }: { params: { id: stri
   const wo = await getWorkOrderById(params.id);
   if (!wo) return notFound();
 
-  const clientName = `${wo.client?.firstName ?? ""} ${wo.client?.lastName ?? ""}`.trim();
+  const clientName =
+    `${wo.client?.firstName ?? ""} ${wo.client?.lastName ?? ""}`.trim() || "—";
   const techName = wo.technician
     ? `${wo.technician.firstName ?? ""} ${wo.technician.lastName ?? ""}`.trim()
     : "—";
@@ -27,28 +43,32 @@ export default async function WorkOrderViewPage({ params }: { params: { id: stri
   const end = wo.endTime ?? "—";
   const amount =
     wo.amountCents != null
-      ? (wo.amountCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+      ? (wo.amountCents / 100).toLocaleString("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+        })
       : "—";
 
-  // --- AÇÕES SERVER ---
-
-  // Cancelar e VOLTAR para /workorders
+  // -------- SERVER ACTIONS --------
   async function cancel() {
     "use server";
     await cancelWorkOrder(wo.id);
     redirect("/workorders");
   }
 
-  // Enviar para aprovação (stub): mantém na página por enquanto
   async function sendApproval() {
     "use server";
     await sendWorkOrderForApproval(wo.id);
-    // Se quiser também voltar, troque por: redirect("/workorders");
+  }
+
+  async function goBack() {
+    "use server";
+    redirect("/workorders");
   }
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6">
-      {/* Título */}
+      {/* Header */}
       <div className="mb-4 mt-4 rounded-xl border border-slate-200 bg-white px-5 py-3 text-slate-800 shadow-sm">
         <h1 className="text-lg font-semibold">Ordem de Serviço {wo.code}</h1>
         <div className="mt-1 text-sm text-slate-600">
@@ -56,10 +76,10 @@ export default async function WorkOrderViewPage({ params }: { params: { id: stri
         </div>
       </div>
 
-      {/* Card de detalhes */}
+      {/* Content */}
       <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Cliente">{clientName || "—"}</Field>
+          <Field label="Cliente">{clientName}</Field>
           <Field label="Técnico responsável">{techName}</Field>
           <Field label="Título">{wo.title}</Field>
           <Field label="Valor">{amount}</Field>
@@ -72,13 +92,48 @@ export default async function WorkOrderViewPage({ params }: { params: { id: stri
 
         {/* Ações */}
         <div className="mt-6 flex items-center justify-between">
-          <form action={cancel}>
-            <button className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-              Cancelar OS
-            </button>
-          </form>
+          {/* Cancelar com confirmação */}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                Cancelar OS
+              </button>
+            </AlertDialogTrigger>
 
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Cancelar esta Ordem de Serviço?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  O status será alterado para <strong>cancelada</strong>. Deseja continuar?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+
+              {/* IMPORTANTE: type="submit" no Action para submeter a server action */}
+              <form action={cancel}>
+                <AlertDialogFooter>
+                  <AlertDialogCancel type="button">Voltar</AlertDialogCancel>
+                  <AlertDialogAction
+                    type="submit"
+                    className="bg-red-600 text-white hover:bg-red-700"
+                  >
+                    Confirmar cancelamento
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </form>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Direita: Voltar + Enviar p/ aprovação + Editar */}
           <div className="flex items-center gap-2">
+            <form action={goBack}>
+              <button
+                type="submit"
+                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Voltar
+              </button>
+            </form>
+
             <form action={sendApproval}>
               <button className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
                 Enviar para aprovação
