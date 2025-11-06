@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import {
   getWorkOrderById,
   cancelWorkOrder,
+  deleteWorkOrder,
   sendWorkOrderForApproval,
 } from "../actions";
 import Link from "next/link";
@@ -43,16 +44,21 @@ export default async function WorkOrderViewPage({ params }: { params: { id: stri
   const end = wo.endTime ?? "—";
   const amount =
     wo.amountCents != null
-      ? (wo.amountCents / 100).toLocaleString("pt-BR", {
-          style: "currency",
-          currency: "BRL",
-        })
+      ? (wo.amountCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
       : "—";
 
-  // -------- SERVER ACTIONS --------
-  async function cancel() {
+  const isCanceled = wo.status === "cancelada";
+
+  // ---- Server actions ----
+  async function doCancel() {
     "use server";
     await cancelWorkOrder(wo.id);
+    redirect("/workorders");
+  }
+
+  async function doDelete() {
+    "use server";
+    await deleteWorkOrder(wo.id);
     redirect("/workorders");
   }
 
@@ -90,41 +96,68 @@ export default async function WorkOrderViewPage({ params }: { params: { id: stri
 
         <Field label="Descrição">{wo.description ?? "—"}</Field>
 
-        {/* Ações */}
+        {/* Actions */}
         <div className="mt-6 flex items-center justify-between">
-          {/* Cancelar com confirmação */}
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <button className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-                Cancelar OS
-              </button>
-            </AlertDialogTrigger>
+          {/* ESQUERDA: ação principal (cancelar ou excluir) */}
+          {isCanceled ? (
+            // Excluir OS (somente quando já estiver cancelada)
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50">
+                  Excluir OS
+                </button>
+              </AlertDialogTrigger>
 
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Cancelar esta Ordem de Serviço?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  O status será alterado para <strong>cancelada</strong>. Deseja continuar?
-                </AlertDialogDescription>
-              </AlertDialogHeader>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Excluir definitivamente esta OS?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta ação é irreversível. A Ordem de Serviço será removida do sistema.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
 
-              {/* IMPORTANTE: type="submit" no Action para submeter a server action */}
-              <form action={cancel}>
-                <AlertDialogFooter>
-                  <AlertDialogCancel type="button">Voltar</AlertDialogCancel>
-                  <AlertDialogAction
-                    type="submit"
-                    className="bg-red-600 text-white hover:bg-red-700"
-                  >
-                    Confirmar cancelamento
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </form>
-            </AlertDialogContent>
-          </AlertDialog>
+                <form action={doDelete}>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel type="button">Voltar</AlertDialogCancel>
+                    <AlertDialogAction type="submit" className="bg-red-600 text-white hover:bg-red-700">
+                      Confirmar exclusão
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </form>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
+            // Cancelar OS (com confirmação)
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                  Cancelar OS
+                </button>
+              </AlertDialogTrigger>
 
-          {/* Direita: Voltar + Enviar p/ aprovação + Editar */}
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Cancelar esta Ordem de Serviço?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    O status será alterado para <strong>cancelada</strong>. Deseja continuar?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+
+                <form action={doCancel}>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel type="button">Voltar</AlertDialogCancel>
+                    <AlertDialogAction type="submit" className="bg-red-600 text-white hover:bg-red-700">
+                      Confirmar cancelamento
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </form>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+
+          {/* DIREITA: grupo de botões */}
           <div className="flex items-center gap-2">
+            {/* Voltar (sempre aparece) */}
             <form action={goBack}>
               <button
                 type="submit"
@@ -134,17 +167,22 @@ export default async function WorkOrderViewPage({ params }: { params: { id: stri
               </button>
             </form>
 
-            <form action={sendApproval}>
-              <button className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-                Enviar para aprovação
-              </button>
-            </form>
+            {/* Somente quando NÃO cancelada mostramos os demais */}
+            {!isCanceled && (
+              <>
+                <form action={sendApproval}>
+                  <button className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                    Enviar para aprovação
+                  </button>
+                </form>
 
-            <Link href={`/workorders/${wo.id}/edit`}>
-              <button className="rounded-md bg-[color:var(--ac-blue-600,#0ea5e9)] px-3 py-2 text-sm font-medium text-white hover:bg-[color:var(--ac-blue-700,#0284c7)]">
-                Editar
-              </button>
-            </Link>
+                <Link href={`/workorders/${wo.id}/edit`}>
+                  <button className="rounded-md bg-[color:var(--ac-blue-600,#0ea5e9)] px-3 py-2 text-sm font-medium text-white hover:bg-[color:var(--ac-blue-700,#0284c7)]">
+                    Editar
+                  </button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>

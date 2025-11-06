@@ -1,3 +1,4 @@
+// src/app/(private)/workorders/actions.ts
 "use server";
 
 import { prisma } from "@/lib/supabase/prisma";
@@ -16,24 +17,62 @@ export type WorkOrderDTO = {
 // --- Schema CREATE (ajustado para opcionais/nullable) ---
 const CreateSchema = z.object({
   clientId: z.string().min(1),
-  technicianId: z.string().optional().nullable().transform(v => (v && v.trim() ? v : null)),
+  technicianId: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v && v.trim() ? v : null)),
   title: z.string().min(2),
-  description: z.string().optional().transform(v => (v && v.trim() ? v : null)),
-  date: z.string().optional().nullable().transform(v => (v && v.trim() ? v : null)), // YYYY-MM-DD
-  startTime: z.string().optional().nullable().transform(v => (v && v.trim() ? v : null)), // HH:mm
-  endTime: z.string().optional().nullable().transform(v => (v && v.trim() ? v : null)),   // HH:mm
+  description: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim() ? v : null)),
+  date: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v && v.trim() ? v : null)), // YYYY-MM-DD
+  startTime: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v && v.trim() ? v : null)), // HH:mm
+  endTime: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v && v.trim() ? v : null)), // HH:mm
   amountCents: z.number().int().nonnegative().nullable().optional(),
 });
 
 // --- Schema UPDATE (todos os campos opcionais) ---
 const UpdateSchema = z.object({
   clientId: z.string().optional(),
-  technicianId: z.string().optional().nullable().transform(v => (v && v.trim() ? v : null)),
+  technicianId: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v && v.trim() ? v : null)),
   title: z.string().min(2).optional(),
-  description: z.string().optional().transform(v => (v && v.trim() ? v : null)),
-  date: z.string().optional().nullable().transform(v => (v && v.trim() ? v : null)), // YYYY-MM-DD
-  startTime: z.string().optional().nullable().transform(v => (v && v.trim() ? v : null)),
-  endTime: z.string().optional().nullable().transform(v => (v && v.trim() ? v : null)),
+  description: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim() ? v : null)),
+  date: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v && v.trim() ? v : null)), // YYYY-MM-DD
+  startTime: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v && v.trim() ? v : null)),
+  endTime: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v && v.trim() ? v : null)),
   amountCents: z.number().int().nonnegative().nullable().optional(),
 });
 
@@ -52,7 +91,9 @@ export async function listWorkOrders(): Promise<WorkOrderDTO[]> {
     title: w.title,
     clientName: `${w.client.firstName} ${w.client.lastName}`.trim(),
     status: w.status as WorkOrderDTO["status"],
-    scheduledAt: w.scheduledDate ? w.scheduledDate.toISOString().slice(0, 10) : null,
+    scheduledAt: w.scheduledDate
+      ? w.scheduledDate.toISOString().slice(0, 10)
+      : null,
   }));
 }
 
@@ -63,7 +104,9 @@ export async function createWorkOrder(raw: unknown) {
   const input = CreateSchema.parse(raw);
 
   const res = await prisma.$transaction(async (tx) => {
-    const tmpCode = `TMP-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const tmpCode = `TMP-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}`;
 
     const created = await tx.workOrder.create({
       data: {
@@ -74,7 +117,9 @@ export async function createWorkOrder(raw: unknown) {
         technicianId: input.technicianId ?? null,
         amountCents: input.amountCents ?? null,
         status: "aberta",
-        scheduledDate: input.date ? new Date(`${input.date}T00:00:00.000`) : null,
+        scheduledDate: input.date
+          ? new Date(`${input.date}T00:00:00.000`)
+          : null,
         startTime: input.startTime ?? null,
         endTime: input.endTime ?? null,
       },
@@ -100,7 +145,9 @@ export async function createWorkOrder(raw: unknown) {
     title: res.title,
     clientName: `${res.client.firstName} ${res.client.lastName}`.trim(),
     status: res.status as WorkOrderDTO["status"],
-    scheduledAt: res.scheduledDate ? res.scheduledDate.toISOString().slice(0, 10) : null,
+    scheduledAt: res.scheduledDate
+      ? res.scheduledDate.toISOString().slice(0, 10)
+      : null,
   } satisfies WorkOrderDTO;
 }
 
@@ -111,8 +158,12 @@ export async function getWorkOrderById(id: string) {
   return prisma.workOrder.findUnique({
     where: { id },
     include: {
-      client: { select: { id: true, firstName: true, lastName: true, email: true } },
-      technician: { select: { id: true, firstName: true, lastName: true, email: true } },
+      client: {
+        select: { id: true, firstName: true, lastName: true, email: true },
+      },
+      technician: {
+        select: { id: true, firstName: true, lastName: true, email: true },
+      },
     },
   });
 }
@@ -145,14 +196,16 @@ export async function updateWorkOrder(id: string, raw: unknown) {
   const input = UpdateSchema.parse(raw);
 
   const data: any = {};
-
   if (input.title !== undefined) data.title = input.title;
   if (input.description !== undefined) data.description = input.description;
   if (input.clientId !== undefined) data.clientId = input.clientId;
-  if (input.technicianId !== undefined) data.technicianId = input.technicianId;
+  if (input.technicianId !== undefined)
+    data.technicianId = input.technicianId;
   if (input.amountCents !== undefined) data.amountCents = input.amountCents;
   if (input.date !== undefined)
-    data.scheduledDate = input.date ? new Date(`${input.date}T00:00:00.000`) : null;
+    data.scheduledDate = input.date
+      ? new Date(`${input.date}T00:00:00.000`)
+      : null;
   if (input.startTime !== undefined) data.startTime = input.startTime;
   if (input.endTime !== undefined) data.endTime = input.endTime;
 
@@ -168,6 +221,16 @@ export async function updateWorkOrder(id: string, raw: unknown) {
     title: updated.title,
     clientName: `${updated.client.firstName} ${updated.client.lastName}`.trim(),
     status: updated.status as WorkOrderDTO["status"],
-    scheduledAt: updated.scheduledDate ? updated.scheduledDate.toISOString().slice(0, 10) : null,
+    scheduledAt: updated.scheduledDate
+      ? updated.scheduledDate.toISOString().slice(0, 10)
+      : null,
   } satisfies WorkOrderDTO;
+}
+
+// ---------------------------------------------------------------------
+// EXCLUIR (definitivo) — usado quando a OS já está cancelada
+// ---------------------------------------------------------------------
+export async function deleteWorkOrder(id: string) {
+  await prisma.workOrder.delete({ where: { id } });
+  return { id };
 }
