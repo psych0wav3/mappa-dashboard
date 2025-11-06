@@ -65,6 +65,9 @@ model Client {
   // back-relation para itens de RoutePlan
   routePlanItems RoutePlanItem[]
 
+  // 🔹 back-relation para WorkOrder
+  workOrders WorkOrder[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -101,9 +104,13 @@ model Technician {
   // back-relation para RoutePlan
   routePlans RoutePlan[]
 
+  // ✅ back-relation para WorkOrder
+  workOrders WorkOrder[]
+
   @@index([phone])
   @@index([phoneDigits])
 }
+
 
 model Visit {
   id     String   @id @default(uuid())
@@ -296,4 +303,54 @@ model RoutePlanItem {
   updatedAt DateTime @updatedAt
 
   @@index([routePlanId, order])
+}
+
+// --- NOVO ---
+enum WorkOrderStatus {
+  aberta
+  em_andamento
+  concluida
+  cancelada
+}
+
+// prisma/schema.prisma
+
+model WorkOrder {
+  id   String @id @default(cuid())
+
+  /**
+   * Número sequencial automático
+   */
+  num  Int    @unique @default(autoincrement())
+
+  /**
+   * Código legível — OS-0001
+   */
+  code String @unique
+
+  title       String
+  description String?
+
+  // ✅ Relação com cliente
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id])
+
+  // ✅ Relação com técnico (opcional)
+  technicianId String?
+  technician   Technician? @relation(fields: [technicianId], references: [id])
+
+  // ✅ Valor do serviço (em centavos)
+  amountCents Int?
+
+  status        WorkOrderStatus @default(aberta)
+  scheduledDate DateTime?
+  startTime     String?
+  endTime       String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([clientId])
+  @@index([technicianId])
+  @@index([createdAt])
 }

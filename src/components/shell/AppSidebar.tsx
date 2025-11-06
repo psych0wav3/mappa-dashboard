@@ -16,6 +16,7 @@ import {
   LogOut,
   User as UserIcon,
   Cog,
+  ClipboardList, // ícone OS
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState, useLayoutEffect } from "react";
@@ -38,9 +39,9 @@ function LabelSlot({
       className="text-[0.95rem] font-medium whitespace-nowrap overflow-hidden"
       style={{
         display: "inline-block",
-        maxWidth: "calc(var(--sidebar-w) - 80px)", // 0 quando fechado (80px)
+        maxWidth: "calc(var(--sidebar-w) - 80px)",
         transition: ready ? "max-width 300ms ease, opacity 300ms ease" : "none",
-        opacity: "calc((var(--sidebar-w) - 80px) / 200)", // 0→1 de 80→280
+        opacity: "calc((var(--sidebar-w) - 80px) / 200)",
       }}
     >
       {children}
@@ -57,7 +58,6 @@ export default function AppSidebar({
 }) {
   const pathname = usePathname();
 
-  // Estado inicial: tenta LS; se não houver, infere pela CSS var (definida no <head>)
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     try {
@@ -69,14 +69,11 @@ export default function AppSidebar({
       .trim()
       .replace("px", "");
     const w = parseInt(css || "280", 10);
-    return w <= WIDTH_COLLAPSED; // 80px => fechado
+    return w <= WIDTH_COLLAPSED;
   });
 
-  // NOVO: controla quando podemos habilitar transições (evita animação no 1º paint)
   const [ready, setReady] = useState(false);
 
-  // Mount: sincroniza CSS var + evento (sem alterar estado → evita ping-pong)
-  // e só habilita transições se o valor já está correto.
   useLayoutEffect(() => {
     try {
       const isDesk = window.matchMedia("(min-width: 1024px)").matches;
@@ -88,19 +85,15 @@ export default function AppSidebar({
         .replace("px", "");
       const current = parseInt(currentCss || "0", 10);
 
-      // Só setar se for diferente (evita animação desnecessária)
       if (current !== target) {
         document.documentElement.style.setProperty("--sidebar-w", target + "px");
       }
 
-      // Emite o evento com o valor final
       dispatchSidebarWidth(target);
     } catch {}
-    setReady(true); // a partir daqui, pode animar
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // apenas no mount
+    setReady(true);
+  }, []); // mount only
 
-  // Ao alterar collapsed (toggle), persiste e atualiza consumidores
   useEffect(() => {
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(collapsed));
@@ -111,7 +104,6 @@ export default function AppSidebar({
       typeof document !== "undefined" &&
       window.matchMedia("(min-width: 1024px)").matches
     ) {
-      // só aplica se mudou
       const currentCss = getComputedStyle(document.documentElement)
         .getPropertyValue("--sidebar-w")
         .trim()
@@ -121,13 +113,11 @@ export default function AppSidebar({
         document.documentElement.style.setProperty("--sidebar-w", w + "px");
       }
     }
-    // Opcional: cookie para SSR (se você adicionou no layout)
     try {
       document.cookie = `sb-collapsed=${collapsed ? "1" : "0"}; Path=/; Max-Age=31536000; SameSite=Lax`;
     } catch {}
   }, [collapsed]);
 
-  // Fecha o drawer mobile ao navegar
   useEffect(() => {
     if (open) onClose();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -135,7 +125,7 @@ export default function AppSidebar({
 
   return (
     <>
-      {/* Overlay mobile/tablet */}
+      {/* Overlay mobile */}
       <div
         className={`fixed inset-0 z-[100] bg-black/40 lg:hidden transition-opacity ${
           open ? "opacity-100" : "opacity-0 pointer-events-none"
@@ -144,14 +134,16 @@ export default function AppSidebar({
         aria-hidden="true"
       />
 
-      {/* Drawer mobile/tablet */}
+      {/* Drawer mobile */}
       <aside
         className={`fixed inset-y-0 left-0 z-[110] w-[80vw] max-w-[320px] text-white shadow-xl lg:hidden
           transition-transform ${open ? "translate-x-0" : "-translate-x-full"}`}
         role="dialog"
         aria-label="Menu lateral"
-        style={{ background: "var(--ac-sidebar-bg)" }}  // usa a var global
-        onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}
+        style={{ background: "var(--ac-sidebar-bg)" }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") onClose();
+        }}
       >
         <SidebarContent
           pathname={pathname}
@@ -161,21 +153,22 @@ export default function AppSidebar({
         />
       </aside>
 
-      {/* Sidebar fixa (desktop) */}
+      {/* Sidebar desktop */}
       <aside
         className={`fixed inset-y-0 left-0 z-[80] hidden lg:flex lg:flex-col text-white shadow-lg ${
-          ready ? "transition-all duration-300" : ""}`}
-        style={{ width: "var(--sidebar-w)", background: "var(--ac-sidebar-bg)" }} // usa a var global
+          ready ? "transition-all duration-300" : ""
+        }`}
+        style={{ width: "var(--sidebar-w)", background: "var(--ac-sidebar-bg)" }}
         aria-label="Menu lateral"
       >
         <SidebarContent pathname={pathname} collapsed={collapsed} ready={ready} />
 
-        {/* Botão de toggle */}
+        {/* Toggle */}
         <button
           className="absolute -right-3 top-[72px] grid h-8 w-8 place-items-center rounded-full bg-white shadow-md"
           onClick={() => setCollapsed((v) => !v)}
           aria-label={collapsed ? "Expandir sidebar" : "Recolher sidebar"}
-          style={{ color: "var(--ac-blue-700)" }} // cor do ícone no padrão da marca
+          style={{ color: "var(--ac-blue-700)" }}
         >
           {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
         </button>
@@ -196,7 +189,7 @@ function SidebarContent({
 }: {
   pathname: string;
   collapsed: boolean;
-  onNavigate?: () => void; // fecha o drawer no mobile/tablet
+  onNavigate?: () => void;
   ready: boolean;
 }) {
   const router = useRouter();
@@ -208,19 +201,21 @@ function SidebarContent({
     { href: "/clients", label: "Clientes", icon: UserRound },
   ] as const;
 
-  // ⚠️ Removido "Visitas" aqui
-  const tail = [
-    { href: "/gallery", label: "Fotos", icon: Camera },
-    // Configurações será um GRUPO colapsável logo abaixo
-  ] as const;
+  // --- OS (Workorders) section state ---
+  const isWorkordersSection = pathname.startsWith("/workorders");
+  const [workordersOpen, setWorkordersOpen] = useState<boolean>(isWorkordersSection);
+  useEffect(() => {
+    if (isWorkordersSection) setWorkordersOpen(true);
+  }, [isWorkordersSection]);
 
+  // --- Rotas section state ---
   const isRoutesSection = pathname.startsWith("/routes");
   const [routesOpen, setRoutesOpen] = useState<boolean>(isRoutesSection);
   useEffect(() => {
     if (isRoutesSection) setRoutesOpen(true);
   }, [isRoutesSection]);
 
-  // Settings (configurações) — grupo colapsável
+  // --- Configurações (FIX: estado que faltava) ---
   const isSettingsSection =
     pathname.startsWith("/settings") || pathname.startsWith("/account");
   const [settingsOpen, setSettingsOpen] = useState<boolean>(isSettingsSection);
@@ -228,11 +223,20 @@ function SidebarContent({
     if (isSettingsSection) setSettingsOpen(true);
   }, [isSettingsSection]);
 
+  // Itens de Rotas (mantidos)
   const routeItems = useMemo(
     () => [
       { href: "/routes/builder", label: "Criar rota" },
-      { href: "/routes/assignments", label: "Atribuir rota" },
       { href: "/routes/dashboard", label: "Controle das rotas" },
+    ],
+    []
+  );
+
+  // Itens de OS (ajustados)
+  const workorderItems = useMemo(
+    () => [
+      { href: "/workorders", label: "Adicionar OS" }, // principal
+      { href: "/workorders/approved", label: "OS's Aprovadas" }, // criar depois
     ],
     []
   );
@@ -281,9 +285,7 @@ function SidebarContent({
       await supabase.auth.signOut();
       router.push("/login");
       onNavigate?.();
-    } catch {
-      // silencioso
-    }
+    } catch {}
   }
 
   return (
@@ -296,7 +298,7 @@ function SidebarContent({
       >
         <div
           className="h-10 w-10 rounded-lg bg-white grid place-items-center text-lg font-bold select-none"
-          style={{ color: "var(--ac-blue-700)" }}  // letra “P” na cor da marca
+          style={{ color: "var(--ac-blue-700)" }}
         >
           A
         </div>
@@ -324,7 +326,9 @@ function SidebarContent({
             className={`w-full flex items-center ${
               collapsed ? "justify-center px-2 gap-0" : "justify-between px-3 gap-3"
             } py-2 rounded-md transition-colors ${
-              isRoutesSection ? "bg-white/20 text-white" : "text-white hover:bg-white/10"
+              pathname.startsWith("/routes")
+                ? "bg-white/20 text-white"
+                : "text-white hover:bg-white/10"
             }`}
             aria-expanded={routesOpen}
             aria-controls="routes-submenu"
@@ -349,7 +353,6 @@ function SidebarContent({
             </div>
           </button>
 
-          {/* Submenu Rotas */}
           <div
             id="routes-submenu"
             role="menu"
@@ -405,17 +408,111 @@ function SidebarContent({
           </div>
         </div>
 
-        {/* Tail (sem Visitas) */}
-        {tail.map((l) => renderLink(l.href, l.label, l.icon))}
-
-        {/* Grupo: Configurações (colapsável) */}
+                {/* Grupo: Ordem de Serviço */}
         <div className="mt-2">
           <button
             type="button"
             onClick={() => {
               if (collapsed) {
-                router.push("/settings"); // no fechado, navega direto
+                router.push("/workorders"); // colapsado vai direto para Adicionar OS
                 onNavigate?.();
+              } else {
+                setWorkordersOpen((v) => !v);
+              }
+            }}
+            className={`w-full flex items-center ${
+              collapsed ? "justify-center px-2 gap-0" : "justify-between px-3 gap-3"
+            } py-2 rounded-md transition-colors ${
+              pathname.startsWith("/workorders")
+                ? "bg-white/20 text-white"
+                : "text-white hover:bg-white/10"
+            }`}
+            aria-expanded={workordersOpen}
+            aria-controls="workorders-submenu"
+          >
+            <div className={`flex items-center ${collapsed ? "gap-0" : "gap-3"}`}>
+              <ClipboardList size={18} aria-hidden className="shrink-0" />
+              <LabelSlot ready={ready}>Ordem de Serviço</LabelSlot>
+            </div>
+
+            <div
+              style={{
+                width: "calc(var(--sidebar-w) - 80px)",
+                overflow: "hidden",
+                transition: ready ? "width 300ms ease" : "none",
+              }}
+            >
+              <ChevronDown
+                size={16}
+                className={`transition-transform ${workordersOpen ? "rotate-180" : ""}`}
+                aria-hidden="true"
+              />
+            </div>
+          </button>
+
+          <div
+            id="workorders-submenu"
+            role="menu"
+            className="mt-1"
+            style={{
+              maxHeight: workordersOpen ? 800 : 0,
+              overflow: "hidden",
+              transition: ready ? "max-height 300ms ease, opacity 300ms ease" : "none",
+              opacity: "calc((var(--sidebar-w) - 80px) / 200)",
+              pointerEvents: workordersOpen && !collapsed ? "auto" : "none",
+            }}
+          >
+            {collapsed ? (
+              <div className="flex flex-col items-center gap-2 py-1">
+                {workorderItems.map((it) => {
+                  const active =
+                    pathname === it.href || pathname.startsWith(it.href + "/");
+                  const initial = it.label.trim().charAt(0).toUpperCase();
+                  return (
+                    <a
+                      key={it.href}
+                      href={it.href}
+                      className={[
+                        "grid h-7 w-7 place-items-center rounded-md text-xs font-semibold",
+                        active ? "bg-white/30 text-white" : "bg-white/20 text-white",
+                      ].join(" ")}
+                      aria-current={active ? "page" : undefined}
+                    >
+                      {initial}
+                    </a>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="space-y-1" role="menu">
+                {workorderItems.map((it) => {
+                  const active =
+                    pathname === it.href || pathname.startsWith(it.href + "/");
+                  return (
+                    <SidebarLink
+                      key={it.href}
+                      href={it.href}
+                      active={active}
+                      collapsed={false}
+                      className="ml-8 text-sm"
+                    >
+                      {it.label}
+                    </SidebarLink>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Grupo: Configurações */}
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => {
+              if (collapsed) {
+                onNavigate?.();
+                router.push("/settings");
               } else {
                 setSettingsOpen((v) => !v);
               }
@@ -423,7 +520,9 @@ function SidebarContent({
             className={`w-full flex items-center ${
               collapsed ? "justify-center px-2 gap-0" : "justify-between px-3 gap-3"
             } py-2 rounded-md transition-colors ${
-              isSettingsSection ? "bg-white/20 text-white" : "text-white hover:bg-white/10"
+              pathname.startsWith("/settings") || pathname.startsWith("/account")
+                ? "bg-white/20 text-white"
+                : "text-white hover:bg-white/10"
             }`}
             aria-expanded={settingsOpen}
             aria-controls="settings-submenu"
@@ -481,7 +580,6 @@ function SidebarContent({
                   Preferências
                 </SidebarLink>
 
-                {/* Sair como “link” */}
                 <button
                   onClick={handleSignOut}
                   className="ml-8 flex w-[calc(100%-2rem)] items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-white/90 hover:bg-white/10"
