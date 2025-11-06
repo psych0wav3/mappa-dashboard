@@ -61,7 +61,10 @@ async function getTechniciansLite(): Promise<TechLite[]> {
 }
 
 export default async function NewWorkOrderPage() {
-  const [clients, technicians] = await Promise.all([getClientsLite(), getTechniciansLite()]);
+  const [clients, technicians] = await Promise.all([
+    getClientsLite(),
+    getTechniciansLite(),
+  ]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6">
@@ -70,7 +73,8 @@ export default async function NewWorkOrderPage() {
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <NewWorkOrderClient mode="create" clients={clients} technicians={technicians} />
+        {/* ⬇️ use "new" (não "create") */}
+        <NewWorkOrderClient mode="new" clients={clients} technicians={technicians} />
       </div>
     </div>
   );

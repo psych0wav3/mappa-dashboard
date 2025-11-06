@@ -2,86 +2,105 @@
 "use server";
 
 import { prisma } from "@/lib/supabase/prisma";
+import { WorkOrderStatus } from "@prisma/client";
 import { z } from "zod";
 
-// --- Tipo público para lista (mantido) ---
+// --- Tipo público para a lista ---
 export type WorkOrderDTO = {
   id: string;
   code: string;
   title: string;
   clientName: string;
-  status: "aberta" | "em_andamento" | "concluida" | "cancelada";
+  status: WorkOrderStatus;
   scheduledAt?: string | null;
 };
 
-// --- Schema CREATE (ajustado para opcionais/nullable) ---
+// --- Schema CREATE (opcionais + nullable + transform para null) ---
 const CreateSchema = z.object({
   clientId: z.string().min(1),
+
   technicianId: z
     .string()
     .optional()
     .nullable()
     .transform((v) => (v && v.trim() ? v : null)),
+
   title: z.string().min(2),
+
   description: z
     .string()
     .optional()
+    .nullable()
     .transform((v) => (v && v.trim() ? v : null)),
+
+  // A UI deve enviar "date" como YYYY-MM-DD
   date: z
     .string()
     .optional()
     .nullable()
-    .transform((v) => (v && v.trim() ? v : null)), // YYYY-MM-DD
+    .transform((v) => (v && v.trim() ? v : null)),
+
   startTime: z
     .string()
     .optional()
     .nullable()
-    .transform((v) => (v && v.trim() ? v : null)), // HH:mm
+    .transform((v) => (v && v.trim() ? v : null)),
+
   endTime: z
     .string()
     .optional()
     .nullable()
-    .transform((v) => (v && v.trim() ? v : null)), // HH:mm
+    .transform((v) => (v && v.trim() ? v : null)),
+
   amountCents: z.number().int().nonnegative().nullable().optional(),
 });
 
-// --- Schema UPDATE (todos os campos opcionais) ---
+// --- Schema UPDATE (todos opcionais + nullable + transform para null) ---
 const UpdateSchema = z.object({
   clientId: z.string().optional(),
+
   technicianId: z
     .string()
     .optional()
     .nullable()
     .transform((v) => (v && v.trim() ? v : null)),
+
   title: z.string().min(2).optional(),
+
   description: z
     .string()
     .optional()
+    .nullable()
     .transform((v) => (v && v.trim() ? v : null)),
+
   date: z
     .string()
     .optional()
     .nullable()
-    .transform((v) => (v && v.trim() ? v : null)), // YYYY-MM-DD
+    .transform((v) => (v && v.trim() ? v : null)),
+
   startTime: z
     .string()
     .optional()
     .nullable()
     .transform((v) => (v && v.trim() ? v : null)),
+
   endTime: z
     .string()
     .optional()
     .nullable()
     .transform((v) => (v && v.trim() ? v : null)),
+
   amountCents: z.number().int().nonnegative().nullable().optional(),
 });
 
 // ---------------------------------------------------------------------
-// LISTAGEM
+// LISTAGEM (ignora soft-deletados) — ordena por num para evitar conflito createdAt/created_at
 // ---------------------------------------------------------------------
 export async function listWorkOrders(): Promise<WorkOrderDTO[]> {
   const rows = await prisma.workOrder.findMany({
-    orderBy: { createdAt: "desc" },
+    where: { deletedAt: null },
+    orderBy: { num: "desc" },
     include: { client: { select: { firstName: true, lastName: true } } },
   });
 
@@ -90,10 +109,8 @@ export async function listWorkOrders(): Promise<WorkOrderDTO[]> {
     code: w.code,
     title: w.title,
     clientName: `${w.client.firstName} ${w.client.lastName}`.trim(),
-    status: w.status as WorkOrderDTO["status"],
-    scheduledAt: w.scheduledDate
-      ? w.scheduledDate.toISOString().slice(0, 10)
-      : null,
+    status: w.status,
+    scheduledAt: w.scheduledDate ? w.scheduledDate.toISOString().slice(0, 10) : null,
   }));
 }
 
@@ -104,9 +121,7 @@ export async function createWorkOrder(raw: unknown) {
   const input = CreateSchema.parse(raw);
 
   const res = await prisma.$transaction(async (tx) => {
-    const tmpCode = `TMP-${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2, 8)}`;
+    const tmpCode = `TMP-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     const created = await tx.workOrder.create({
       data: {
@@ -116,10 +131,8 @@ export async function createWorkOrder(raw: unknown) {
         clientId: input.clientId,
         technicianId: input.technicianId ?? null,
         amountCents: input.amountCents ?? null,
-        status: "aberta",
-        scheduledDate: input.date
-          ? new Date(`${input.date}T00:00:00.000`)
-          : null,
+        status: WorkOrderStatus.aberta,
+        scheduledDate: input.date ? new Date(`${input.date}T00:00:00.000`) : null,
         startTime: input.startTime ?? null,
         endTime: input.endTime ?? null,
       },
@@ -144,26 +157,20 @@ export async function createWorkOrder(raw: unknown) {
     code: res.code,
     title: res.title,
     clientName: `${res.client.firstName} ${res.client.lastName}`.trim(),
-    status: res.status as WorkOrderDTO["status"],
-    scheduledAt: res.scheduledDate
-      ? res.scheduledDate.toISOString().slice(0, 10)
-      : null,
+    status: res.status,
+    scheduledAt: res.scheduledDate ? res.scheduledDate.toISOString().slice(0, 10) : null,
   } satisfies WorkOrderDTO;
 }
 
 // ---------------------------------------------------------------------
-// DETALHE (dados completos para view/edit)
+// DETALHE (para view/edit)
 // ---------------------------------------------------------------------
 export async function getWorkOrderById(id: string) {
   return prisma.workOrder.findUnique({
     where: { id },
     include: {
-      client: {
-        select: { id: true, firstName: true, lastName: true, email: true },
-      },
-      technician: {
-        select: { id: true, firstName: true, lastName: true, email: true },
-      },
+      client: { select: { id: true, firstName: true, lastName: true, email: true } },
+      technician: { select: { id: true, firstName: true, lastName: true, email: true } },
     },
   });
 }
@@ -172,20 +179,26 @@ export async function getWorkOrderById(id: string) {
 // CANCELAR OS
 // ---------------------------------------------------------------------
 export async function cancelWorkOrder(id: string) {
+  const cur = await prisma.workOrder.findUnique({
+    where: { id },
+    select: { deletedAt: true },
+  });
+  if (cur?.deletedAt) throw new Error("OS já excluída.");
+
   const updated = await prisma.workOrder.update({
     where: { id },
-    data: { status: "cancelada" },
+    data: { status: WorkOrderStatus.cancelada },
     select: { id: true, status: true },
   });
+
   return updated;
 }
 
 // ---------------------------------------------------------------------
-// ENVIAR PARA APROVAÇÃO (stub por enquanto)
+// ENVIAR PARA APROVAÇÃO (stub)
 // ---------------------------------------------------------------------
 export async function sendWorkOrderForApproval(id: string) {
-  // Aqui você dispararia notificação/app/etc.
-  // Mantemos status "aberta" por enquanto.
+  // Implementar depois a notificação pro app do cliente
   return { id, ok: true };
 }
 
@@ -195,17 +208,20 @@ export async function sendWorkOrderForApproval(id: string) {
 export async function updateWorkOrder(id: string, raw: unknown) {
   const input = UpdateSchema.parse(raw);
 
+  const cur = await prisma.workOrder.findUnique({
+    where: { id },
+    select: { deletedAt: true },
+  });
+  if (cur?.deletedAt) throw new Error("OS excluída não pode ser editada.");
+
   const data: any = {};
   if (input.title !== undefined) data.title = input.title;
   if (input.description !== undefined) data.description = input.description;
   if (input.clientId !== undefined) data.clientId = input.clientId;
-  if (input.technicianId !== undefined)
-    data.technicianId = input.technicianId;
+  if (input.technicianId !== undefined) data.technicianId = input.technicianId;
   if (input.amountCents !== undefined) data.amountCents = input.amountCents;
   if (input.date !== undefined)
-    data.scheduledDate = input.date
-      ? new Date(`${input.date}T00:00:00.000`)
-      : null;
+    data.scheduledDate = input.date ? new Date(`${input.date}T00:00:00.000`) : null;
   if (input.startTime !== undefined) data.startTime = input.startTime;
   if (input.endTime !== undefined) data.endTime = input.endTime;
 
@@ -220,7 +236,7 @@ export async function updateWorkOrder(id: string, raw: unknown) {
     code: updated.code,
     title: updated.title,
     clientName: `${updated.client.firstName} ${updated.client.lastName}`.trim(),
-    status: updated.status as WorkOrderDTO["status"],
+    status: updated.status,
     scheduledAt: updated.scheduledDate
       ? updated.scheduledDate.toISOString().slice(0, 10)
       : null,
@@ -228,9 +244,21 @@ export async function updateWorkOrder(id: string, raw: unknown) {
 }
 
 // ---------------------------------------------------------------------
-// EXCLUIR (definitivo) — usado quando a OS já está cancelada
+// EXCLUIR — SOFT DELETE (marca deletedAt)
 // ---------------------------------------------------------------------
 export async function deleteWorkOrder(id: string) {
-  await prisma.workOrder.delete({ where: { id } });
+  const row = await prisma.workOrder.findUnique({
+    where: { id },
+    select: { id: true, deletedAt: true },
+  });
+
+  if (!row) return { id };
+  if (row.deletedAt) return { id };
+
+  await prisma.workOrder.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
+
   return { id };
 }

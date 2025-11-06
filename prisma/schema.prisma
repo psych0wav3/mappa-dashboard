@@ -1,7 +1,7 @@
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL") // pooler 6543
-  directUrl = env("DIRECT_URL") // host direto 5432 (SSL)
+  directUrl = env("DIRECT_URL")   // host direto 5432 (SSL)
 }
 
 generator client {
@@ -65,7 +65,7 @@ model Client {
   // back-relation para itens de RoutePlan
   routePlanItems RoutePlanItem[]
 
-  // 🔹 back-relation para WorkOrder
+  // back-relation para WorkOrder
   workOrders WorkOrder[]
 
   createdAt DateTime @default(now())
@@ -104,13 +104,12 @@ model Technician {
   // back-relation para RoutePlan
   routePlans RoutePlan[]
 
-  // ✅ back-relation para WorkOrder
+  // back-relation para WorkOrder
   workOrders WorkOrder[]
 
   @@index([phone])
   @@index([phoneDigits])
 }
-
 
 model Visit {
   id     String   @id @default(uuid())
@@ -313,44 +312,29 @@ enum WorkOrderStatus {
   cancelada
 }
 
-// prisma/schema.prisma
-
 model WorkOrder {
-  id   String @id @default(cuid())
-
-  /**
-   * Número sequencial automático
-   */
-  num  Int    @unique @default(autoincrement())
-
-  /**
-   * Código legível — OS-0001
-   */
-  code String @unique
-
-  title       String
-  description String?
-
-  // ✅ Relação com cliente
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id])
-
-  // ✅ Relação com técnico (opcional)
-  technicianId String?
-  technician   Technician? @relation(fields: [technicianId], references: [id])
-
-  // ✅ Valor do serviço (em centavos)
-  amountCents Int?
-
-  status        WorkOrderStatus @default(aberta)
+  id            String           @id @default(cuid())
+  num           Int              @default(autoincrement())
+  code          String           @unique
+  title         String
+  description   String?
+  clientId      String
+  technicianId  String?
+  amountCents   Int?
+  status        WorkOrderStatus  // enum para consistência de estados
   scheduledDate DateTime?
   startTime     String?
   endTime       String?
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  // Soft delete
+  deletedAt     DateTime?
 
-  @@index([clientId])
-  @@index([technicianId])
-  @@index([createdAt])
+  // Timestamps
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  client        Client           @relation(fields: [clientId], references: [id])
+  technician    Technician?      @relation(fields: [technicianId], references: [id])
+
+  @@index([deletedAt])
 }
