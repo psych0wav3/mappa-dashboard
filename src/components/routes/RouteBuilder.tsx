@@ -218,9 +218,16 @@ export default function RouteBuilder({
     };
   }, [techId, dia, clientIndex, clients]);
 
+  // 🔸 NOVO: clientes disponíveis = todos menos os já selecionados
+  const selectedIds = React.useMemo(() => new Set(selecionados.map((s) => s.id)), [selecionados]);
+  const availableClients = React.useMemo(
+    () => clients.filter((c) => !selectedIds.has(c.id)),
+    [clients, selectedIds]
+  );
+
   // ⚠️ async fora do setState
   const addClient = async (c: ClientLite) => {
-    if (selecionados.some((s) => s.id === c.id)) return;
+    if (selectedIds.has(c.id)) return; // proteção adicional
 
     let lat = c.lat ?? undefined;
     let lng = c.lng ?? undefined;
@@ -255,6 +262,16 @@ export default function RouteBuilder({
         lng,
       },
     ]);
+
+    // limpa busca para evitar confusão visual
+    setSearch("");
+    if (searchRef.current) {
+      searchRef.current.value = "";
+      const evt = new Event("input", { bubbles: true });
+      searchRef.current.dispatchEvent(evt);
+    }
+
+    toast.message("Adicionado ao planejamento.");
   };
 
   const removeClient = (id: string) =>
@@ -425,7 +442,7 @@ export default function RouteBuilder({
         {/* DIREITA */}
         <div className="col-span-12 lg:col-span-8 space-y-4">
           <RightAssignmentCard
-            clients={clients}
+            clients={availableClients} // ← apenas os que ainda não estão selecionados
             enabled={enabled}
             onAddClient={(c) => {
               void addClient(c);
