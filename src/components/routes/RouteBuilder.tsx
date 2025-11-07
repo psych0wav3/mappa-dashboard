@@ -58,6 +58,24 @@ function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: num
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+// ---------- helpers de merge (evita “perder” o 1º item adicionado) ----------
+function mergeByIdKeepUser(
+  serverItems: SelectedItem[],
+  userItems: SelectedItem[]
+): SelectedItem[] {
+  const byId = new Map(userItems.map((u) => [u.id, u]));
+  // Mantém itens do servidor, priorizando o que o usuário já editou/adicionou
+  const merged = serverItems.map((s) => byId.get(s.id) ?? s);
+  // Adiciona os itens que só existem no estado local do usuário
+  for (const u of userItems) {
+    if (!merged.some((m) => m.id === u.id)) merged.push(u);
+  }
+  return merged
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .map((s, i) => ({ ...s, order: i + 1 }));
+}
+// ---------------------------------------------------------------------------
+
 // ----- helpers endereço + geocode -------------------------------------------
 function buildAddress(c: ClientLite) {
   const street = c.poolStreet ?? c.street ?? "";
@@ -184,7 +202,10 @@ export default function RouteBuilder({
           base = base.map((s) => (mapUpdates.has(s.id) ? { ...s, ...mapUpdates.get(s.id)! } : s));
         }
 
-        if (!cancel) setSelecionados(base);
+        if (!cancel) {
+          // 🔸 merge com o que o usuário já adicionou enquanto carregava
+          setSelecionados((prev) => mergeByIdKeepUser(base, prev));
+        }
       } catch (e: any) {
         console.error("Falha ao carregar/geo rota:", e?.message || e);
         if (!cancel) setSelecionados([]);
@@ -291,6 +312,7 @@ export default function RouteBuilder({
       for (const s of selecionados) {
         if (s.windowStart >= s.windowEnd) throw new Error(`Janela inválida para ${s.label}.`);
       }
+
       if (modo === "weekly") {
         await saveWeeklyRoute({
           technicianId: techId,
@@ -302,6 +324,11 @@ export default function RouteBuilder({
             order: i + 1,
           })),
         });
+
+        // 🔄 Recarrega do backend e mescla para garantir consistência (evita “fantasmas”)
+        const persisted = await getWeeklyRoute({ technicianId: techId, weekday: dia });
+        setSelecionados((prev) => mergeByIdKeepUser(persisted, prev));
+
         toast.success("Rota semanal salva!");
       } else {
         await saveAdHocRoute({

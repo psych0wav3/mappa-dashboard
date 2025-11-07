@@ -32,6 +32,9 @@ function etagOf(s: string) {
   return `"W/${crypto.createHash("sha1").update(s).digest("hex")}"`;
 }
 
+// Ranking de status para dedupe (maior é melhor)
+const statusRank: Record<string, number> = { planned: 1, in_progress: 2, done: 3 };
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
@@ -96,33 +99,41 @@ export async function GET(req: Request) {
     const plansAll = await prisma.visitPlan.findMany({
       where: { technicianId, active: true },
       include: {
-        client: { select: {
-          firstName: true, lastName: true, email: true,
-          street: true, number: true, district: true, city: true, uf: true, cep: true,
-        }},
+        client: {
+          select: {
+            firstName: true, lastName: true, email: true,
+            street: true, number: true, district: true, city: true, uf: true, cep: true,
+          },
+        },
       },
       orderBy: [{ order: "asc" }, { windowStart: "asc" }],
     });
     const plans = plansAll.filter((p) => arrayHasWeekday(p.weekdays as any, wJS));
-    const planIds = plans.map((p) => p.id);
     console.log("[mobile/schedule] plansAll:", plansAll.length, "matched:", plans.length);
 
-    // 2) Instâncias existentes p/ os planos do dia
-    const existing = planIds.length
-      ? await prisma.visitInstance.findMany({
-          where: { planId: { in: planIds }, date },
-          select: {
-            id: true, planId: true, startHour: true, endHour: true, order: true, status: true,
-          },
-        })
-      : [];
-    const existingByPlan = new Map(existing.map((e) => [e.planId!, e]));
-    console.log("[mobile/schedule] instancesExist:", existing.length);
+    // ─────────────────────────────────────────────────────────────
+    // 2) Instâncias existentes do dia (todas: ad-hoc e derivadas de plano)
+    // ─────────────────────────────────────────────────────────────
+    const instancesDay = await prisma.visitInstance.findMany({
+      where: { technicianId, date },
+      select: {
+        id: true, planId: true, clientId: true, startHour: true, endHour: true, order: true, status: true, updatedAt: true,
+      },
+    });
 
-    // 3) Criar faltantes
-    const toCreate = plans.filter((p) => !existingByPlan.has(p.id));
+    const existingPlanIds = new Set(instancesDay.filter(i => i.planId).map(i => i.planId!));
+    const existingClientIds = new Set(instancesDay.map(i => i.clientId));
+
+    // ─────────────────────────────────────────────────────────────
+    // 3) Criar instâncias que faltam, mas NUNCA se já houver para o clientId
+    //    (isso evita duplicar ad-hoc + plano)
+    // ─────────────────────────────────────────────────────────────
+    const toCreate = plans.filter(p =>
+      !existingPlanIds.has(p.id) && !existingClientIds.has(p.clientId)
+    );
+
     if (toCreate.length) {
-      console.log("[mobile/schedule] creating instances for:", toCreate.map(p => p.id));
+      console.log("[mobile/schedule] creating instances for plans:", toCreate.map(p => p.id));
       await prisma.$transaction(
         toCreate.map((p) =>
           prisma.visitInstance.create({
@@ -141,40 +152,51 @@ export async function GET(req: Request) {
       );
     }
 
-    // 4) Patch em planned (alinha com plano)
-    const toPatch = existing
-      .map((inst) => {
-        const p = plans.find((x) => x.id === inst.planId);
-        if (!p) return null;
-        const next: { id: string; startHour?: number; endHour?: number; order?: number } = { id: inst.id };
-        let changed = false;
-        if (inst.status === "planned") {
+    // ─────────────────────────────────────────────────────────────
+    // 4) Patch em planned derivado de plano (alinha com plano)
+    // ─────────────────────────────────────────────────────────────
+    if (plans.length) {
+      const existingWithPlan = await prisma.visitInstance.findMany({
+        where: { technicianId, date, NOT: { planId: null } },
+        select: { id: true, planId: true, startHour: true, endHour: true, order: true, status: true },
+      });
+
+      const planById = new Map(plans.map(p => [p.id, p]));
+      const toPatch = existingWithPlan
+        .map((inst) => {
+          const p = inst.planId ? planById.get(inst.planId) : null;
+          if (!p) return null;
+          if (inst.status !== "planned") return null;
+          const next: { id: string; startHour?: number; endHour?: number; order?: number } = { id: inst.id };
+          let changed = false;
           if (typeof p.windowStart === "number" && inst.startHour !== p.windowStart) { next.startHour = p.windowStart; changed = true; }
           if (typeof p.windowEnd === "number"   && inst.endHour   !== p.windowEnd)   { next.endHour   = p.windowEnd;   changed = true; }
           const ord = p.order ?? 100;
           if ((inst.order ?? 100) !== ord) { next.order = ord; changed = true; }
-        }
-        return changed ? next : null;
-      })
-      .filter(Boolean) as Array<{ id: string; startHour?: number; endHour?: number; order?: number }>;
+          return changed ? next : null;
+        })
+        .filter(Boolean) as Array<{ id: string; startHour?: number; endHour?: number; order?: number }>;
 
-    if (toPatch.length) {
-      console.log("[mobile/schedule] patching instances:", toPatch.length);
-      await prisma.$transaction(
-        toPatch.map((p) =>
-          prisma.visitInstance.update({
-            where: { id: p.id },
-            data: {
-              ...(p.startHour != null ? { startHour: p.startHour } : {}),
-              ...(p.endHour != null ? { endHour: p.endHour } : {}),
-              ...(p.order != null ? { order: p.order } : {}),
-            },
-          })
-        )
-      );
+      if (toPatch.length) {
+        console.log("[mobile/schedule] patching instances:", toPatch.length);
+        await prisma.$transaction(
+          toPatch.map((p) =>
+            prisma.visitInstance.update({
+              where: { id: p.id },
+              data: {
+                ...(p.startHour != null ? { startHour: p.startHour } : {}),
+                ...(p.endHour != null ? { endHour: p.endHour } : {}),
+                ...(p.order != null ? { order: p.order } : {}),
+              },
+            })
+          )
+        );
+      }
     }
 
+    // ─────────────────────────────────────────────────────────────
     // 5) Limpeza: remove instâncias inválidas (plano inativo/sem dia)
+    // ─────────────────────────────────────────────────────────────
     const allInstancesToday = await prisma.visitInstance.findMany({
       where: { technicianId, date },
       include: {
@@ -198,7 +220,10 @@ export async function GET(req: Request) {
       await prisma.visitInstance.deleteMany({ where: { id: { in: invalidIds } } });
     }
 
-    // 6) Recarrega definitivas do dia (ordenadas por order + startHour)
+    // ─────────────────────────────────────────────────────────────
+    // 6) Recarrega definitivas do dia e faz DEDUPE por clientId
+    //    (prioridade: done > in_progress > planned; se empatar, ad-hoc vence; depois menor order)
+    // ─────────────────────────────────────────────────────────────
     const instances = await prisma.visitInstance.findMany({
       where: { technicianId, date },
       include: {
@@ -209,30 +234,74 @@ export async function GET(req: Request) {
       },
       orderBy: [{ order: "asc" }, { startHour: "asc" }],
     });
-    console.log("[mobile/schedule] instancesReturned:", instances.length);
+
+    // Agrupa por clientId
+    const byClient = new Map<string, typeof instances>();
+    for (const i of instances) {
+      const arr = byClient.get(i.clientId) ?? [];
+      arr.push(i);
+      byClient.set(i.clientId, arr);
+    }
+
+    const keepIds = new Set<string>();
+    const deleteIds: string[] = [];
+
+    for (const [clientId, arr] of byClient) {
+      // escolhe o "melhor"
+      const sorted = [...arr].sort((a, b) => {
+        const r = (statusRank[b.status] ?? 0) - (statusRank[a.status] ?? 0);
+        if (r !== 0) return r;
+        // ad-hoc (sem planId) vence
+        if (!!a.planId !== !!b.planId) return a.planId ? 1 : -1;
+        // menor ordem vence
+        return (a.order ?? 0) - (b.order ?? 0);
+      });
+      const winner = sorted[0];
+      keepIds.add(winner.id);
+      for (let k = 1; k < sorted.length; k++) deleteIds.push(sorted[k].id);
+    }
+
+    if (deleteIds.length) {
+      console.log("[mobile/schedule] dedupe delete:", deleteIds.length);
+      await prisma.visitInstance.deleteMany({ where: { id: { in: deleteIds } } });
+    }
+
+    // Reconsulta apenas os vencedores (ordenados)
+    const finalInstances = await prisma.visitInstance.findMany({
+      where: { id: { in: Array.from(keepIds) } },
+      include: {
+        client: { select: {
+          firstName: true, lastName: true, email: true,
+          street: true, number: true, district: true, city: true, uf: true, cep: true,
+        }},
+      },
+      orderBy: [{ order: "asc" }, { startHour: "asc" }],
+    });
+
+    console.log("[mobile/schedule] instancesReturned:", finalInstances.length);
 
     // 7) Payload
-    const items = instances.map((i) => ({
+    const items = finalInstances.map((i) => ({
       id: i.id,
       startHour: i.startHour,
       endHour: i.endHour,
       order: i.order,
       status: i.status,
       notes: i.notes ?? "",
-      client: { name: fullClientName(i.client), address: fullClientAddress(i.client) },
+      client: { name: fullClientName(i.client as any), address: fullClientAddress(i.client as any) },
     }));
 
     // 8) Versão final (ETag/Last-Modified)
     const finalVersionKey = [
       preVersionKey,
       "final",
-      instances.length,
+      finalInstances.length,
       items.map((x) => `${x.id}:${x.startHour}:${x.endHour}:${x.order}:${x.status}`).join(","),
     ].join("|");
     const eTag = etagOf(finalVersionKey);
 
     const maxUpdated =
-      instances.reduce<Date | null>((acc, cur) => {
+      finalInstances.reduce<Date | null>((acc, cur) => {
         const d = (cur as any).updatedAt as Date | undefined;
         return !acc || (d && d > acc) ? (d ?? acc) : acc;
       }, null) ?? lastModifiedFallback;

@@ -56,7 +56,7 @@ export async function listClientsLite(): Promise<
 /** Salva/atualiza rota semanal para 1 dia (faz replace e remove ausentes) */
 export async function saveWeeklyRoute(params: {
   technicianId: string;
-  weekday: number; // 1..6 (Seg..Sáb)
+  weekday: number; // 1..6 (Seg..Sáb) — use o mesmo mapeamento do app
   items: Array<{ clientId: string; windowStart: number; windowEnd: number; order: number; notes?: string }>;
 }) {
   const { technicianId, weekday, items } = params;
@@ -75,7 +75,7 @@ export async function saveWeeklyRoute(params: {
       where: { technicianId, weekdays: { has: weekday } },
     });
 
-    const incomingIds = new Set(items.map(i => i.clientId));
+    const incomingIds = new Set(items.map((i) => i.clientId));
 
     // remover quem saiu
     for (const row of existing) {
@@ -125,7 +125,7 @@ export async function saveWeeklyRoute(params: {
   return { ok: true };
 }
 
-/** Cria rota avulsa (data específica) */
+/** Cria rota avulsa (data específica) — REPLACE por data+técnico */
 export async function saveAdHocRoute(params: {
   technicianId: string;
   dateISO: string; // YYYY-MM-DD
@@ -138,12 +138,21 @@ export async function saveAdHocRoute(params: {
 
   const date = new Date(`${dateISO}T00:00:00.000Z`);
 
-  await prisma.$transaction(
-    items.map((it) => {
+  await prisma.$transaction(async (tx) => {
+    for (const it of items) {
       if (it.startHour >= it.endHour) {
         throw new Error("Há janelas inválidas (início >= fim).");
       }
-      return prisma.visitInstance.create({
+    }
+
+    // REPLACE: remove tudo do dia para esse técnico
+    await tx.visitInstance.deleteMany({
+      where: { technicianId, date },
+    });
+
+    // recria do zero
+    for (const it of items) {
+      await tx.visitInstance.create({
         data: {
           date,
           startHour: it.startHour,
@@ -155,8 +164,8 @@ export async function saveAdHocRoute(params: {
           client: { connect: { id: it.clientId } },
         },
       });
-    })
-  );
+    }
+  });
 
   return { ok: true };
 }
@@ -180,7 +189,7 @@ export async function saveWeeklyRouteBulk(params: {
         where: { technicianId, weekdays: { has: wday } },
       });
 
-      const incomingIds = new Set(items.map(i => i.clientId));
+      const incomingIds = new Set(items.map((i) => i.clientId));
 
       // remover ausentes
       for (const row of existing) {
