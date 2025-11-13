@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import TechnicianForm from "./TechnicianForm";
 import { Button } from "@/components/ui/button";
 import { Search, Pencil } from "lucide-react";
@@ -19,21 +20,22 @@ type Tech = {
 };
 
 export default function TechnicianTable({ initialData }: { initialData: Tech[] }) {
+  const router = useRouter();
   const [tab, setTab] = useState<"active" | "inactive">("active");
   const [q, setQ] = useState("");
 
   const counts = useMemo(() => {
-    const act = initialData.filter(t => t.active).length;
+    const act = initialData.filter((t) => t.active).length;
     const ina = initialData.length - act;
     return { act, ina };
   }, [initialData]);
 
   const data = useMemo(() => {
-    const base = initialData.filter(t => (tab === "active" ? t.active : !t.active));
+    const base = initialData.filter((t) => (tab === "active" ? t.active : !t.active));
     const k = q.trim().toLowerCase();
     if (!k) return base;
     const f = (s?: string | null) => (s ?? "").toLowerCase();
-    return base.filter(t =>
+    return base.filter((t) =>
       [t.firstName, t.lastName, t.email, f(t.phone || ""), f(t.cpf || "")]
         .join(" ")
         .toLowerCase()
@@ -50,7 +52,6 @@ export default function TechnicianTable({ initialData }: { initialData: Tech[] }
 
   return (
     <div className="space-y-3">
-      {/* Top bar – igual ao Clientes */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex gap-2">
           <button onClick={() => setTab("active")} className={tabBtn(tab === "active")}>
@@ -75,13 +76,13 @@ export default function TechnicianTable({ initialData }: { initialData: Tech[] }
             />
           </div>
 
-          <TechnicianForm
-            trigger={
-              <Button className="btn-brand text-white">
-                Novo técnico
-              </Button>
-            }
-          />
+          {/* Criar técnico em nova tela, igual à OS */}
+          <Button
+            className="btn-brand text-white"
+            onClick={() => router.push("/technicians/new")}
+          >
+            Novo técnico
+          </Button>
         </div>
       </div>
 
@@ -101,7 +102,9 @@ export default function TechnicianTable({ initialData }: { initialData: Tech[] }
           <tbody>
             {data.map((t) => (
               <tr key={t.id} className="border-t">
-                <td className="p-3">{t.firstName} {t.lastName}</td>
+                <td className="p-3">
+                  {t.firstName} {t.lastName}
+                </td>
                 <td className="p-3">{t.email}</td>
                 <td className="p-3">{t.phone ?? "—"}</td>
                 <td className="p-3">{t.cpf ?? "—"}</td>
