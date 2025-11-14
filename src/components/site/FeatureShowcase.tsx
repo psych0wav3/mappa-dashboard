@@ -37,7 +37,7 @@ const SECTIONS: Section[] = [
       </div>
     ),
     image: {
-      src: "https://images.unsplash.com/photo-1556157382-97eda2d62296?q=80&w=1600&auto=format&fit=crop",
+      src: "/hero-backoffice-b.png",
       alt: "Dashboard de rotas e planejamento do Aqua Mappa",
     },
     description:
@@ -58,7 +58,7 @@ const SECTIONS: Section[] = [
       </div>
     ),
     image: {
-      src: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?q=80&w=1600&auto=format&fit=crop",
+      src: "/hero-backoffice-b.png",
       alt: "App do técnico do Aqua Mappa com mapa e paradas",
     },
     description:
@@ -79,7 +79,7 @@ const SECTIONS: Section[] = [
       </div>
     ),
     image: {
-      src: "https://images.unsplash.com/photo-1542744173-8e7e53415bb0?q=80&w=1600&auto=format&fit=crop",
+      src: "/hero-backoffice-b.png",
       alt: "Relatório de serviço com fotos e leituras",
     },
     description:
