@@ -1,73 +1,79 @@
-import { createClientServer } from "@/lib/supabase/server";
+// src/app/(private)/dashboard/page.tsx
+import { requireSession } from "@/lib/auth-roles";
 
 export default async function DashboardPage() {
-  const supabase = await createClientServer(); // ✅ agora sim o client real
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await requireSession();
 
   return (
-    
-      <div className="space-y-6">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {[
-            { label: "Chegadas", value: 0 },
-            { label: "Partidas", value: 0 },
-            { label: "Visitas hoje", value: 0 },
-            { label: "Técnicos em rota", value: 0 },
-          ].map((k) => (
-            <div key={k.label} className="rounded-xl border bg-white p-4">
-              <div className="text-sm text-neutral-500">{k.label}</div>
-              <div className="mt-1 text-2xl font-semibold">{k.value}</div>
-            </div>
-          ))}
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {[
+          { label: "Chegadas", value: 0 },
+          { label: "Partidas", value: 0 },
+          { label: "Visitas hoje", value: 0 },
+          { label: "Técnicos em rota", value: 0 },
+        ].map((k) => (
+          <div key={k.label} className="rounded-xl border bg-white p-4">
+            <div className="text-sm text-neutral-500">{k.label}</div>
+            <div className="mt-1 text-2xl font-semibold">{k.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl border bg-white p-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Atividade</h2>
+          <input
+            type="search"
+            placeholder="Pesquisar"
+            className="h-9 rounded-md border border-neutral-200 bg-neutral-50 px-3 text-sm"
+          />
         </div>
 
-        <div className="rounded-xl border bg-white p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Atividade</h2>
-            <input
-              type="search"
-              placeholder="Pesquisar"
-              className="h-9 rounded-md border border-neutral-200 bg-neutral-50 px-3 text-sm"
-            />
-          </div>
-
-          <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-6">
-            {["Chegadas", "Partidas", "Em rota", "Concluídas", "Canceladas", "Pendentes"].map((t, i) => (
+        <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-6">
+          {["Chegadas", "Partidas", "Em rota", "Concluídas", "Canceladas", "Pendentes"].map(
+            (t, i) => (
               <button
                 key={t}
                 className={`rounded-lg border px-3 py-2 text-sm ${
                   i === 0 ? "bg-neutral-100 border-neutral-200" : "hover:bg-neutral-50"
                 }`}
               >
-                {t} <span className="ml-1 rounded bg-neutral-100 px-1.5 py-0.5 text-xs">0</span>
+                {t}{" "}
+                <span className="ml-1 rounded bg-neutral-100 px-1.5 py-0.5 text-xs">
+                  0
+                </span>
               </button>
-            ))}
-          </div>
-
-          <div className="mt-4 overflow-hidden rounded-lg border">
-            <table className="w-full text-sm">
-              <thead className="bg-neutral-50 text-left text-neutral-500">
-                <tr>
-                  <th className="px-3 py-2">Cliente</th>
-                  <th className="px-3 py-2">Endereço</th>
-                  <th className="px-3 py-2">Janela</th>
-                  <th className="px-3 py-2">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td className="px-3 py-2">—</td>
-                  <td className="px-3 py-2">—</td>
-                  <td className="px-3 py-2">—</td>
-                  <td className="px-3 py-2">—</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+            ),
+          )}
         </div>
 
-        <p className="text-xs text-neutral-500">Logado como: {user?.email}</p>
+        <div className="mt-4 overflow-hidden rounded-lg border">
+          <table className="w-full text-sm">
+            <thead className="bg-neutral-50 text-left text-neutral-500">
+              <tr>
+                <th className="px-3 py-2">Cliente</th>
+                <th className="px-3 py-2">Endereço</th>
+                <th className="px-3 py-2">Janela</th>
+                <th className="px-3 py-2">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="px-3 py-2">—</td>
+                <td className="px-3 py-2">—</td>
+                <td className="px-3 py-2">—</td>
+                <td className="px-3 py-2">—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-    
+
+      <p className="text-xs text-neutral-500">
+        Logado como: {user.email}{" "}
+        {user.role ? `(${user.role})` : null}
+      </p>
+    </div>
   );
 }

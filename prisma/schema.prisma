@@ -1,79 +1,298 @@
-datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL") // pooler 6543
-  directUrl = env("DIRECT_URL")   // host direto 5432 (SSL)
-}
-
 generator client {
   provider = "prisma-client-js"
 }
 
-/**
- * =========================
- * Core: Clients / Techs / Visits
- * =========================
- */
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+/// *
+///  * =========================
+///  * Core: Clients / Techs / Visits
+///  * =========================
 model Client {
-  id String @id @default(cuid())
-
-  // Pessoa
-  firstName String
-  lastName  String
-  email     String  @unique
-  phone     String? @unique
-  cpf       String? @unique
-
-  // Empresa (opcional)
-  companyName String?
-  cnpj        String? @unique
-
-  // Endereço de cobrança (billing)
-  street   String?
-  number   String?
-  district String?
-  city     String?
-  uf       String?
-  cep      String?
-
-  // Informações úteis
-  notes String?
-
-  // Localização da piscina
-  poolStreet   String?
-  poolNumber   String?
-  poolDistrict String?
-  poolCity     String?
-  poolUf       String?
-  poolCep      String?
-
-  // Coordenadas da piscina (pins no mapa)
-  poolLat Float? @db.DoublePrecision
-  poolLng Float? @db.DoublePrecision
-
-  // (legado – mantidos)
+  id                String          @id @default(cuid())
+  firstName         String
+  lastName          String
+  email             String          @unique
+  phone             String?         @unique
+  cpf               String?         @unique
+  street            String?
+  number            String?
+  district          String?
+  city              String?
+  uf                String?
+  cep               String?
   poolSize          String?
   cleaningFrequency Int?
   cleaningWindow    String?
   payDay            Int?
-
-  active Boolean @default(true)
-
-  visits         Visit[]
-  visitPlans     VisitPlan[]     @relation("ClientToVisitPlan")
-  visitInstances VisitInstance[]
-
-  // back-relation para itens de RoutePlan
-  routePlanItems RoutePlanItem[]
-
-  // back-relation para WorkOrder
-  workOrders WorkOrder[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  notes             String?
+  active            Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  cnpj              String?         @unique
+  companyName       String?
+  poolCep           String?
+  poolCity          String?
+  poolDistrict      String?
+  poolNumber        String?
+  poolStreet        String?
+  poolUf            String?
+  poolLat           Float?
+  poolLng           Float?
+  routePlanItems    RoutePlanItem[]
+  visits            Visit[]
+  visitInstances    VisitInstance[]
+  visitPlans        VisitPlan[]     @relation("ClientToVisitPlan")
+  workOrders        WorkOrder[]
 
   @@index([city])
   @@index([poolCity])
   @@index([poolLat, poolLng])
+}
+
+model Technician {
+  id             String          @id @default(uuid())
+  userId         String?         @unique @db.Uuid
+  firstName      String          @map("first_name")
+  lastName       String          @map("last_name")
+  email          String          @unique
+  phone          String?         @map("phone")
+  cpf            String?         @unique
+  active         Boolean         @default(true)
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  phoneDigits    String?         @map("phone_digits")
+  role           TechnicianRole  @default(TECH)
+  routePlans     RoutePlan[]
+  visits         Visit[]
+  visitInstances VisitInstance[]
+  visitPlans     VisitPlan[]     @relation("TechnicianToVisitPlan")
+  workOrders     WorkOrder[]
+
+  @@index([phone])
+  @@index([phoneDigits])
+}
+
+model Visit {
+  id           String     @id @default(uuid())
+  date         DateTime
+  status       String     @default("pending")
+  clientId     String
+  technicianId String
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  client       Client     @relation(fields: [clientId], references: [id])
+  technician   Technician @relation(fields: [technicianId], references: [id])
+}
+
+model VisitPlan {
+  id           String          @id @default(cuid())
+  technicianId String
+  clientId     String
+  weekdays     Int[]
+  windowStart  Int
+  windowEnd    Int
+  notes        String?
+  order        Int             @default(0)
+  active       Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  instances    VisitInstance[]
+  client       Client          @relation("ClientToVisitPlan", fields: [clientId], references: [id])
+  technician   Technician      @relation("TechnicianToVisitPlan", fields: [technicianId], references: [id])
+}
+
+model VisitInstance {
+  id           String     @id @default(cuid())
+  date         DateTime
+  startHour    Int
+  endHour      Int
+  order        Int        @default(100)
+  status       String     @default("planned")
+  notes        String?
+  planId       String?
+  technicianId String
+  clientId     String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  client       Client     @relation(fields: [clientId], references: [id])
+  plan         VisitPlan? @relation(fields: [planId], references: [id], onDelete: Cascade)
+  technician   Technician @relation(fields: [technicianId], references: [id])
+
+  @@index([date, technicianId])
+  @@index([planId])
+}
+
+model RouteTemplate {
+  id           String              @id @default(cuid())
+  workspaceId  String
+  technicianId String
+  weekday      Int
+  frequency    ServiceFrequency
+  startDate    DateTime
+  endCondition EndCondition
+  endAfter     Int?
+  endDate      DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  occurrences  RouteOccurrence[]
+  stops        RouteStopTemplate[] @relation("TemplateStops")
+}
+
+model RouteStopTemplate {
+  id          String        @id @default(cuid())
+  templateId  String
+  order       Int
+  clientId    String
+  durationMin Int           @default(30)
+  windowStart DateTime?
+  windowEnd   DateTime?
+  note        String?
+  clientLat   Float?
+  clientLng   Float?
+  addressLine String?
+  template    RouteTemplate @relation("TemplateStops", fields: [templateId], references: [id])
+
+  @@index([templateId, order])
+}
+
+model RouteOccurrence {
+  id          String                @id @default(cuid())
+  templateId  String
+  date        DateTime
+  optimizedAt DateTime?
+  distanceKm  Float?
+  durationMin Int?
+  template    RouteTemplate         @relation(fields: [templateId], references: [id])
+  stops       RouteStopOccurrence[]
+
+  @@index([templateId, date])
+}
+
+model RouteStopOccurrence {
+  id             String          @id @default(cuid())
+  occurrenceId   String
+  order          Int
+  clientId       String
+  eta            DateTime?
+  etd            DateTime?
+  travelMinPrev  Int?
+  distanceKmPrev Float?
+  occurrence     RouteOccurrence @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+
+  @@index([occurrenceId, order])
+}
+
+model RoutePlan {
+  id           String          @id @default(cuid())
+  technicianId String
+  weekday      Int
+  frequency    RouteFrequency  @default(WEEKLY)
+  startsAt     DateTime?
+  endsAt       DateTime?
+  active       Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  technician   Technician      @relation(fields: [technicianId], references: [id])
+  items        RoutePlanItem[]
+
+  @@index([technicianId, weekday, active])
+}
+
+model RoutePlanItem {
+  id           String    @id @default(cuid())
+  routePlanId  String
+  clientId     String
+  order        Int
+  startMinutes Int
+  endMinutes   Int
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  client       Client    @relation(fields: [clientId], references: [id])
+  routePlan    RoutePlan @relation(fields: [routePlanId], references: [id])
+
+  @@index([routePlanId, order])
+}
+
+model WorkOrder {
+  id            String          @id @default(cuid())
+  num           Int             @default(autoincrement())
+  code          String          @unique
+  title         String
+  description   String?
+  clientId      String
+  technicianId  String?
+  amountCents   Int?
+  status        WorkOrderStatus
+  scheduledDate DateTime?
+  startTime     String?
+  endTime       String?
+  deletedAt     DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  client        Client          @relation(fields: [clientId], references: [id])
+  technician    Technician?     @relation(fields: [technicianId], references: [id])
+
+  @@index([deletedAt])
+}
+
+model account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime
+  user                  user      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model session {
+  id             String   @id
+  expiresAt      DateTime
+  token          String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime
+  ipAddress      String?
+  userAgent      String?
+  userId         String
+  impersonatedBy String?
+  user           user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model user {
+  id            String    @id
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now())
+  banExpires    DateTime?
+  banReason     String?
+  banned        Boolean?  @default(false)
+  role          String?
+  account       account[]
+  session       session[]
+}
+
+model verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now())
 }
 
 enum TechnicianRole {
@@ -81,102 +300,10 @@ enum TechnicianRole {
   TECH
 }
 
-model Technician {
-  id        String         @id @default(uuid())
-  userId    String?        @unique @db.Uuid
-  firstName String         @map("first_name")
-  lastName  String         @map("last_name")
-  email     String         @unique
-  phone     String?        @map("phone")
-  cpf       String?        @unique
-  active    Boolean        @default(true)
-  role      TechnicianRole @default(TECH)
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  phoneDigits String? @map("phone_digits")
-
-  visits         Visit[]
-  visitPlans     VisitPlan[]     @relation("TechnicianToVisitPlan")
-  visitInstances VisitInstance[]
-
-  // back-relation para RoutePlan
-  routePlans RoutePlan[]
-
-  // back-relation para WorkOrder
-  workOrders WorkOrder[]
-
-  @@index([phone])
-  @@index([phoneDigits])
-}
-
-model Visit {
-  id     String   @id @default(uuid())
-  date   DateTime
-  status String   @default("pending")
-
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id])
-
-  technicianId String
-  technician   Technician @relation(fields: [technicianId], references: [id])
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-}
-
-model VisitPlan {
-  id           String  @id @default(cuid())
-  technicianId String
-  clientId     String
-  weekdays     Int[] // 1..6 (Seg..Sáb)
-  windowStart  Int
-  windowEnd    Int
-  notes        String?
-  order        Int     @default(0)
-  active       Boolean @default(true)
-
-  technician Technician @relation("TechnicianToVisitPlan", fields: [technicianId], references: [id])
-  client     Client     @relation("ClientToVisitPlan", fields: [clientId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  instances VisitInstance[]
-}
-
-model VisitInstance {
-  id        String   @id @default(cuid())
-  date      DateTime
-  startHour Int
-  endHour   Int
-  order     Int      @default(100)
-  status    String   @default("planned")
-  notes     String?
-
-  // CASCADE ao apagar o VisitPlan
-  planId String?
-  plan   VisitPlan? @relation(fields: [planId], references: [id], onDelete: Cascade)
-
-  technicianId String
-  technician   Technician @relation(fields: [technicianId], references: [id])
-
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([date, technicianId])
-  @@index([planId])
-}
-
-/**
- * =========================
- * Rotas (Templates & Ocorrências)
- * =========================
- */
+/// *
+///  * =========================
+///  * Rotas (Templates & Ocorrências)
+///  * =========================
 enum ServiceFrequency {
   ONCE
   WEEKLY
@@ -192,149 +319,19 @@ enum EndCondition {
   END_DATE
 }
 
-model RouteTemplate {
-  id           String           @id @default(cuid())
-  workspaceId  String
-  technicianId String
-  weekday      Int // 1..7
-  frequency    ServiceFrequency
-  startDate    DateTime
-  endCondition EndCondition
-  endAfter     Int?
-  endDate      DateTime?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-
-  stops       RouteStopTemplate[] @relation("TemplateStops")
-  occurrences RouteOccurrence[]
-}
-
-model RouteStopTemplate {
-  id          String    @id @default(cuid())
-  templateId  String
-  order       Int
-  clientId    String
-  durationMin Int       @default(30)
-  windowStart DateTime?
-  windowEnd   DateTime?
-  note        String?
-  clientLat   Float?
-  clientLng   Float?
-  addressLine String?
-
-  template RouteTemplate @relation("TemplateStops", fields: [templateId], references: [id])
-
-  @@index([templateId, order])
-}
-
-model RouteOccurrence {
-  id          String    @id @default(cuid())
-  templateId  String
-  date        DateTime
-  optimizedAt DateTime?
-  distanceKm  Float?
-  durationMin Int?
-
-  template RouteTemplate @relation(fields: [templateId], references: [id])
-
-  stops RouteStopOccurrence[]
-
-  @@index([templateId, date])
-}
-
-model RouteStopOccurrence {
-  id             String    @id @default(cuid())
-  occurrenceId   String
-  order          Int
-  clientId       String
-  eta            DateTime?
-  etd            DateTime?
-  travelMinPrev  Int?
-  distanceKmPrev Float?
-
-  occurrence RouteOccurrence @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
-
-  @@index([occurrenceId, order])
-}
-
-/**
- * =========================
- * Planejamento de Rotas (novo)
- * =========================
- */
+/// *
+///  * =========================
+///  * Planejamento de Rotas (novo)
+///  * =========================
 enum RouteFrequency {
   WEEKLY
   BIWEEKLY
   MONTHLY
 }
 
-model RoutePlan {
-  id           String         @id @default(cuid())
-  technicianId String
-  weekday      Int // 1=Seg ... 7=Dom
-  frequency    RouteFrequency @default(WEEKLY)
-  startsAt     DateTime?
-  endsAt       DateTime?
-  active       Boolean        @default(true)
-
-  items RoutePlanItem[]
-
-  technician Technician @relation(fields: [technicianId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([technicianId, weekday, active])
-}
-
-model RoutePlanItem {
-  id           String @id @default(cuid())
-  routePlanId  String
-  clientId     String
-  order        Int
-  startMinutes Int // 9h00 => 9*60 = 540
-  endMinutes   Int
-
-  routePlan RoutePlan @relation(fields: [routePlanId], references: [id])
-  client    Client    @relation(fields: [clientId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([routePlanId, order])
-}
-
-// --- NOVO ---
 enum WorkOrderStatus {
   aberta
   em_andamento
   concluida
   cancelada
-}
-
-model WorkOrder {
-  id            String           @id @default(cuid())
-  num           Int              @default(autoincrement())
-  code          String           @unique
-  title         String
-  description   String?
-  clientId      String
-  technicianId  String?
-  amountCents   Int?
-  status        WorkOrderStatus  // enum para consistência de estados
-  scheduledDate DateTime?
-  startTime     String?
-  endTime       String?
-
-  // Soft delete
-  deletedAt     DateTime?
-
-  // Timestamps
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-
-  client        Client           @relation(fields: [clientId], references: [id])
-  technician    Technician?      @relation(fields: [technicianId], references: [id])
-
-  @@index([deletedAt])
 }
