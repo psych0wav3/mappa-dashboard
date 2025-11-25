@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useForm } from "@tanstack/react-form";
 import { z } from "zod";
 
@@ -13,7 +13,10 @@ import { Label } from "@/components/ui/label";
 import { Loader2, CheckCircle2 } from "lucide-react";
 
 import { toast } from "sonner";
-import { startCheckout } from "@/lib/checkout-client"; // 👈 novo import
+import { startCheckout } from "@/lib/checkout-client";
+import { createClientBrowser } from "@/lib/supabase/client"; // 👈 volta Supabase
+
+// ------------------------ SCHEMA ------------------------
 
 const registerSchema = z.object({
   fullName: z.string().min(1, "Nome completo é obrigatório"),
@@ -102,42 +105,74 @@ const PLAN_DETAILS: Record<string, PlanUI> = {
   },
 };
 
+// ------------------------ PAGE ------------------------
+
 export default function RegisterPageClient() {
-  const router = useRouter();
   const search = useSearchParams();
 
   const planKey = (search.get("plan") ?? "starter").toLowerCase();
   const planLabel = PLAN_LABELS[planKey] ?? "Starter";
   const planDetails = PLAN_DETAILS[planKey] ?? PLAN_DETAILS["starter"];
 
-  const form = useForm({
-  defaultValues: {
-    fullName: "",
-    email: "",
-    password: "",
-    cpf: "",
-    phone: "",
-    companyName: "",
-    poolCount: "" as any,
-  },
-  validators: { onChange: registerSchema },
-  onSubmit: async ({ value }) => {
-    try {
-      await startCheckout(planKey, value.email.trim());
+  const form = useForm<RegisterFormValues>({
+    defaultValues: {
+      fullName: "",
+      email: "",
+      password: "",
+      cpf: "",
+      phone: "",
+      companyName: "",
+      poolCount: undefined,
+    },
+    validators: {
+      onChange: registerSchema,
+    },
+    onSubmit: async ({ value }) => {
+      const { fullName, email, password, cpf, phone, companyName, poolCount } =
+        value;
 
-      toast.success("Redirecionando para pagamento…", {
-        description: "Finalize o pagamento para ativar seu plano.",
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Erro ao iniciar o pagamento";
-      toast.error("Não foi possível iniciar o checkout", {
-        description: message,
-      });
-    }
-  },
-});
+      try {
+        const supabase = createClientBrowser();
 
+        // 1) cria usuário no Supabase com metadados
+        const { error: signUpError } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: {
+            data: {
+              fullName,
+              cpf,
+              phone,
+              companyName: companyName || null,
+              poolCount:
+                typeof poolCount === "number" ? poolCount : null,
+              plan: planKey,
+            },
+          },
+        });
+
+        if (signUpError) {
+          console.error("Supabase signUp error:", signUpError);
+          throw new Error(signUpError.message || "Falha ao criar conta");
+        }
+
+        // 2) inicia o checkout do plano
+        await startCheckout(planKey, email.trim());
+
+        toast.success("Redirecionando para pagamento…", {
+          description: "Finalize o pagamento para ativar seu plano.",
+        });
+      } catch (error: any) {
+        console.error("Erro no fluxo de cadastro + checkout:", error);
+        const message =
+          error?.message ?? "Erro ao criar conta ou iniciar o pagamento";
+
+        toast.error("Não foi possível concluir o cadastro", {
+          description: message,
+        });
+      }
+    },
+  });
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-10 lg:flex-row">
@@ -162,7 +197,9 @@ export default function RegisterPageClient() {
                   {planDetails.priceLine3}
                 </p>
               )}
-              <p className="mt-3 text-sm text-slate-600">{planDetails.sub}</p>
+              <p className="mt-3 text-sm text-slate-600">
+                {planDetails.sub}
+              </p>
             </header>
 
             <hr className="my-5 border-slate-200" />
@@ -177,8 +214,8 @@ export default function RegisterPageClient() {
             </ul>
 
             <p className="mt-6 text-xs text-slate-500">
-              O administrador poderá cadastrar clientes até o limite do plano escolhido.
-              Você poderá fazer upgrade depois, se precisar.
+              O administrador poderá cadastrar clientes até o limite do plano
+              escolhido. Você poderá fazer upgrade depois, se precisar.
             </p>
           </div>
         </div>
@@ -197,8 +234,8 @@ export default function RegisterPageClient() {
                 <span className="text-sky-700">{planLabel}</span>
               </h1>
               <p className="text-sm text-slate-600">
-                Esses dados serão usados para acessar o painel e configurar sua empresa
-                dentro do Aqua Mappa.
+                Esses dados serão usados para acessar o painel e configurar sua
+                empresa dentro do Aqua Mappa.
               </p>
             </CardTitle>
           </CardHeader>
@@ -293,7 +330,9 @@ export default function RegisterPageClient() {
                         id={field.name}
                         placeholder="Somente números"
                         value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value.trim())}
+                        onChange={(e) =>
+                          field.handleChange(e.target.value.trim())
+                        }
                         onBlur={field.handleBlur}
                       />
                       {field.state.meta.errors[0] && (
@@ -334,7 +373,9 @@ export default function RegisterPageClient() {
                   <div className="space-y-1.5">
                     <Label htmlFor={field.name}>
                       Nome da empresa{" "}
-                      <span className="text-xs text-slate-400">(opcional)</span>
+                      <span className="text-xs text-slate-400">
+                        (opcional)
+                      </span>
                     </Label>
                     <Input
                       id={field.name}
@@ -354,7 +395,9 @@ export default function RegisterPageClient() {
                   <div className="space-y-1.5">
                     <Label htmlFor={field.name}>
                       Quantidade aproximada de piscinas atendidas{" "}
-                      <span className="text-xs text-slate-400">(opcional)</span>
+                      <span className="text-xs text-slate-400">
+                        (opcional)
+                      </span>
                     </Label>
                     <Input
                       id={field.name}
@@ -372,7 +415,10 @@ export default function RegisterPageClient() {
               <form.Subscribe
                 selector={(state) => [state.canSubmit, state.isSubmitting]}
                 children={([canSubmit, isSubmitting]) => (
-                  <Button className="w-full" disabled={!canSubmit || isSubmitting}>
+                  <Button
+                    className="w-full"
+                    disabled={!canSubmit || isSubmitting}
+                  >
                     {isSubmitting ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -386,7 +432,8 @@ export default function RegisterPageClient() {
               />
 
               <p className="mt-2 text-center text-xs text-slate-500">
-                Ao continuar, você concorda com os termos de uso e política de privacidade do Aqua Mappa.
+                Ao continuar, você concorda com os termos de uso e política de
+                privacidade do Aqua Mappa.
               </p>
             </form>
           </CardContent>

@@ -1,3 +1,4 @@
+// src/app/(site)/billing/success/page.tsx
 import * as React from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -36,8 +37,9 @@ export default function BillingSuccessPage({ searchParams }: SuccessPageProps) {
       </h1>
 
       <p className="mt-3 max-w-xl text-sm text-slate-600">
-        Seu plano <span className="font-semibold text-sky-700">{planLabel}</span>{" "}
-        foi ativado com sucesso.
+        Seu plano{" "}
+        <span className="font-semibold text-sky-700">{planLabel}</span> foi
+        ativado com sucesso.
         {email && (
           <>
             {" "}
@@ -53,14 +55,14 @@ export default function BillingSuccessPage({ searchParams }: SuccessPageProps) {
       </p>
 
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-        <Button asChild>
-          {/* ajuste essa rota para o workspace/hq real do app */}
-          <Link href="/login">Ir para o login</Link>
-        </Button>
+        {/* Ajuste essa rota para o login real do seu painel */}
+        <Link href="/login">
+          <Button>Ir para o login</Button>
+        </Link>
 
-        <Button variant="outline" asChild>
-          <Link href="/">Voltar para o site</Link>
-        </Button>
+        <Link href="/">
+          <Button variant="outline">Voltar para o site</Button>
+        </Link>
       </div>
     </div>
   );
