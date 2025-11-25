@@ -156,7 +156,7 @@ export default function ClientsFeatureBlocks() {
         <div className="mx-auto max-w-3xl rounded-xl border border-slate-200 bg-sky-50/60 p-5 text-center text-slate-800">
           Pronto para oferecer uma experiência 5★ aos seus clientes?
           <a
-            href="/valores"
+            href="/pricing"
             className="ml-2 inline-flex items-center font-medium text-[color:var(--ac-blue-700,#036aa1)] hover:underline"
           >
             Ver planos

@@ -5,9 +5,15 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2 } from "lucide-react";
 
+/**
+ * Agora o componente também envia para /register?plan=...
+ * mantendo o mesmo layout em qualquer página (home ou /pricing)
+ */
+
 export default function PricingTable() {
   const tiers: Tier[] = [
     {
+      key: "starter",
       name: "STARTER",
       priceLine1: "R$ 89,90 / mês",
       priceLine2: "até 10 piscinas",
@@ -21,6 +27,7 @@ export default function PricingTable() {
       theme: "default",
     },
     {
+      key: "pro",
       name: "PRO",
       priceLine1: "R$ 79,90/mês",
       priceLine2: "+ R$ 7,90 por piscina adicional",
@@ -31,14 +38,15 @@ export default function PricingTable() {
         "Leituras químicas + histórico",
         "Checklist configurável",
         "Exemplos:",
-        "• 15 piscinas → R$ 79,90  + (5 adicionais × 7,90) = R$ 119,40",
-        "• 30 piscinas → R$ 79,90  + (20 adicionais × 7,90) = R$ 237,90",
+        "• 15 piscinas → R$ 119,40",
+        "• 30 piscinas → R$ 237,90",
       ],
       badge: "Mais popular",
       cta: "Assinar Pro",
       theme: "popular",
     },
     {
+      key: "business",
       name: "BUSINESS",
       priceLine1: "R$ 206,90/mês",
       priceLine2: "+ R$ 6,90 por piscina adicional",
@@ -49,13 +57,14 @@ export default function PricingTable() {
         "Leituras químicas + histórico",
         "Checklist configurável",
         "Exemplos:",
-        "• 40 piscinas → R$ 206,90 + (10 adicionais × 6,90) = R$ 275,90",
-        "• 50 piscinas → R$ 206,90 + (20 adicionais × 6,90) = R$ 344,90",
+        "• 40 piscinas → R$ 275,90",
+        "• 50 piscinas → R$ 344,90",
       ],
       cta: "Assinar Business",
       theme: "default",
     },
     {
+      key: "enterprise",
       name: "ENTERPRISE",
       priceLine1: "R$ 244,90/mês",
       priceLine2: "+ R$ 4,90 por piscina adicional",
@@ -74,7 +83,7 @@ export default function PricingTable() {
 
   return (
     <section
-      id="valores"
+      id="pricing"
       className="py-16"
       style={{
         backgroundImage:
@@ -108,6 +117,7 @@ export default function PricingTable() {
 /* ---------- Types & Components ---------- */
 
 type Tier = {
+  key: string;
   name: string;
   priceLine1: string;
   priceLine2: string;
@@ -121,6 +131,12 @@ type Tier = {
 
 function Card({ tier }: { tier: Tier }) {
   const isPopular = tier.theme === "popular";
+
+  // 📌 se for enterprise, abre contato
+  const href =
+    tier.key === "enterprise"
+      ? "/contact?from=pricing-enterprise"
+      : `/register?plan=${tier.key}`;
 
   return (
     <div
@@ -137,7 +153,6 @@ function Card({ tier }: { tier: Tier }) {
         </div>
       )}
 
-      {/* Header */}
       <div className="space-y-2 border-b border-slate-100 p-6 text-center">
         <h3 className="text-base font-bold tracking-wide text-slate-900">
           {tier.name}
@@ -160,7 +175,6 @@ function Card({ tier }: { tier: Tier }) {
         <p className="text-sm text-slate-600">{tier.sub}</p>
       </div>
 
-      {/* Features */}
       <ul className="flex-1 space-y-2 p-6 text-sm">
         {tier.features.map((f, idx) => (
           <li key={idx} className="flex items-start gap-2 text-slate-700">
@@ -176,9 +190,8 @@ function Card({ tier }: { tier: Tier }) {
         ))}
       </ul>
 
-      {/* CTA */}
       <div className="p-6 pt-0">
-        <Link href={tier.name === "ENTERPRISE" ? "/contato" : "/login"}>
+        <Link href={href}>
           {isPopular ? (
             <Button className="w-full font-semibold btn-brand border-0 shadow-sm">
               {tier.cta}

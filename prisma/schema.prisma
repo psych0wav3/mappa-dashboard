@@ -9,9 +9,9 @@ datasource db {
 }
 
 /// *
-///  * =========================
-///  * Core: Clients / Techs / Visits
-///  * =========================
+/// * =========================
+/// * Core: Clients / Techs / Visits
+/// * =========================
 model Client {
   id                String          @id @default(cuid())
   firstName         String
@@ -284,6 +284,8 @@ model user {
   role          String?
   account       account[]
   session       session[]
+
+  subscriptions Subscription[]
 }
 
 model verification {
@@ -301,9 +303,9 @@ enum TechnicianRole {
 }
 
 /// *
-///  * =========================
-///  * Rotas (Templates & Ocorrências)
-///  * =========================
+/// * =========================
+/// * Rotas (Templates & Ocorrências)
+/// * =========================
 enum ServiceFrequency {
   ONCE
   WEEKLY
@@ -320,9 +322,9 @@ enum EndCondition {
 }
 
 /// *
-///  * =========================
-///  * Planejamento de Rotas (novo)
-///  * =========================
+/// * =========================
+/// * Planejamento de Rotas (novo)
+/// * =========================
 enum RouteFrequency {
   WEEKLY
   BIWEEKLY
@@ -334,4 +336,38 @@ enum WorkOrderStatus {
   em_andamento
   concluida
   cancelada
+}
+
+enum PlanCode {
+  STARTER
+  PRO
+  BUSINESS
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  active
+  past_due
+  canceled
+  incomplete
+  incomplete_expired
+  trialing
+  unpaid
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  userId               String             @db.Uuid
+  user                 User               @relation(fields: [userId], references: [id])
+  stripeCustomerId     String
+  stripeSubscriptionId String             @unique
+  plan                 PlanCode
+  maxClients           Int
+  status               SubscriptionStatus
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@index([userId])
+  @@index([stripeSubscriptionId])
 }

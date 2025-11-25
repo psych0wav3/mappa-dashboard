@@ -27,7 +27,7 @@ export default function Footer() {
             Recursos
           </Link>
           <Link
-            href="/valores"
+            href="/pricing"
             className="transition hover:text-white hover:underline"
           >
             Planos

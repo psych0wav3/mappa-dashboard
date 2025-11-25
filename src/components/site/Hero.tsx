@@ -38,7 +38,7 @@ export default function Hero() {
           </p>
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Link href="/valores">
+            <Link href="/pricing">
               <Button className="btn-brand border-0 shadow-sm inline-flex items-center gap-2">
                 Começar agora <ArrowRight className="h-4 w-4" />
               </Button>

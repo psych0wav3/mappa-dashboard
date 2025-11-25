@@ -46,7 +46,7 @@ export default function Navbar() {
           <nav className="relative hidden items-center gap-6 text-sm font-medium sm:flex">
             <NavItem href="/">Home</NavItem>
             <NavItem href="/features">Recursos</NavItem>
-            <NavItem href="/valores">Planos</NavItem>
+            <NavItem href="/pricing">Planos</NavItem>
 
 {/* Sobre o App (dropdown) */}
 <div
@@ -133,7 +133,7 @@ export default function Navbar() {
               <div className="grid gap-3">
                 <MobileLink href="/" onClick={() => setOpen(false)}>Home</MobileLink>
                 <MobileLink href="/features" onClick={() => setOpen(false)}>Recursos</MobileLink>
-                <MobileLink href="/valores" onClick={() => setOpen(false)}>Planos</MobileLink>
+                <MobileLink href="/pricing" onClick={() => setOpen(false)}>Planos</MobileLink>
 
                 {/* Sobre o App (colapsável) */}
                 <button

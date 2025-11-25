@@ -1,47 +1,19 @@
-// src/lib/auth-roles.ts
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
-import { auth } from "./auth";
-import type { User } from "better-auth";
+// src/lib/auth-client.ts
+"use client";
 
-export type AppUser = User & {
-  role?: string | null;
-};
+import { createAuthClient } from "better-auth/react";
 
-export async function getCurrentUser(): Promise<AppUser | null> {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+export const authClient = createAuthClient({
+  baseURL: process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000",
+});
 
-  return (session?.user as AppUser) ?? null;
-}
-
-/**
- * Garante que existe usuário logado.
- * Se não houver, redireciona para /login com redirectTo.
- */
-export async function requireSession() {
-  const user = await getCurrentUser();
-  if (!user) {
-    redirect("/login?redirectTo=/dashboard");
-  }
-  return user;
-}
-
-/**
- * Garante que o usuário tem um dos roles informados.
- * Se não tiver, redireciona para /dashboard (ou outra rota).
- */
-export async function requireRole(allowedRoles: string[]) {
-  const user = await requireSession();
-
-  const role = (user.role || "").toUpperCase();
-  const ok = allowedRoles.map((r) => r.toUpperCase()).includes(role);
-
-  if (!ok) {
-    // aqui você pode mandar para uma página "sem permissão" se quiser
-    redirect("/dashboard");
-  }
-
-  return user;
-}
+export const {
+  signIn,
+  signUp,
+  signOut,
+  useSession,
+  forgetPassword,
+  changePassword,
+  resetPassword,
+  revokeSessions,
+} = authClient;

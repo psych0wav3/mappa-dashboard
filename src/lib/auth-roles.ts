@@ -1,7 +1,7 @@
 // src/lib/auth-roles.ts
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { auth } from "./auth";
 import type { User } from "better-auth";
 
 export type AppUser = User & {
@@ -18,7 +18,7 @@ export async function getCurrentUser(): Promise<AppUser | null> {
 
 /**
  * Garante que existe usuário logado.
- * Se não houver, redireciona para /login com redirectTo=/dashboard.
+ * Se não houver, redireciona para /login com redirectTo.
  */
 export async function requireSession() {
   const user = await getCurrentUser();
@@ -30,7 +30,7 @@ export async function requireSession() {
 
 /**
  * Garante que o usuário tem um dos roles informados.
- * Se não tiver, redireciona para /dashboard.
+ * Se não tiver, redireciona para /dashboard (ou outra rota).
  */
 export async function requireRole(allowedRoles: string[]) {
   const user = await requireSession();
