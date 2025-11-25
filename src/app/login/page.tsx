@@ -1,9 +1,8 @@
-// src/app/login/page.tsx
 "use client";
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createClientBrowser } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,8 +13,6 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
-  const search = useSearchParams();
-  const redirectTo = search.get("redirectTo") || "/dashboard";
 
   const [email, setEmail] = React.useState("");
   const [senha, setSenha] = React.useState("");
@@ -51,7 +48,9 @@ export default function LoginPage() {
     toast.success("Bem-vindo!", {
       description: "Login realizado com sucesso.",
     });
-    router.replace(redirectTo);
+
+    // 👉 Redireciona SEMPRE para o Quickstart
+    router.replace("/quickstart");
   }
 
   return (

@@ -12,15 +12,18 @@ declare global {
 const datasourceUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
 
 export const prisma =
-  global.prisma ??
+  global.prisma ||
   new PrismaClient({
-    log: ["query", "error", "warn"],
-    // 👇 força o Prisma Client a conectar usando a URL escolhida acima
-    datasourceUrl,
+    log:
+      process.env.NODE_ENV === "development"
+        ? ["query", "error", "warn"]
+        : ["error"],
   });
 
-// Mantém uma instância única em dev
-if (process.env.NODE_ENV !== "production") global.prisma = prisma;
+if (process.env.NODE_ENV !== "production") {
+  global.prisma = prisma;
+}
+
 
 
 //pnpm add @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities

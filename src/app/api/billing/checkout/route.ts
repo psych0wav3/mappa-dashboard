@@ -1,46 +1,76 @@
+// src/app/api/billing/checkout/route.ts
+import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { NextRequest, NextResponse } from "next/server";
-import { PLANS } from "@/lib/plans";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+export const runtime = "nodejs";
+
+const stripeSecret = process.env.STRIPE_SECRET_KEY;
+const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+
+if (!stripeSecret) {
+  throw new Error("STRIPE_SECRET_KEY is not set");
+}
+
+const stripe = new Stripe(stripeSecret, {
   apiVersion: "2025-11-17.clover",
 });
 
-export async function POST(req: NextRequest) {
-  try {
-    const { plan, email } = await req.json();
+const PLAN_PRICE_IDS: Record<string, string> = {
+  starter: process.env.STRIPE_PRICE_STARTER || "",
+  pro: process.env.STRIPE_PRICE_PRO || "",
+  business: process.env.STRIPE_PRICE_BUSINESS || "",
+  enterprise: process.env.STRIPE_PRICE_ENTERPRISE || "",
+};
 
-    if (!plan || !email) {
+export async function POST(req: Request) {
+  try {
+    const { plan, email } = (await req.json()) as {
+      plan?: string;
+      email?: string;
+    };
+
+    if (!email) {
       return NextResponse.json(
-        { error: "Plano e e-mail são obrigatórios" },
-        { status: 400 }
+        { error: "E-mail é obrigatório" },
+        { status: 400 },
       );
     }
 
-    const planConfig = PLANS[plan.toLowerCase() as keyof typeof PLANS];
-    if (!planConfig?.stripePriceId) {
+    const planKey = (plan ?? "starter").toLowerCase();
+    const priceId = PLAN_PRICE_IDS[planKey] || PLAN_PRICE_IDS["starter"];
+
+    if (!priceId) {
       return NextResponse.json(
-        { error: "Plano inválido" },
-        { status: 400 }
+        { error: "Plano não configurado no Stripe" },
+        { status: 500 },
       );
     }
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
-      customer_email: email, // 👉 AQUI está a correção principal
-      line_items: [{ price: planConfig.stripePriceId, quantity: 1 }],
-      success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/billing/success?plan=${plan}&email=${encodeURIComponent(email)}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/register?plan=${plan}`,
+      customer_email: email.trim(),
+      line_items: [
+        {
+          price: priceId,
+          quantity: 1,
+        },
+      ],
+      success_url: `${baseUrl}/billing/success?plan=${encodeURIComponent(
+        planKey,
+      )}&email=${encodeURIComponent(email.trim())}`,
+      cancel_url: `${baseUrl}/billing/cancelled`,
       metadata: {
-        plan,
+        planKey,
+        email: email.trim(),
       },
     });
 
-    return NextResponse.json({ url: session.url });
+    return NextResponse.json({ url: session.url }, { status: 200 });
   } catch (err: any) {
+    console.error("Erro ao criar checkout:", err);
     return NextResponse.json(
-      { error: err.message || "Erro ao criar checkout" },
-      { status: 500 }
+      { error: err?.message ?? "Erro ao criar checkout" },
+      { status: 500 },
     );
   }
 }

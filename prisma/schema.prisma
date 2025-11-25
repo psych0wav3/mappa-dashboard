@@ -358,7 +358,7 @@ enum SubscriptionStatus {
 model Subscription {
   id                   String             @id @default(cuid())
   userId               String             @db.Uuid
-  user                 User               @relation(fields: [userId], references: [id])
+  user                 user               @relation(fields: [userId], references: [id])
   stripeCustomerId     String
   stripeSubscriptionId String             @unique
   plan                 PlanCode
@@ -370,4 +370,37 @@ model Subscription {
 
   @@index([userId])
   @@index([stripeSubscriptionId])
+}
+
+enum CompanyRole {
+  ADMIN
+  MEMBER
+}
+
+model Company {
+  id         String @id @default(cuid())
+  name       String
+  slug       String @unique
+  ownerId    String // id do usuário Supabase dono da empresa
+  plan       String // "starter" | "pro" | ...
+  planStatus String @default("active")
+  poolCount  Int?
+
+  users CompanyUser[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CompanyUser {
+  id        String      @id @default(cuid())
+  companyId String
+  userId    String // id do usuário no Supabase (auth.users.id)
+  role      CompanyRole @default(ADMIN)
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([companyId, userId])
 }

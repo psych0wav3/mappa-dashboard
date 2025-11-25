@@ -2,44 +2,14 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-const PRIVATE_PREFIXES = [
-  "/dashboard",
-  "/routes",
-  "/clients",
-  "/technicians",
-  "/visits",
-  "/calendar",
-  "/quickstart",
-];
-
-export function middleware(req: NextRequest) {
-  const { pathname, search } = req.nextUrl;
-  const isPrivate = PRIVATE_PREFIXES.some((p) => pathname.startsWith(p));
-  if (!isPrivate) return NextResponse.next();
-
-  const hasSupabaseAuthCookie = req.cookies
-    .getAll()
-    .some((c) =>
-      c.name === "sb-access-token" || (c.name.startsWith("sb-") && c.name.endsWith("-auth-token"))
-    );
-
-  if (!hasSupabaseAuthCookie) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/login";
-    url.search = `?redirectTo=${encodeURIComponent(pathname + search)}`;
-    return NextResponse.redirect(url);
-  }
+// No momento não precisamos interceptar nada.
+// O controle de acesso está sendo feito no layout (private) com Supabase.
+export function middleware(_req: NextRequest) {
   return NextResponse.next();
 }
 
+// Sem matcher => middleware não roda para nenhuma rota.
+// Você também poderia simplesmente apagar este arquivo.
 export const config = {
-  matcher: [
-    "/dashboard/:path*",
-    "/routes/:path*",
-    "/clients/:path*",
-    "/technicians/:path*",
-    "/visits/:path*",
-    "/calendar/:path*",
-    "/quickstart/:path*",
-  ],
+  matcher: [] as string[],
 };

@@ -10,11 +10,16 @@ export const metadata = {
 };
 
 export default async function PrivateLayout({ children }: { children: ReactNode }) {
+  // 👇 importante: o seu helper já é async, por isso o await
   const supabase = await createClientServer();
-  const { data } = await supabase.auth.getUser();
-  if (!data?.user) redirect("/login");
 
-  // ⬇️ O Shell precisa estar AQUI
+  const { data } = await supabase.auth.getUser();
+
+  if (!data?.user) {
+    // sem redirectTo, só manda pro login
+    redirect("/login");
+  }
+
   return (
     <div className="bg-neutral-50 min-h-screen">
       <Shell>{children}</Shell>

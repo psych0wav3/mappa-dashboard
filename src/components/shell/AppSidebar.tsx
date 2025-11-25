@@ -201,6 +201,31 @@ function SidebarContent({
     { href: "/clients", label: "Clientes", icon: UserRound },
   ] as const;
 
+  // 🔹 Buscar plano do Supabase (user_metadata.plan)
+  const [planLabel, setPlanLabel] = useState<string | null>(null);
+
+  useEffect(() => {
+    const supabase = createClientBrowser();
+    supabase.auth
+      .getUser()
+      .then(({ data }) => {
+        const meta = (data.user?.user_metadata || {}) as {
+          plan?: string;
+        };
+        if (!meta.plan) return;
+
+        const planKey = meta.plan.toLowerCase();
+        const map: Record<string, string> = {
+          starter: "Starter",
+          pro: "Pro",
+          business: "Business",
+          enterprise: "Enterprise",
+        };
+        setPlanLabel(map[planKey] ?? meta.plan);
+      })
+      .catch(() => {});
+  }, []);
+
   // --- OS (Workorders) section state ---
   const isWorkordersSection = pathname.startsWith("/workorders");
   const [workordersOpen, setWorkordersOpen] = useState<boolean>(isWorkordersSection);
@@ -215,7 +240,7 @@ function SidebarContent({
     if (isRoutesSection) setRoutesOpen(true);
   }, [isRoutesSection]);
 
-  // --- Configurações (FIX: estado que faltava) ---
+  // --- Configurações ---
   const isSettingsSection =
     pathname.startsWith("/settings") || pathname.startsWith("/account");
   const [settingsOpen, setSettingsOpen] = useState<boolean>(isSettingsSection);
@@ -232,11 +257,11 @@ function SidebarContent({
     []
   );
 
-  // Itens de OS (ajustados)
+  // Itens de OS
   const workorderItems = useMemo(
     () => [
-      { href: "/workorders", label: "Dashboard da OS" }, // principal
-      { href: "/workorders/approved", label: "OS's Aprovadas" }, // criar depois
+      { href: "/workorders", label: "Dashboard da OS" },
+      { href: "/workorders/approved", label: "OS's Aprovadas" },
     ],
     []
   );
@@ -306,6 +331,22 @@ function SidebarContent({
           <span className="font-semibold text-white text-lg">Aqua Mappa</span>
         </LabelSlot>
       </div>
+
+      {/* Badge do plano */}
+      {planLabel && (
+        <div
+          className={`px-4 pt-2 ${collapsed ? "flex justify-center" : ""}`}
+        >
+          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-3 py-1 text-[0.7rem] font-medium text-emerald-100">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_3px_rgba(16,185,129,0.4)]" />
+            {collapsed ? (
+              <span>{planLabel}</span>
+            ) : (
+              <span>Plano {planLabel} ativo</span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Links principais */}
       <nav className="flex-1 p-2 space-y-1">
@@ -408,13 +449,13 @@ function SidebarContent({
           </div>
         </div>
 
-                {/* Grupo: Ordem de Serviço */}
+        {/* Grupo: Ordem de Serviço */}
         <div className="mt-2">
           <button
             type="button"
             onClick={() => {
               if (collapsed) {
-                router.push("/workorders"); // colapsado vai direto para Adicionar OS
+                router.push("/workorders");
                 onNavigate?.();
               } else {
                 setWorkordersOpen((v) => !v);
