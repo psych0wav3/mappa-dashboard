@@ -65,7 +65,7 @@ export default function Hero() {
             <CardContent className="p-0">
               <div className="relative aspect-[16/10] w-full">
                 <Image
-                  src="/hero-pool.jpg"
+                  src="/hero.png"
                   alt="Aqua Mappa em uso no campo"
                   fill
                   className="object-cover"
