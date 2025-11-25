@@ -12,8 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, CheckCircle2 } from "lucide-react";
 
-import { signUp } from "@/lib/auth-client";
 import { toast } from "sonner";
+import { startCheckout } from "@/lib/checkout-client"; // 👈 novo import
 
 const registerSchema = z.object({
   fullName: z.string().min(1, "Nome completo é obrigatório"),
@@ -25,7 +25,10 @@ const registerSchema = z.object({
   poolCount: z
     .union([
       z.string().length(0),
-      z.string().regex(/^\d+$/, "Informe apenas números").transform((v) => Number(v)),
+      z
+        .string()
+        .regex(/^\d+$/, "Informe apenas números")
+        .transform((v) => Number(v)),
     ])
     .optional(),
 });
@@ -107,47 +110,40 @@ export default function RegisterPageClient() {
   const planLabel = PLAN_LABELS[planKey] ?? "Starter";
   const planDetails = PLAN_DETAILS[planKey] ?? PLAN_DETAILS["starter"];
 
-  const form = useForm<RegisterFormValues>({
-    defaultValues: {
-      fullName: "",
-      email: "",
-      password: "",
-      cpf: "",
-      phone: "",
-      companyName: "",
-      poolCount: "" as any,
-    },
-    validators: { onChange: registerSchema },
-    onSubmit: async ({ value }) => {
-      try {
-        await signUp.email({
-          email: value.email.trim(),
-          password: value.password,
-        });
+  const form = useForm({
+  defaultValues: {
+    fullName: "",
+    email: "",
+    password: "",
+    cpf: "",
+    phone: "",
+    companyName: "",
+    poolCount: "" as any,
+  },
+  validators: { onChange: registerSchema },
+  onSubmit: async ({ value }) => {
+    try {
+      await startCheckout(planKey, value.email.trim());
 
-        toast.success("Conta criada com sucesso!", {
-          description: "Você será redirecionado para o pagamento.",
-        });
+      toast.success("Redirecionando para pagamento…", {
+        description: "Finalize o pagamento para ativar seu plano.",
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Erro ao iniciar o pagamento";
+      toast.error("Não foi possível iniciar o checkout", {
+        description: message,
+      });
+    }
+  },
+});
 
-        if (planKey === "enterprise") {
-          router.push("/contact?from=register-enterprise");
-        } else {
-          router.push(`/checkout?plan=${encodeURIComponent(planKey)}`);
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Erro ao criar conta";
-        toast.error("Não foi possível finalizar o cadastro", { description: message });
-      }
-    },
-  });
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-10 lg:flex-row">
       {/* Coluna esquerda – resumo do plano */}
       <aside className="w-full lg:w-5/12">
-        <div
-          className="h-full rounded-3xl bg-[radial-gradient(circle_at_top,_#0ea5e9,_#0369a1)] p-[2px] shadow-xl"
-        >
+        <div className="h-full rounded-3xl bg-[radial-gradient(circle_at_top,_#0ea5e9,_#0369a1)] p-[2px] shadow-xl">
           <div className="h-full rounded-[1.35rem] bg-white/95 p-6">
             <header className="text-center">
               <p className="text-xs font-semibold tracking-[0.18em] text-slate-500">
