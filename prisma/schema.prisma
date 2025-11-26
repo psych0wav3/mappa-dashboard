@@ -8,17 +8,16 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-/// *
-/// * =========================
-/// * Core: Clients / Techs / Visits
-/// * =========================
+/// =========================
+/// Core: Clients / Techs / Visits
+/// =========================
 model Client {
-  id                String          @id @default(cuid())
+  id                String   @id @default(cuid())
   firstName         String
   lastName          String
-  email             String          @unique
-  phone             String?         @unique
-  cpf               String?         @unique
+  email             String   @unique
+  phone             String?  @unique
+  cpf               String?  @unique
   street            String?
   number            String?
   district          String?
@@ -30,10 +29,10 @@ model Client {
   cleaningWindow    String?
   payDay            Int?
   notes             String?
-  active            Boolean         @default(true)
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  cnpj              String?         @unique
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  cnpj              String?  @unique
   companyName       String?
   poolCep           String?
   poolCity          String?
@@ -43,11 +42,12 @@ model Client {
   poolUf            String?
   poolLat           Float?
   poolLng           Float?
-  routePlanItems    RoutePlanItem[]
-  visits            Visit[]
-  visitInstances    VisitInstance[]
-  visitPlans        VisitPlan[]     @relation("ClientToVisitPlan")
-  workOrders        WorkOrder[]
+
+  routePlanItems RoutePlanItem[]
+  visits         Visit[]
+  visitInstances VisitInstance[]
+  visitPlans     VisitPlan[]     @relation("ClientToVisitPlan")
+  workOrders     WorkOrder[]
 
   @@index([city])
   @@index([poolCity])
@@ -55,18 +55,23 @@ model Client {
 }
 
 model Technician {
-  id             String          @id @default(uuid())
-  userId         String?         @unique @db.Uuid
-  firstName      String          @map("first_name")
-  lastName       String          @map("last_name")
-  email          String          @unique
-  phone          String?         @map("phone")
-  cpf            String?         @unique
-  active         Boolean         @default(true)
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
-  phoneDigits    String?         @map("phone_digits")
-  role           TechnicianRole  @default(TECH)
+  id          String         @id @default(uuid())
+  userId      String?        @unique @db.Uuid
+  firstName   String         @map("first_name")
+  lastName    String         @map("last_name")
+  email       String         @unique
+  phone       String?        @map("phone")
+  cpf         String?        @unique
+  active      Boolean        @default(true)
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  phoneDigits String?        @map("phone_digits")
+  role        TechnicianRole @default(TECH)
+
+  // 🔹 multi-tenant
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
   routePlans     RoutePlan[]
   visits         Visit[]
   visitInstances VisitInstance[]
@@ -75,60 +80,64 @@ model Technician {
 
   @@index([phone])
   @@index([phoneDigits])
+  @@index([companyId])
 }
 
 model Visit {
-  id           String     @id @default(uuid())
+  id           String   @id @default(uuid())
   date         DateTime
-  status       String     @default("pending")
+  status       String   @default("pending")
   clientId     String
   technicianId String
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
-  client       Client     @relation(fields: [clientId], references: [id])
-  technician   Technician @relation(fields: [technicianId], references: [id])
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  client     Client     @relation(fields: [clientId], references: [id])
+  technician Technician @relation(fields: [technicianId], references: [id])
 }
 
 model VisitPlan {
-  id           String          @id @default(cuid())
+  id           String   @id @default(cuid())
   technicianId String
   clientId     String
   weekdays     Int[]
   windowStart  Int
   windowEnd    Int
   notes        String?
-  order        Int             @default(0)
-  active       Boolean         @default(true)
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  instances    VisitInstance[]
-  client       Client          @relation("ClientToVisitPlan", fields: [clientId], references: [id])
-  technician   Technician      @relation("TechnicianToVisitPlan", fields: [technicianId], references: [id])
+  order        Int      @default(0)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  instances  VisitInstance[]
+  client     Client          @relation("ClientToVisitPlan", fields: [clientId], references: [id])
+  technician Technician      @relation("TechnicianToVisitPlan", fields: [technicianId], references: [id])
 }
 
 model VisitInstance {
-  id           String     @id @default(cuid())
+  id           String   @id @default(cuid())
   date         DateTime
   startHour    Int
   endHour      Int
-  order        Int        @default(100)
-  status       String     @default("planned")
+  order        Int      @default(100)
+  status       String   @default("planned")
   notes        String?
   planId       String?
   technicianId String
   clientId     String
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  client       Client     @relation(fields: [clientId], references: [id])
-  plan         VisitPlan? @relation(fields: [planId], references: [id], onDelete: Cascade)
-  technician   Technician @relation(fields: [technicianId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  client     Client     @relation(fields: [clientId], references: [id])
+  plan       VisitPlan? @relation(fields: [planId], references: [id], onDelete: Cascade)
+  technician Technician @relation(fields: [technicianId], references: [id])
 
   @@index([date, technicianId])
   @@index([planId])
 }
 
 model RouteTemplate {
-  id           String              @id @default(cuid())
+  id           String           @id @default(cuid())
   workspaceId  String
   technicianId String
   weekday      Int
@@ -137,44 +146,47 @@ model RouteTemplate {
   endCondition EndCondition
   endAfter     Int?
   endDate      DateTime?
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
-  occurrences  RouteOccurrence[]
-  stops        RouteStopTemplate[] @relation("TemplateStops")
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  occurrences RouteOccurrence[]
+  stops       RouteStopTemplate[] @relation("TemplateStops")
 }
 
 model RouteStopTemplate {
-  id          String        @id @default(cuid())
+  id          String    @id @default(cuid())
   templateId  String
   order       Int
   clientId    String
-  durationMin Int           @default(30)
+  durationMin Int       @default(30)
   windowStart DateTime?
   windowEnd   DateTime?
   note        String?
   clientLat   Float?
   clientLng   Float?
   addressLine String?
-  template    RouteTemplate @relation("TemplateStops", fields: [templateId], references: [id])
+
+  template RouteTemplate @relation("TemplateStops", fields: [templateId], references: [id])
 
   @@index([templateId, order])
 }
 
 model RouteOccurrence {
-  id          String                @id @default(cuid())
+  id          String    @id @default(cuid())
   templateId  String
   date        DateTime
   optimizedAt DateTime?
   distanceKm  Float?
   durationMin Int?
-  template    RouteTemplate         @relation(fields: [templateId], references: [id])
-  stops       RouteStopOccurrence[]
+
+  template RouteTemplate         @relation(fields: [templateId], references: [id])
+  stops    RouteStopOccurrence[]
 
   @@index([templateId, date])
 }
 
 model RouteStopOccurrence {
-  id             String          @id @default(cuid())
+  id             String    @id @default(cuid())
   occurrenceId   String
   order          Int
   clientId       String
@@ -182,38 +194,41 @@ model RouteStopOccurrence {
   etd            DateTime?
   travelMinPrev  Int?
   distanceKmPrev Float?
-  occurrence     RouteOccurrence @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+
+  occurrence RouteOccurrence @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
 
   @@index([occurrenceId, order])
 }
 
 model RoutePlan {
-  id           String          @id @default(cuid())
+  id           String         @id @default(cuid())
   technicianId String
   weekday      Int
-  frequency    RouteFrequency  @default(WEEKLY)
+  frequency    RouteFrequency @default(WEEKLY)
   startsAt     DateTime?
   endsAt       DateTime?
-  active       Boolean         @default(true)
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  technician   Technician      @relation(fields: [technicianId], references: [id])
-  items        RoutePlanItem[]
+  active       Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  technician Technician      @relation(fields: [technicianId], references: [id])
+  items      RoutePlanItem[]
 
   @@index([technicianId, weekday, active])
 }
 
 model RoutePlanItem {
-  id           String    @id @default(cuid())
+  id           String   @id @default(cuid())
   routePlanId  String
   clientId     String
   order        Int
   startMinutes Int
   endMinutes   Int
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  client       Client    @relation(fields: [clientId], references: [id])
-  routePlan    RoutePlan @relation(fields: [routePlanId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  client    Client    @relation(fields: [clientId], references: [id])
+  routePlan RoutePlan @relation(fields: [routePlanId], references: [id])
 
   @@index([routePlanId, order])
 }
@@ -234,12 +249,16 @@ model WorkOrder {
   deletedAt     DateTime?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
-  client        Client          @relation(fields: [clientId], references: [id])
-  technician    Technician?     @relation(fields: [technicianId], references: [id])
+
+  client     Client      @relation(fields: [clientId], references: [id])
+  technician Technician? @relation(fields: [technicianId], references: [id])
 
   @@index([deletedAt])
 }
 
+/// =========================
+/// Better Auth tables
+/// =========================
 model account {
   id                    String    @id
   accountId             String
@@ -284,8 +303,6 @@ model user {
   role          String?
   account       account[]
   session       session[]
-
-  subscriptions Subscription[]
 }
 
 model verification {
@@ -297,15 +314,64 @@ model verification {
   updatedAt  DateTime @default(now())
 }
 
+/// =========================
+/// Billing / Subscription
+/// =========================
+model Subscription {
+  id                   String             @id @default(cuid())
+  userId               String             @db.Uuid
+  stripeCustomerId     String
+  stripeSubscriptionId String             @unique
+  plan                 PlanCode
+  maxClients           Int
+  status               SubscriptionStatus
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@index([userId])
+  @@index([stripeSubscriptionId])
+}
+
+/// =========================
+/// Company / Multi-tenant
+/// =========================
+model Company {
+  id         String @id @default(cuid())
+  name       String
+  slug       String @unique
+  ownerId    String // id do usuário Supabase dono da empresa
+  plan       String // "starter" | "pro" | ...
+  planStatus String @default("active")
+  poolCount  Int?
+
+  technicians Technician[]
+  users       CompanyUser[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CompanyUser {
+  id        String      @id @default(cuid())
+  companyId String
+  userId    String // id do usuário no Supabase (auth.users.id)
+  role      CompanyRole @default(ADMIN)
+  createdAt DateTime    @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, userId])
+}
+
+/// =========================
+/// Enums
+/// =========================
 enum TechnicianRole {
   OWNER
   TECH
 }
 
-/// *
-/// * =========================
-/// * Rotas (Templates & Ocorrências)
-/// * =========================
 enum ServiceFrequency {
   ONCE
   WEEKLY
@@ -321,10 +387,6 @@ enum EndCondition {
   END_DATE
 }
 
-/// *
-/// * =========================
-/// * Planejamento de Rotas (novo)
-/// * =========================
 enum RouteFrequency {
   WEEKLY
   BIWEEKLY
@@ -355,52 +417,7 @@ enum SubscriptionStatus {
   unpaid
 }
 
-model Subscription {
-  id                   String             @id @default(cuid())
-  userId               String             @db.Uuid
-  user                 user               @relation(fields: [userId], references: [id])
-  stripeCustomerId     String
-  stripeSubscriptionId String             @unique
-  plan                 PlanCode
-  maxClients           Int
-  status               SubscriptionStatus
-  currentPeriodEnd     DateTime?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-
-  @@index([userId])
-  @@index([stripeSubscriptionId])
-}
-
 enum CompanyRole {
   ADMIN
   MEMBER
-}
-
-model Company {
-  id         String @id @default(cuid())
-  name       String
-  slug       String @unique
-  ownerId    String // id do usuário Supabase dono da empresa
-  plan       String // "starter" | "pro" | ...
-  planStatus String @default("active")
-  poolCount  Int?
-
-  users CompanyUser[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model CompanyUser {
-  id        String      @id @default(cuid())
-  companyId String
-  userId    String // id do usuário no Supabase (auth.users.id)
-  role      CompanyRole @default(ADMIN)
-
-  company Company @relation(fields: [companyId], references: [id])
-
-  createdAt DateTime @default(now())
-
-  @@unique([companyId, userId])
 }
