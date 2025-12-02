@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { getUserFromAuth, getTechnicianIdForUser } from "@/lib/auth";
 import crypto from "crypto";
 
+export const runtime = "nodejs";
+
 function fullClientName(c: { firstName: string; lastName: string; email: string }) {
   const name = [c.firstName, c.lastName].filter(Boolean).join(" ").trim();
   return name || c.email || "Cliente";
@@ -24,7 +26,11 @@ function arrayHasWeekday(arr: number[] | null | undefined, jsDay0to6: number) {
   const dom0 = jsDay0to6;                          // 0..6 (0=Dom)
   const seg1a7 = jsDay0to6 === 0 ? 7 : jsDay0to6;  // 1..7 (Dom=7)
   const seg1a6 = jsDay0to6 === 0 ? 0 : jsDay0to6;  // 1..6 (Dom fora)
-  return arr.includes(dom0) || arr.includes(seg1a7) || (seg1a6 !== 0 && arr.includes(seg1a6));
+  return (
+    arr.includes(dom0) ||
+    arr.includes(seg1a7) ||
+    (seg1a6 !== 0 && arr.includes(seg1a6))
+  );
 }
 
 /** Gera ETag estável a partir de um string */
@@ -94,7 +100,7 @@ export async function GET(req: Request) {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 1) Busca TODOS os planos ativos do técnico e filtra pelo dia
+    // 1) Planos ativos do técnico filtrados pelo dia
     // ─────────────────────────────────────────────────────────────
     const plansAll = await prisma.visitPlan.findMany({
       where: { technicianId, active: true },
@@ -112,7 +118,7 @@ export async function GET(req: Request) {
     console.log("[mobile/schedule] plansAll:", plansAll.length, "matched:", plans.length);
 
     // ─────────────────────────────────────────────────────────────
-    // 2) Instâncias existentes do dia (todas: ad-hoc e derivadas de plano)
+    // 2) Instâncias existentes do dia
     // ─────────────────────────────────────────────────────────────
     const instancesDay = await prisma.visitInstance.findMany({
       where: { technicianId, date },
@@ -125,8 +131,7 @@ export async function GET(req: Request) {
     const existingClientIds = new Set(instancesDay.map(i => i.clientId));
 
     // ─────────────────────────────────────────────────────────────
-    // 3) Criar instâncias que faltam, mas NUNCA se já houver para o clientId
-    //    (isso evita duplicar ad-hoc + plano)
+    // 3) Criar instâncias que faltam (sem duplicar por clientId)
     // ─────────────────────────────────────────────────────────────
     const toCreate = plans.filter(p =>
       !existingPlanIds.has(p.id) && !existingClientIds.has(p.clientId)
@@ -201,10 +206,12 @@ export async function GET(req: Request) {
       where: { technicianId, date },
       include: {
         plan: { select: { id: true, active: true, weekdays: true } },
-        client: { select: {
-          firstName: true, lastName: true, email: true,
-          street: true, number: true, district: true, city: true, uf: true, cep: true,
-        }},
+        client: {
+          select: {
+            firstName: true, lastName: true, email: true,
+            street: true, number: true, district: true, city: true, uf: true, cep: true,
+          },
+        },
       },
       orderBy: [{ order: "asc" }, { startHour: "asc" }],
     });
@@ -221,21 +228,21 @@ export async function GET(req: Request) {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 6) Recarrega definitivas do dia e faz DEDUPE por clientId
-    //    (prioridade: done > in_progress > planned; se empatar, ad-hoc vence; depois menor order)
+    // 6) Recarrega definitivas e faz DEDUPE por clientId
     // ─────────────────────────────────────────────────────────────
     const instances = await prisma.visitInstance.findMany({
       where: { technicianId, date },
       include: {
-        client: { select: {
-          firstName: true, lastName: true, email: true,
-          street: true, number: true, district: true, city: true, uf: true, cep: true,
-        }},
+        client: {
+          select: {
+            firstName: true, lastName: true, email: true,
+            street: true, number: true, district: true, city: true, uf: true, cep: true,
+          },
+        },
       },
       orderBy: [{ order: "asc" }, { startHour: "asc" }],
     });
 
-    // Agrupa por clientId
     const byClient = new Map<string, typeof instances>();
     for (const i of instances) {
       const arr = byClient.get(i.clientId) ?? [];
@@ -246,14 +253,11 @@ export async function GET(req: Request) {
     const keepIds = new Set<string>();
     const deleteIds: string[] = [];
 
-    for (const [clientId, arr] of byClient) {
-      // escolhe o "melhor"
+    for (const [_clientId, arr] of byClient) {
       const sorted = [...arr].sort((a, b) => {
         const r = (statusRank[b.status] ?? 0) - (statusRank[a.status] ?? 0);
         if (r !== 0) return r;
-        // ad-hoc (sem planId) vence
         if (!!a.planId !== !!b.planId) return a.planId ? 1 : -1;
-        // menor ordem vence
         return (a.order ?? 0) - (b.order ?? 0);
       });
       const winner = sorted[0];
@@ -266,21 +270,21 @@ export async function GET(req: Request) {
       await prisma.visitInstance.deleteMany({ where: { id: { in: deleteIds } } });
     }
 
-    // Reconsulta apenas os vencedores (ordenados)
     const finalInstances = await prisma.visitInstance.findMany({
       where: { id: { in: Array.from(keepIds) } },
       include: {
-        client: { select: {
-          firstName: true, lastName: true, email: true,
-          street: true, number: true, district: true, city: true, uf: true, cep: true,
-        }},
+        client: {
+          select: {
+            firstName: true, lastName: true, email: true,
+            street: true, number: true, district: true, city: true, uf: true, cep: true,
+          },
+        },
       },
       orderBy: [{ order: "asc" }, { startHour: "asc" }],
     });
 
     console.log("[mobile/schedule] instancesReturned:", finalInstances.length);
 
-    // 7) Payload
     const items = finalInstances.map((i) => ({
       id: i.id,
       startHour: i.startHour,
@@ -288,15 +292,19 @@ export async function GET(req: Request) {
       order: i.order,
       status: i.status,
       notes: i.notes ?? "",
-      client: { name: fullClientName(i.client as any), address: fullClientAddress(i.client as any) },
+      client: {
+        name: fullClientName(i.client as any),
+        address: fullClientAddress(i.client as any),
+      },
     }));
 
-    // 8) Versão final (ETag/Last-Modified)
     const finalVersionKey = [
       preVersionKey,
       "final",
       finalInstances.length,
-      items.map((x) => `${x.id}:${x.startHour}:${x.endHour}:${x.order}:${x.status}`).join(","),
+      items
+        .map((x) => `${x.id}:${x.startHour}:${x.endHour}:${x.order}:${x.status}`)
+        .join(","),
     ].join("|");
     const eTag = etagOf(finalVersionKey);
 
