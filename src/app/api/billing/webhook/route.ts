@@ -1,7 +1,6 @@
 // src/app/api/billing/webhook/route.ts
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
@@ -16,8 +15,24 @@ if (!webhookSecret) {
 }
 
 const stripe = new Stripe(stripeSecret, {
-  apiVersion: "2025-11-17.clover",
+  apiVersion: "2025-11-17.clover" as any,
 });
+
+// 👇 lazy-load do supabaseAdmin para não explodir no import, só quando realmente for usar
+async function getSupabaseAdminSafe() {
+  try {
+    const mod = await import("@/lib/supabase/admin");
+    // se o módulo em si disparar erro por falta de SUPABASE_SERVICE_ROLE_KEY,
+    // isso cai no catch abaixo
+    return mod.supabaseAdmin as any;
+  } catch (e) {
+    console.error(
+      "[billing webhook] supabaseAdmin indisponível (talvez SUPABASE_SERVICE_ROLE_KEY não esteja setado):",
+      e
+    );
+    return null;
+  }
+}
 
 async function markPlanActive(opts: {
   email?: string | null;
@@ -30,26 +45,35 @@ async function markPlanActive(opts: {
     return;
   }
 
-  // 1) acha o usuário pelo email
-  const { data, error } = await supabaseAdmin.auth.admin.listUsers({
-    email,
-  });
-
-  if (error) {
-    console.error("Erro ao buscar usuário pelo email:", error);
+  const supabaseAdmin = await getSupabaseAdminSafe();
+  if (!supabaseAdmin) {
+    console.warn(
+      "[billing webhook] Não foi possível ativar plano porque supabaseAdmin não está disponível."
+    );
     return;
   }
 
-  const user = data?.users?.[0];
+  // 1) lista usuários e filtra pelo e-mail em memória
+  const { data, error } = await supabaseAdmin.auth.admin.listUsers();
+
+  if (error) {
+    console.error("Erro ao listar usuários:", error);
+    return;
+  }
+
+  const users = data?.users ?? [];
+  const user = users.find(
+    (u: any) => u.email && u.email.toLowerCase() === email.toLowerCase()
+  );
+
   if (!user) {
     console.warn("Nenhum usuário encontrado com email:", email);
     return;
   }
 
   // 2) atualiza user_metadata com status do plano
-  const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-    user.id,
-    {
+  const { error: updateError } =
+    await supabaseAdmin.auth.admin.updateUserById(user.id, {
       user_metadata: {
         ...(user.user_metadata || {}),
         plan: planKey,
@@ -57,8 +81,7 @@ async function markPlanActive(opts: {
         stripeCustomerId: stripeCustomerId ?? null,
         subscribedAt: new Date().toISOString(),
       },
-    },
-  );
+    });
 
   if (updateError) {
     console.error("Erro ao marcar plano ativo:", updateError);
@@ -73,7 +96,7 @@ export async function POST(req: Request) {
   if (!sig) {
     return NextResponse.json(
       { error: "Assinatura Stripe ausente" },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
@@ -81,12 +104,12 @@ export async function POST(req: Request) {
 
   try {
     const rawBody = await req.text();
-    event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+    event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret!);
   } catch (err: any) {
     console.error("Erro ao validar webhook Stripe:", err);
     return NextResponse.json(
       { error: `Webhook error: ${err.message}` },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
@@ -110,14 +133,12 @@ export async function POST(req: Request) {
       });
     }
 
-    // você pode tratar outros eventos aqui (invoice.paid, customer.subscription.deleted, etc.)
-
     return NextResponse.json({ received: true }, { status: 200 });
   } catch (err: any) {
     console.error("Erro ao processar webhook:", err);
     return NextResponse.json(
       { error: err?.message ?? "Erro interno ao processar webhook" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

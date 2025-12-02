@@ -31,7 +31,7 @@ export default function ManageBillingButton({
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         const msg =
-          data?.error ||
+          (data as any)?.error ||
           "Não foi possível abrir o portal de cobrança. Tente novamente.";
         toast.error("Erro ao abrir portal de cobrança", {
           description: msg,
@@ -40,8 +40,8 @@ export default function ManageBillingButton({
       }
 
       const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url as string;
+      if ((data as any).url) {
+        window.location.href = (data as any).url as string;
       } else {
         toast.error("Erro ao abrir portal de cobrança", {
           description: "Resposta inesperada do servidor.",
@@ -63,7 +63,7 @@ export default function ManageBillingButton({
   return (
     <Button
       className="w-full justify-center"
-      variant={hasSubscription ? "outline" : "default"}
+      variant={hasSubscription ? "outline" : "primary"}
       onClick={handleClick}
       disabled={loading}
     >

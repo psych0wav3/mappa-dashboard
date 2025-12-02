@@ -121,3 +121,9 @@ export async function getTechnicianIdForUser(
 
   return null;
 }
+
+export async function getUserFromBearer(_authHeader?: string | null) {
+  // TODO: implementar de verdade quando definir o fluxo de bearer token.
+  // Por enquanto, só retorna null para não quebrar o build.
+  return null;
+}

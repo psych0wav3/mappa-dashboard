@@ -8,22 +8,22 @@ const PUBLIC_PATHS: string[] = [
   "/auth/signout",
   "/favicon.ico",
   "/assets",
-  "/_next", // assets do Next
+  "/_next",
 ];
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(p)
+    (p) => pathname === p || pathname.startsWith(p),
   );
 }
 
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
-  // Considera logado se existir cookie de access/refresh do Supabase
+  // considera logado se existir cookie de access/refresh do Supabase
   const hasAccess = !!(
     req.cookies.get("sb-access-token") ||
-    req.cookies.get("sb:token") // compat
+    req.cookies.get("sb:token")
   );
 
   const isPublic = isPublicPath(pathname);
@@ -47,9 +47,7 @@ export async function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
-// Matcher amplo, mas compatível com o parser do Next (sem `as const`)
+// ⚠ MUITO IMPORTANTE: nada de "as const", "as string[]" aqui
 export const config = {
-  matcher: [
-    "/((?!api|_next/static|_next/image|favicon\\.ico|assets).*)",
-  ],
+  matcher: ["/((?!api|_next/static|_next/image|favicon\\.ico|assets).*)"],
 };

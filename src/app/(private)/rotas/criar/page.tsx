@@ -225,28 +225,27 @@ export default function RouteBuilderPage() {
 
     if (j?.order) {
       const byId = Object.fromEntries(
-        stops.map((s) => [s.id, s])
+        stops.map((s) => [s.id, s as StopItem])
       );
-      const newStops = j.order.map((id: string) => ({
+
+      const newStops: StopItem[] = j.order.map((id: string) => ({
         ...byId[id],
       }));
 
-      const byEta: Record<
-        string,
-        { eta: string; etd: string }
-      > = {};
-      for (const e of j.etas) {
+      const byEta: Record<string, { eta?: string; etd?: string }> = {};
+      for (const e of j.etas ?? []) {
         byEta[e.id] = { eta: e.eta, etd: e.etd };
       }
 
       setStops(
-        newStops.map((s) => ({
+        newStops.map((s: StopItem) => ({
           ...s,
           ...byEta[s.id],
         }))
       );
     }
   }
+
 
   return (
     <div className="p-6 space-y-4">

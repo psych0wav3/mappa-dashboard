@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 
 // Garante que o tipo do global aceite undefined (evita erros no hot-reload)
 declare global {
-  // eslint-disable-next-line no-var
+   
   var prisma: PrismaClient | undefined;
 }
 

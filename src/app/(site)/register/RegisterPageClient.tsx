@@ -114,27 +114,35 @@ export default function RegisterPageClient() {
   const planLabel = PLAN_LABELS[planKey] ?? "Starter";
   const planDetails = PLAN_DETAILS[planKey] ?? PLAN_DETAILS["starter"];
 
-  const form = useForm<RegisterFormValues>({
+  const form = useForm({
     defaultValues: {
       fullName: "",
       email: "",
       password: "",
       cpf: "",
       phone: "",
-      companyName: "",
+      companyName: undefined,
       poolCount: undefined,
-    },
+    } as RegisterFormValues,
     validators: {
-      onChange: registerSchema,
+      // Zod funciona bem aqui em runtime, mas a tipagem do TanStack é mais rígida.
+      onChange: registerSchema as any,
     },
     onSubmit: async ({ value }) => {
-      const { fullName, email, password, cpf, phone, companyName, poolCount } =
-        value;
+      // garante que value está no shape do schema
+      const {
+        fullName,
+        email,
+        password,
+        cpf,
+        phone,
+        companyName,
+        poolCount,
+      } = registerSchema.parse(value) as RegisterFormValues;
 
       try {
         const supabase = createClientBrowser();
 
-        // 1) cria usuário no Supabase com metadados
         const { error: signUpError } = await supabase.auth.signUp({
           email: email.trim(),
           password,
@@ -156,7 +164,6 @@ export default function RegisterPageClient() {
           throw new Error(signUpError.message || "Falha ao criar conta");
         }
 
-        // 2) inicia o checkout do plano
         await startCheckout(planKey, email.trim());
 
         toast.success("Redirecionando para pagamento…", {
@@ -173,6 +180,8 @@ export default function RegisterPageClient() {
       }
     },
   });
+
+
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-10 lg:flex-row">

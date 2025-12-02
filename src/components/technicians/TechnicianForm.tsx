@@ -1,3 +1,4 @@
+// src/components/technicians/TechnicianForm.tsx
 "use client";
 
 import * as React from "react";
@@ -45,13 +46,14 @@ const schema = z.object({
   firstName: z.string().min(2, "Informe o nome"),
   lastName: z.string().min(2, "Informe o sobrenome"),
   email: z.string().email("Email inválido"),
-  role: z.enum(["OWNER", "TECH"]).default("TECH"),
+  // ❌ removemos o .default() daqui
+  role: z.enum(["OWNER", "TECH"]),
   phone: z.string().optional(),
   cpf: z.string().optional(),
   active: z.boolean().optional(),
 });
 
-// ⬅️ use o OUTPUT do schema
+// ⬅️ usa o OUTPUT do schema
 type Values = z.infer<typeof schema>;
 
 export default function TechnicianForm({
@@ -67,12 +69,12 @@ export default function TechnicianForm({
   const [pending, startTransition] = useTransition();
 
   const form = useForm<Values>({
-    // ⬅️ tipar o resolver com <Values, any, Values>
-    resolver: zodResolver<Values, any, Values>(schema),
+    resolver: zodResolver(schema),
     defaultValues: {
       firstName: defaultValues?.firstName ?? "",
       lastName: defaultValues?.lastName ?? "",
       email: defaultValues?.email ?? "",
+      // ✅ default agora só aqui
       role: defaultValues?.role ?? "TECH",
       phone: defaultValues?.phone ?? "",
       cpf: defaultValues?.cpf ?? "",
@@ -143,10 +145,11 @@ export default function TechnicianForm({
 
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Editar Técnico" : "Novo Técnico"}</DialogTitle>
+          <DialogTitle>
+            {isEditing ? "Editar Técnico" : "Novo Técnico"}
+          </DialogTitle>
         </DialogHeader>
 
-        {/* ⬅️ usar o genérico ajuda o TS a casar tudo */}
         <Form<Values> {...form}>
           <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -156,18 +159,23 @@ export default function TechnicianForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Nome</FormLabel>
-                    <FormControl><Input {...field} /></FormControl>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
               <FormField
                 name="lastName"
                 control={form.control}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Sobrenome</FormLabel>
-                    <FormControl><Input {...field} /></FormControl>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -180,7 +188,9 @@ export default function TechnicianForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Email</FormLabel>
-                  <FormControl><Input type="email" {...field} /></FormControl>
+                  <FormControl>
+                    <Input type="email" {...field} />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -193,18 +203,29 @@ export default function TechnicianForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Telefone</FormLabel>
-                    <FormControl><MaskedInput mask="(99) 99999-9999" {...field} /></FormControl>
+                    <FormControl>
+                      <MaskedInput
+                        mask="(99) 99999-9999"
+                        {...field}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
               <FormField
                 name="cpf"
                 control={form.control}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>CPF</FormLabel>
-                    <FormControl><MaskedInput mask="999.999.999-99" {...field} /></FormControl>
+                    <FormControl>
+                      <MaskedInput
+                        mask="999.999.999-99"
+                        {...field}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -221,7 +242,9 @@ export default function TechnicianForm({
                     <select
                       className="h-9 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm"
                       value={field.value}
-                      onChange={(e) => field.onChange(e.target.value as Values["role"])}
+                      onChange={(e) =>
+                        field.onChange(e.target.value as Values["role"])
+                      }
                     >
                       <option value="TECH">Técnico</option>
                       <option value="OWNER">Administrador</option>
@@ -233,8 +256,14 @@ export default function TechnicianForm({
             />
 
             <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3 text-xs leading-5 text-neutral-700">
-              <div><span className="font-medium">Administrador:</span> acesso total ao sistema.</div>
-              <div><span className="font-medium">Técnico:</span> acesso aos clientes/visitas atribuídos.</div>
+              <div>
+                <span className="font-medium">Administrador:</span> acesso total
+                ao sistema.
+              </div>
+              <div>
+                <span className="font-medium">Técnico:</span> acesso aos
+                clientes/visitas atribuídos.
+              </div>
             </div>
 
             <div className="flex items-center justify-between gap-2 pt-2">
@@ -263,9 +292,12 @@ export default function TechnicianForm({
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                        <AlertDialogTitle>
+                          Confirmar exclusão
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
-                          Deseja excluir este técnico? Esta ação não pode ser desfeita.
+                          Deseja excluir este técnico? Esta ação não pode ser
+                          desfeita.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
@@ -275,7 +307,7 @@ export default function TechnicianForm({
                           onClick={handleDelete}
                         >
                           Confirmar
-                          </AlertDialogAction>
+                        </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
@@ -285,7 +317,11 @@ export default function TechnicianForm({
               )}
 
               <div className="flex items-center gap-2">
-                <Button type="button" variant="outline" onClick={handleCancel}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCancel}
+                >
                   Cancelar
                 </Button>
                 <Button

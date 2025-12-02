@@ -170,11 +170,11 @@ export async function createClient(data: any) {
     if (exists) throw new Error("CNPJ já cadastrado.");
   }
 
-  const payload = sanitizeClientInput(data) as Prisma.ClientCreateInput;
+  const payload = sanitizeClientInput(data);
 
   await prisma.client.create({
     data: {
-      ...payload,
+      ...(payload as Prisma.ClientUncheckedCreateInput),
       companyId, // 👈 amarra o cliente à empresa atual
     },
   });
