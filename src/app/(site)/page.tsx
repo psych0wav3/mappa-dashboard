@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 
 import Navbar from "@/components/site/Navbar";
 import Hero from "@/components/site/Hero";
-//import LogosStrip from "@/components/site/LogosStrip";
+import LogosStrip from "@/components/site/LogosStrip";
 import BenefitsSection from "@/components/site/BenefitsSection";
 import FeatureShowcase from "@/components/site/FeatureShowcase";
 import PricingTable from "@/components/site/PricingTable";
@@ -27,8 +27,8 @@ export default function Page() {
     <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-white text-slate-900">
       <Navbar />
       <Hero />
-
       <BenefitsSection />
+      <LogosStrip />
       <PricingTable />
       <FeatureShowcase />
       <FAQ />

@@ -1,3 +1,4 @@
+// src/app/(private)/clients/new/NewClientPageClient.tsx
 "use client";
 
 import * as React from "react";

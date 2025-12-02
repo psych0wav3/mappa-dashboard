@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import TechnicianForm from "./TechnicianForm";
 import { Button } from "@/components/ui/button";
@@ -21,27 +21,42 @@ type Tech = {
 
 export default function TechnicianTable({ initialData }: { initialData: Tech[] }) {
   const router = useRouter();
+
+  // 🔹 Estado local da lista, sincronizado com initialData
+  const [rows, setRows] = useState<Tech[]>(initialData ?? []);
+
+  // aba atual e busca
   const [tab, setTab] = useState<"active" | "inactive">("active");
   const [q, setQ] = useState("");
 
-  const counts = useMemo(() => {
-    const act = initialData.filter((t) => t.active).length;
-    const ina = initialData.length - act;
-    return { act, ina };
+  // 🔄 sempre que initialData mudar (ex.: login em outra empresa),
+  // reseta a lista, a aba e a busca
+  useEffect(() => {
+    setRows(initialData ?? []);
+    setTab("active");
+    setQ("");
   }, [initialData]);
 
+  const counts = useMemo(() => {
+    const act = rows.filter((t) => t.active).length;
+    const ina = rows.length - act;
+    return { act, ina };
+  }, [rows]);
+
   const data = useMemo(() => {
-    const base = initialData.filter((t) => (tab === "active" ? t.active : !t.active));
+    const base = rows.filter((t) => (tab === "active" ? t.active : !t.active));
     const k = q.trim().toLowerCase();
     if (!k) return base;
+
     const f = (s?: string | null) => (s ?? "").toLowerCase();
+
     return base.filter((t) =>
       [t.firstName, t.lastName, t.email, f(t.phone || ""), f(t.cpf || "")]
         .join(" ")
         .toLowerCase()
-        .includes(k)
+        .includes(k),
     );
-  }, [initialData, tab, q]);
+  }, [rows, tab, q]);
 
   const tabBtn = (active: boolean) =>
     `h-9 rounded-md px-3 text-sm border ${
@@ -76,7 +91,6 @@ export default function TechnicianTable({ initialData }: { initialData: Tech[] }
             />
           </div>
 
-          {/* Criar técnico em nova tela, igual à OS */}
           <Button
             className="btn-brand text-white"
             onClick={() => router.push("/technicians/new")}
@@ -134,6 +148,7 @@ export default function TechnicianTable({ initialData }: { initialData: Tech[] }
                 </td>
               </tr>
             ))}
+
             {data.length === 0 && (
               <tr>
                 <td className="p-6 text-center text-neutral-500" colSpan={6}>

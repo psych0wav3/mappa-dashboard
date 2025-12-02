@@ -1,18 +1,58 @@
-// src/app/(private)/clients/actions.ts
 "use server";
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
+import { createClientServer } from "@/lib/supabase/server";
 
-// 🔐 helpers de autenticação/assinatura
-import { getCurrentUser } from "@/lib/auth-roles";
-import {
-  getActiveSubscriptionForUser,
-  getTotalClientsForUser,
-} from "@/lib/subscription";
+/// =========================
+/// Helpers multi-tenant
+/// =========================
 
-// Campos permitidos no modelo Client
+/**
+ * Retorna o companyId da empresa atual do usuário logado
+ * (mesma lógica usada em technicians/actions.ts)
+ */
+async function getCurrentCompanyIdOrThrow() {
+  const supabase = await createClientServer();
+  const { data, error } = await supabase.auth.getUser();
+
+  if (error || !data?.user) {
+    throw new Error("Usuário não autenticado.");
+  }
+
+  const userId = data.user.id;
+
+  const companyUser = await prisma.companyUser.findFirst({
+    where: { userId },
+    select: { companyId: true },
+  });
+
+  if (!companyUser) {
+    throw new Error("Usuário não está vinculado a nenhuma empresa.");
+  }
+
+  return companyUser.companyId;
+}
+
+/**
+ * Garante que o cliente pertence à empresa atual
+ */
+async function ensureClientBelongsToCompany(id: string, companyId: string) {
+  const existing = await prisma.client.findUnique({
+    where: { id },
+    select: { id: true, companyId: true },
+  });
+
+  if (!existing || existing.companyId !== companyId) {
+    throw new Error("Cliente não encontrado para esta empresa.");
+  }
+}
+
+/// =========================
+/// Sanitização de Inputs
+/// =========================
+
 const CLIENT_FIELDS = new Set([
   "firstName",
   "lastName",
@@ -34,10 +74,8 @@ const CLIENT_FIELDS = new Set([
   "poolCity",
   "poolUf",
   "poolCep",
-  // ✅ coordenadas da piscina (usadas no planner / mapa)
   "poolLat",
   "poolLng",
-  // legados (mantidos)
   "poolSize",
   "cleaningFrequency",
   "cleaningWindow",
@@ -47,14 +85,13 @@ const CLIENT_FIELDS = new Set([
 
 function sanitizeClientInput(input: any) {
   const out: Record<string, any> = {};
+
   for (const k of Object.keys(input || {})) {
-    if (!CLIENT_FIELDS.has(k)) continue; // ignora campos desconhecidos (ex.: hasCompany, days etc.)
+    if (!CLIENT_FIELDS.has(k)) continue;
     let v = input[k];
 
-    // string vazia -> null
     if (v === "") v = null;
 
-    // normaliza coords se vierem como string
     if ((k === "poolLat" || k === "poolLng") && v != null) {
       const num = typeof v === "string" ? Number(v.trim()) : Number(v);
       v = Number.isFinite(num) ? num : null;
@@ -63,111 +100,143 @@ function sanitizeClientInput(input: any) {
     out[k] = v;
   }
 
-  // normalizações simples
   if (out.uf && typeof out.uf === "string") out.uf = out.uf.toUpperCase();
-  if (out.poolUf && typeof out.poolUf === "string")
+  if (out.poolUf && typeof out.poolUf === "string") {
     out.poolUf = out.poolUf.toUpperCase();
+  }
 
   return out;
 }
 
+/// =========================
+/// Ações — CRUD
+/// =========================
+
+// 🔎 LISTAR clientes da empresa atual
 export async function listClients() {
+  const companyId = await getCurrentCompanyIdOrThrow();
+
   return prisma.client.findMany({
+    where: { companyId },
     orderBy: { createdAt: "desc" },
   });
 }
 
+// ➕ CRIAR cliente
 export async function createClient(data: any) {
-  // 🔐 1) Garante usuário logado
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("Você precisa estar autenticado para cadastrar clientes.");
-  }
+  const companyId = await getCurrentCompanyIdOrThrow();
 
-  // 💳 2) Verifica assinatura ativa
-  const subscription = await getActiveSubscriptionForUser(user.id);
-  if (!subscription) {
-    throw new Error(
-      "Sua assinatura não está ativa. Atualize o pagamento para cadastrar novos clientes.",
-    );
-  }
+  // 💳 (regra de assinatura DESLIGADA por enquanto em dev)
+  /*
+  const supabase = await createClientServer();
+  const { data: auth } = await supabase.auth.getUser();
+  const userId = auth?.user?.id;
+  if (!userId) throw new Error("Usuário não autenticado.");
 
-  // 📊 3) Verifica limite de clientes do plano
-  const totalClients = await getTotalClientsForUser(user.id);
+  const subscription = await getActiveSubscriptionForUser(userId);
+  if (!subscription) throw new Error("Sua assinatura não está ativa.");
+  const totalClients = await getTotalClientsForUser(userId);
   if (totalClients >= subscription.maxClients) {
-    throw new Error(
-      `Você atingiu o limite de ${subscription.maxClients} clientes do seu plano. Faça upgrade para continuar cadastrando.`,
-    );
+    throw new Error(`Limite do plano atingido.`);
   }
+  */
 
-  // 🔎 4) unicidade (email/phone/cpf/cnpj)
+  // unicidade global (mantida)
   if (data.email) {
     const exists = await prisma.client.findUnique({
       where: { email: data.email },
     });
-    if (exists) throw new Error("email já cadastrado");
+    if (exists) throw new Error("Email já cadastrado.");
   }
+
   if (data.phone) {
     const exists = await prisma.client.findUnique({
       where: { phone: data.phone },
     });
-    if (exists) throw new Error("telefone já cadastrado");
+    if (exists) throw new Error("Telefone já cadastrado.");
   }
+
   if (data.cpf) {
     const exists = await prisma.client.findUnique({
       where: { cpf: data.cpf },
     });
-    if (exists) throw new Error("CPF já cadastrado");
+    if (exists) throw new Error("CPF já cadastrado.");
   }
+
   if (data.cnpj) {
-    // usa findFirst para evitar erro de tipo caso o client não tenha sido regenerado ainda
     const exists = await prisma.client.findFirst({
       where: { cnpj: data.cnpj } as any,
     });
-    if (exists) throw new Error("CNPJ já cadastrado");
+    if (exists) throw new Error("CNPJ já cadastrado.");
   }
 
   const payload = sanitizeClientInput(data) as Prisma.ClientCreateInput;
-  await prisma.client.create({ data: payload });
+
+  await prisma.client.create({
+    data: {
+      ...payload,
+      companyId, // 👈 amarra o cliente à empresa atual
+    },
+  });
+
   revalidatePath("/clients");
 }
 
+// ✏️ ATUALIZAR cliente
 export async function updateClient(id: string, data: any) {
+  const companyId = await getCurrentCompanyIdOrThrow();
+  await ensureClientBelongsToCompany(id, companyId);
+
   if (data.email) {
     const c = await prisma.client.findUnique({ where: { email: data.email } });
-    if (c && c.id !== id) throw new Error("email já cadastrado");
+    if (c && c.id !== id) throw new Error("Email já cadastrado.");
   }
+
   if (data.phone) {
     const c = await prisma.client.findUnique({ where: { phone: data.phone } });
-    if (c && c.id !== id) throw new Error("telefone já cadastrado");
+    if (c && c.id !== id) throw new Error("Telefone já cadastrado.");
   }
+
   if (data.cpf) {
     const c = await prisma.client.findUnique({ where: { cpf: data.cpf } });
-    if (c && c.id !== id) throw new Error("CPF já cadastrado");
+    if (c && c.id !== id) throw new Error("CPF já cadastrado.");
   }
+
   if (data.cnpj) {
     const c = await prisma.client.findFirst({
       where: { cnpj: data.cnpj } as any,
     });
-    if (c && c.id !== id) throw new Error("CNPJ já cadastrado");
+    if (c && c.id !== id) throw new Error("CNPJ já cadastrado.");
   }
 
   const payload = sanitizeClientInput(data) as Prisma.ClientUpdateInput;
-  await prisma.client.update({ where: { id }, data: payload });
+
+  await prisma.client.update({
+    where: { id },
+    data: payload,
+  });
+
   revalidatePath("/clients");
 }
 
+// 🗑 EXCLUIR cliente
 export async function deleteClient(id: string) {
+  const companyId = await getCurrentCompanyIdOrThrow();
+  await ensureClientBelongsToCompany(id, companyId);
+
   await prisma.client.delete({ where: { id } });
   revalidatePath("/clients");
 }
 
+// 📍 ATUALIZAR COORDENADAS DO CLIENTE
 export async function saveClientCoords(id: string, lat: number, lng: number) {
-  // normaliza para número
+  const companyId = await getCurrentCompanyIdOrThrow();
+  await ensureClientBelongsToCompany(id, companyId);
+
   const _lat = Number(lat);
   const _lng = Number(lng);
   if (!Number.isFinite(_lat) || !Number.isFinite(_lng)) {
-    throw new Error("Coordenadas inválidas");
+    throw new Error("Coordenadas inválidas.");
   }
 
   await prisma.client.update({
@@ -175,7 +244,6 @@ export async function saveClientCoords(id: string, lat: number, lng: number) {
     data: { poolLat: _lat, poolLng: _lng },
   });
 
-  // revalida telas que consomem esses dados
   revalidatePath("/clients");
   revalidatePath("/routes/builder");
 }

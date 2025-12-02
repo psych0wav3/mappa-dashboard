@@ -10,7 +10,8 @@ export const metadata: Metadata = {
 export default function NewClientPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6">
-      <div className="mb-4 mt-4 rounded-xl border border-slate-200 bg-white px-5 py-3 text-slate-800 shadow-sm">
+      <div className="mb-4 mt-4 rounded-xl border border-slate-200 bg-white px-5 py-3 text-slate-8
+00">
         <h1 className="text-lg font-semibold">Novo cliente</h1>
       </div>
 

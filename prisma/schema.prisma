@@ -43,6 +43,10 @@ model Client {
   poolLat           Float?
   poolLng           Float?
 
+  /// 🔹 multi-tenant
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
   routePlanItems RoutePlanItem[]
   visits         Visit[]
   visitInstances VisitInstance[]
@@ -52,6 +56,7 @@ model Client {
   @@index([city])
   @@index([poolCity])
   @@index([poolLat, poolLng])
+  @@index([companyId])
 }
 
 model Technician {
@@ -347,6 +352,7 @@ model Company {
 
   technicians Technician[]
   users       CompanyUser[]
+  clients     Client[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
