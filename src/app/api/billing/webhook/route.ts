@@ -1,22 +1,18 @@
 // src/app/api/billing/webhook/route.ts
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
+import type Stripe from "stripe";
+import { stripe } from "@/lib/stripe";
 
 export const runtime = "nodejs";
 
-const stripeSecret = process.env.STRIPE_SECRET_KEY;
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-if (!stripeSecret) {
-  throw new Error("STRIPE_SECRET_KEY is not set");
-}
 if (!webhookSecret) {
-  throw new Error("STRIPE_WEBHOOK_SECRET is not set");
+  console.warn(
+    "[billing webhook] STRIPE_WEBHOOK_SECRET não está definida. " +
+      "O endpoint de webhook não funcionará corretamente em produção."
+  );
 }
-
-const stripe = new Stripe(stripeSecret, {
-  apiVersion: "2025-11-17.clover" as any,
-});
 
 // 👇 lazy-load do supabaseAdmin para não explodir no import, só quando realmente for usar
 async function getSupabaseAdminSafe() {
@@ -100,11 +96,18 @@ export async function POST(req: Request) {
     );
   }
 
+  if (!webhookSecret) {
+    return NextResponse.json(
+      { error: "Webhook do Stripe não configurado no servidor." },
+      { status: 500 }
+    );
+  }
+
   let event: Stripe.Event;
 
   try {
     const rawBody = await req.text();
-    event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret!);
+    event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
   } catch (err: any) {
     console.error("Erro ao validar webhook Stripe:", err);
     return NextResponse.json(
@@ -137,7 +140,7 @@ export async function POST(req: Request) {
   } catch (err: any) {
     console.error("Erro ao processar webhook:", err);
     return NextResponse.json(
-      { error: err?.message ?? "Erro interno ao processar webhoosk" },
+      { error: err?.message ?? "Erro interno ao processar webhook" },
       { status: 500 }
     );
   }

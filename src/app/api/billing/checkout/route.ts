@@ -1,19 +1,10 @@
 // src/app/api/billing/checkout/route.ts
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
+import { stripe } from "@/lib/stripe";
 
 export const runtime = "nodejs";
 
-const stripeSecret = process.env.STRIPE_SECRET_KEY;
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-
-if (!stripeSecret) {
-  throw new Error("STRIPE_SECRET_KEY is not set");
-}
-
-const stripe = new Stripe(stripeSecret, {
-  apiVersion: "2025-11-17.clover",
-});
 
 const PLAN_PRICE_IDS: Record<string, string> = {
   starter: process.env.STRIPE_PRICE_STARTER || "",
@@ -32,7 +23,18 @@ export async function POST(req: Request) {
     if (!email) {
       return NextResponse.json(
         { error: "E-mail é obrigatório" },
-        { status: 400 },
+        { status: 400 }
+      );
+    }
+
+    if (!process.env.STRIPE_SECRET_KEY) {
+      console.error(
+        "[billing checkout] STRIPE_SECRET_KEY não está definida. " +
+          "Não é possível criar sessão de checkout."
+      );
+      return NextResponse.json(
+        { error: "Stripe não está configurado no servidor." },
+        { status: 500 }
       );
     }
 
@@ -42,7 +44,7 @@ export async function POST(req: Request) {
     if (!priceId) {
       return NextResponse.json(
         { error: "Plano não configurado no Stripe" },
-        { status: 500 },
+        { status: 500 }
       );
     }
 
@@ -56,7 +58,7 @@ export async function POST(req: Request) {
         },
       ],
       success_url: `${baseUrl}/billing/success?plan=${encodeURIComponent(
-        planKey,
+        planKey
       )}&email=${encodeURIComponent(email.trim())}`,
       cancel_url: `${baseUrl}/billing/cancelled`,
       metadata: {
@@ -70,7 +72,7 @@ export async function POST(req: Request) {
     console.error("Erro ao criar checkout:", err);
     return NextResponse.json(
       { error: err?.message ?? "Erro ao criar checkout" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
