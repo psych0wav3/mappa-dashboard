@@ -1,10 +1,16 @@
 // src/lib/stripe.ts
 import Stripe from "stripe";
 
-// Usa uma chave "dummy" se não tiver STRIPE_SECRET_KEY em runtime.
-// Assim o build da Vercel não quebra.
-// Em produção você DEVE setar STRIPE_SECRET_KEY na Vercel.
+// Em dev/local você pode ficar sem STRIPE_SECRET_KEY.
+// Em produção, configure em Vercel (Project → Settings → Environment Variables).
 const secret = process.env.STRIPE_SECRET_KEY ?? "sk_test_dummy_key_change_me";
+
+if (!process.env.STRIPE_SECRET_KEY) {
+  console.warn(
+    "[stripe] STRIPE_SECRET_KEY não definida. Usando chave dummy. " +
+      "Em produção isso vai quebrar chamadas ao Stripe."
+  );
+}
 
 export const stripe = new Stripe(secret, {
   apiVersion: "2025-11-17.clover" as any,

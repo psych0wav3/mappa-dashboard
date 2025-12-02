@@ -19,7 +19,17 @@ export async function POST(_req: NextRequest) {
           error:
             "Nenhuma assinatura encontrada. Selecione um plano para começar.",
         },
-        { status: 400 },
+        { status: 400 }
+      );
+    }
+
+    if (!subscription.stripeCustomerId) {
+      return NextResponse.json(
+        {
+          error:
+            "Assinatura encontrada, mas sem cliente Stripe vinculado. Entre em contato com o suporte.",
+        },
+        { status: 400 }
       );
     }
 
@@ -28,7 +38,7 @@ export async function POST(_req: NextRequest) {
 
     const session = await stripe.billingPortal.sessions.create({
       customer: subscription.stripeCustomerId,
-      return_url: `${siteUrl}/billing`,
+      return_url: `${siteUrl.replace(/\/$/, "")}/billing`,
     });
 
     return NextResponse.json({ url: session.url });
@@ -36,7 +46,7 @@ export async function POST(_req: NextRequest) {
     console.error("[/api/billing/portal] error", error);
     return NextResponse.json(
       { error: "Não foi possível abrir o portal de cobrança." },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
