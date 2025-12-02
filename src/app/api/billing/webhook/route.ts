@@ -137,7 +137,7 @@ export async function POST(req: Request) {
   } catch (err: any) {
     console.error("Erro ao processar webhook:", err);
     return NextResponse.json(
-      { error: err?.message ?? "Erro interno ao processar webhook" },
+      { error: err?.message ?? "Erro interno ao processar webhoosk" },
       { status: 500 }
     );
   }
