@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createWorkOrder, listWorkOrders } from "@/app/(private)/workorders/actions";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const data = await listWorkOrders();
