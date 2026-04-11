@@ -67,7 +67,7 @@ export default function LoginPage() {
               <span className="font-bold">P</span>
             </div>
             <div className="text-xl font-semibold tracking-tight">
-              Aqua Mappa
+              Aqua Mappa.
             </div>
           </div>
 
