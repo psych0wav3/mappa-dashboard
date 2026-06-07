@@ -7,7 +7,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useTransition } from "react";
 import { toast } from "sonner";
 
-import { createClient } from "@/app/(private)/clients/actions";
+import {
+  createClient,
+  getClientById,
+} from "@/app/(private)/clients/actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -29,19 +32,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { MaskedInput } from "@/components/ui/MaskedInput";
 
 const schema = z.object({
-  // pessoa
   firstName: z.string().min(2, "Informe o nome"),
   lastName: z.string().min(2, "Informe o sobrenome"),
   email: z.string().email("Email inválido"),
   phone: z.string().optional(),
   cpf: z.string().optional(),
 
-  // empresa
   hasCompany: z.boolean().optional(),
   companyName: z.string().optional(),
   cnpj: z.string().optional(),
 
-  // endereço de cobrança
   cep: z.string().optional(),
   street: z.string().optional(),
   number: z.string().optional(),
@@ -49,10 +49,8 @@ const schema = z.object({
   city: z.string().optional(),
   uf: z.string().max(2).optional(),
 
-  // informações úteis
   notes: z.string().optional(),
 
-  // localização da piscina
   poolCep: z.string().optional(),
   poolStreet: z.string().optional(),
   poolNumber: z.string().optional(),
@@ -60,7 +58,6 @@ const schema = z.object({
   poolCity: z.string().optional(),
   poolUf: z.string().max(2).optional(),
 
-  // futuro: atribuição de rota
   technicianId: z.string().optional(),
   days: z
     .array(z.enum(["dom", "seg", "ter", "qua", "qui", "sex", "sab"]))
@@ -147,6 +144,7 @@ export default function ClientForm({
 }) {
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = useTransition();
+  const [loadingDetails, setLoadingDetails] = React.useState(false);
 
   const isEditing = Boolean(id);
 
@@ -165,6 +163,39 @@ export default function ClientForm({
   React.useEffect(() => {
     form.reset(defaults);
   }, [id, defaults, form]);
+
+  React.useEffect(() => {
+    if (!open || !id) {
+      return;
+    }
+
+    let alive = true;
+    const idToLoad = id as string;
+
+    async function loadClientDetails() {
+      try {
+        setLoadingDetails(true);
+
+        const details = await getClientById(idToLoad);
+
+        if (!alive) return;
+
+        form.reset(buildDefaults(details as unknown as Partial<Values>));
+      } catch (e: any) {
+        toast.error(e?.message || "Erro ao buscar detalhes do cliente.");
+      } finally {
+        if (alive) {
+          setLoadingDetails(false);
+        }
+      }
+    }
+
+    loadClientDetails();
+
+    return () => {
+      alive = false;
+    };
+  }, [open, id, form]);
 
   const copyBillingToPool = () => {
     if (isEditing) {
@@ -251,7 +282,7 @@ export default function ClientForm({
     setOpen(false);
   };
 
-  const inputDisabled = isEditing;
+  const inputDisabled = isEditing || loadingDetails;
 
   return (
     <Dialog
@@ -295,6 +326,12 @@ export default function ClientForm({
                 A edição, inativação e exclusão de clientes ainda dependem de
                 rotas no backend. Por enquanto, os dados ficam apenas para
                 visualização.
+              </div>
+            )}
+
+            {loadingDetails && (
+              <div className="mb-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                Carregando dados completos do cliente...
               </div>
             )}
 
@@ -702,15 +739,6 @@ export default function ClientForm({
 
           <div className="sticky bottom-0 z-20 border-t bg-white px-4 py-3 sm:px-6">
             <div className="flex items-center justify-between gap-3">
-              {isEditing ? (
-                <div className="text-xs text-neutral-500">
-                  Edição, inativação e exclusão serão liberadas quando a API
-                  tiver essas rotas.
-                </div>
-              ) : (
-                <span />
-              )}
-
               <div className="flex items-center gap-2">
                 <Button type="button" variant="outline" onClick={handleCancel}>
                   Fechar

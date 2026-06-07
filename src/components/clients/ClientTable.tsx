@@ -5,7 +5,7 @@ import ClientForm from "./ClientForm";
 import { Button } from "@/components/ui/button";
 import { Pencil, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 type Client = {
@@ -24,12 +24,30 @@ type Client = {
   active?: boolean | null;
 };
 
-export default function ClientTable({ initialData }: { initialData: Client[] }) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+type ClientStatus = "ACTIVE" | "INACTIVE";
 
-  const [tab, setTab] = React.useState<"active" | "inactive">("active");
-  const [q, setQ] = React.useState("");
+export default function ClientTable({
+  initialData,
+  initialSearch = "",
+  initialStatus = "ACTIVE",
+  counts,
+  created = false,
+}: {
+  initialData: Client[];
+  initialSearch?: string;
+  initialStatus?: ClientStatus;
+  counts: {
+    active: number;
+    inactive: number;
+  };
+  created?: boolean;
+}) {
+  const router = useRouter();
+
+  const [tab, setTab] = React.useState<"active" | "inactive">(
+    initialStatus === "INACTIVE" ? "inactive" : "active",
+  );
+  const [q, setQ] = React.useState(initialSearch);
   const [rows, setRows] = React.useState<Client[]>(initialData);
 
   React.useEffect(() => {
@@ -37,46 +55,50 @@ export default function ClientTable({ initialData }: { initialData: Client[] }) 
   }, [initialData]);
 
   React.useEffect(() => {
-    if (searchParams.get("created") === "1") {
+    setQ(initialSearch);
+  }, [initialSearch]);
+
+  React.useEffect(() => {
+    setTab(initialStatus === "INACTIVE" ? "inactive" : "active");
+  }, [initialStatus]);
+
+  React.useEffect(() => {
+    if (created) {
       toast.success("Cliente cadastrado com sucesso.");
-      router.replace("/clients", { scroll: false });
+
+      const params = new URLSearchParams();
+
+      if (initialSearch.trim()) {
+        params.set("search", initialSearch.trim());
+      }
+
+      params.set("status", initialStatus);
+
+      router.replace(`/clients?${params.toString()}`, { scroll: false });
     }
-  }, [searchParams, router]);
+  }, [created, initialSearch, initialStatus, router]);
 
-  const byStatus = React.useMemo(
-    () =>
-      rows.filter((c) =>
-        tab === "active" ? c.active !== false : c.active === false,
-      ),
-    [rows, tab],
-  );
+  React.useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      const params = new URLSearchParams();
 
-  const filtered = React.useMemo(() => {
-    const term = q.trim().toLowerCase();
+      const search = q.trim();
+      const status = tab === "inactive" ? "INACTIVE" : "ACTIVE";
 
-    if (!term) return byStatus;
+      if (search) {
+        params.set("search", search);
+      }
 
-    const norm = (v?: string | null) => (v ?? "").toLowerCase();
+      params.set("status", status);
 
-    return byStatus.filter((c) =>
-      [
-        `${c.firstName ?? ""} ${c.lastName ?? ""}`,
-        c.email,
-        c.phone,
-        c.cpf,
-        c.street,
-        c.number,
-        c.district,
-        `${c.city ?? ""} ${c.uf ?? ""}`,
-        c.cep,
-      ]
-        .map(norm)
-        .some((v) => v.includes(term)),
-    );
-  }, [byStatus, q]);
+      router.replace(`/clients?${params.toString()}`, { scroll: false });
+    }, 350);
+
+    return () => window.clearTimeout(timeout);
+  }, [q, tab, router]);
 
   const sorted = React.useMemo(() => {
-    const copy = [...filtered];
+    const copy = [...rows];
 
     copy.sort((a, b) => {
       const aKey = `${(a.firstName || "").toLowerCase()} ${(
@@ -91,7 +113,7 @@ export default function ClientTable({ initialData }: { initialData: Client[] }) 
     });
 
     return copy;
-  }, [filtered]);
+  }, [rows]);
 
   const groups = React.useMemo(() => {
     const map = new Map<string, Client[]>();
@@ -100,7 +122,9 @@ export default function ClientTable({ initialData }: { initialData: Client[] }) 
       const base = (c.firstName || "?").trim();
       const letter = base ? base[0].toUpperCase() : "#";
 
-      if (!map.has(letter)) map.set(letter, []);
+      if (!map.has(letter)) {
+        map.set(letter, []);
+      }
 
       map.get(letter)!.push(c);
     }
@@ -109,13 +133,6 @@ export default function ClientTable({ initialData }: { initialData: Client[] }) 
       a.localeCompare(b, "pt-BR"),
     );
   }, [sorted]);
-
-  const counts = React.useMemo(() => {
-    const act = rows.filter((c) => c.active !== false).length;
-    const ina = rows.length - act;
-
-    return { act, ina };
-  }, [rows]);
 
   const tabBtn = (active: boolean) =>
     `h-9 rounded-md px-3 text-sm border ${
@@ -133,7 +150,7 @@ export default function ClientTable({ initialData }: { initialData: Client[] }) 
             onClick={() => setTab("active")}
             className={tabBtn(tab === "active")}
           >
-            Ativos ({counts.act})
+            Ativos ({counts.active})
           </button>
 
           <button
@@ -141,7 +158,7 @@ export default function ClientTable({ initialData }: { initialData: Client[] }) 
             onClick={() => setTab("inactive")}
             className={tabBtn(tab === "inactive")}
           >
-            Inativos ({counts.ina})
+            Inativos ({counts.inactive})
           </button>
         </div>
 
@@ -222,8 +239,8 @@ export default function ClientTable({ initialData }: { initialData: Client[] }) 
                         variant="outline"
                         size="sm"
                         className="h-9 w-9 rounded-md p-0 bg-orange-500 hover:bg-orange-600 text-white shrink-0"
-                        title="Editar"
-                        aria-label="Editar cliente"
+                        title="Visualizar cliente"
+                        aria-label="Visualizar cliente"
                       >
                         <Pencil size={16} />
                       </Button>

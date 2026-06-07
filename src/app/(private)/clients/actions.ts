@@ -16,6 +16,8 @@ const FALLBACK_COMPANY_ID =
 const API_ADMIN_EMAIL = process.env.API_ADMIN_EMAIL;
 const API_ADMIN_PASSWORD = process.env.API_ADMIN_PASSWORD;
 
+type ClientStatus = "ACTIVE" | "INACTIVE";
+
 type ApiError = {
   errors?: Array<{
     statusCode?: number;
@@ -27,6 +29,20 @@ type ApiError = {
   message?: string;
 };
 
+type ApiAddress = {
+  id?: string | null;
+  street?: string | null;
+  number?: string | null;
+  complement?: string | null;
+  neighborhood?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  isMain?: boolean | null;
+};
+
 type ApiCustomer = {
   id: string;
   userId?: string | null;
@@ -36,18 +52,21 @@ type ApiCustomer = {
   phone?: string | null;
   document?: string | null;
   status?: string | null;
-  mainAddress?: {
-    id?: string | null;
-    street?: string | null;
-    number?: string | null;
-    complement?: string | null;
-    neighborhood?: string | null;
-    city?: string | null;
-    state?: string | null;
-    zipCode?: string | null;
-    latitude?: number | null;
-    longitude?: number | null;
-  } | null;
+  mainAddress?: ApiAddress | null;
+  addresses?: ApiAddress[] | null;
+};
+
+type AddressPayload = {
+  street: string;
+  number: string | null;
+  complement: string | null;
+  neighborhood: string | null;
+  city: string;
+  state: string;
+  zipCode: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  isMain?: boolean;
 };
 
 async function getTokenFromCookie() {
@@ -102,10 +121,7 @@ async function getTokenOrThrow() {
 async function getCompanyId() {
   const cookieStore = await cookies();
 
-  return (
-    cookieStore.get("mappa_company_id")?.value ||
-    FALLBACK_COMPANY_ID
-  );
+  return cookieStore.get("mappa_company_id")?.value || FALLBACK_COMPANY_ID;
 }
 
 function parseApiError(status: number, text: string) {
@@ -167,6 +183,16 @@ function onlyDigits(value: unknown) {
   return digits || null;
 }
 
+function toNumberOrNull(value: unknown) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : null;
+}
+
 function splitName(name?: string | null) {
   const parts = String(name || "")
     .trim()
@@ -199,8 +225,36 @@ function extractCustomers(payload: any): ApiCustomer[] {
   return [];
 }
 
+function getMainAddress(item: ApiCustomer) {
+  if (item.mainAddress) {
+    return item.mainAddress;
+  }
+
+  if (Array.isArray(item.addresses)) {
+    return item.addresses.find((address) => address.isMain) || item.addresses[0] || null;
+  }
+
+  return null;
+}
+
+function getSecondaryAddress(item: ApiCustomer, mainAddress?: ApiAddress | null) {
+  if (!Array.isArray(item.addresses)) {
+    return null;
+  }
+
+  return (
+    item.addresses.find((address) => {
+      if (!mainAddress?.id) return !address.isMain;
+      return address.id !== mainAddress.id;
+    }) || null
+  );
+}
+
 function mapApiCustomerToClient(item: ApiCustomer, companyId: string) {
   const { firstName, lastName } = splitName(item.name);
+
+  const mainAddress = getMainAddress(item);
+  const secondaryAddress = getSecondaryAddress(item, mainAddress);
 
   return {
     id: item.id,
@@ -219,21 +273,24 @@ function mapApiCustomerToClient(item: ApiCustomer, companyId: string) {
     active: item.status !== "INACTIVE",
     status: item.status ?? "ACTIVE",
 
-    street: item.mainAddress?.street ?? null,
-    number: item.mainAddress?.number ?? null,
-    district: item.mainAddress?.neighborhood ?? null,
-    city: item.mainAddress?.city ?? null,
-    uf: item.mainAddress?.state ?? null,
-    cep: item.mainAddress?.zipCode ?? null,
+    // Endereço de cobrança, quando existir endereço secundário.
+    // Se não existir, deixamos vazio na visualização para não confundir com a piscina.
+    street: secondaryAddress?.street ?? null,
+    number: secondaryAddress?.number ?? null,
+    district: secondaryAddress?.neighborhood ?? null,
+    city: secondaryAddress?.city ?? null,
+    uf: secondaryAddress?.state ?? null,
+    cep: secondaryAddress?.zipCode ?? null,
 
-    poolStreet: item.mainAddress?.street ?? null,
-    poolNumber: item.mainAddress?.number ?? null,
-    poolDistrict: item.mainAddress?.neighborhood ?? null,
-    poolCity: item.mainAddress?.city ?? null,
-    poolUf: item.mainAddress?.state ?? null,
-    poolCep: item.mainAddress?.zipCode ?? null,
-    poolLat: item.mainAddress?.latitude ?? null,
-    poolLng: item.mainAddress?.longitude ?? null,
+    // Localização da piscina, sempre vinda do endereço principal.
+    poolStreet: mainAddress?.street ?? null,
+    poolNumber: mainAddress?.number ?? null,
+    poolDistrict: mainAddress?.neighborhood ?? null,
+    poolCity: mainAddress?.city ?? null,
+    poolUf: mainAddress?.state ?? null,
+    poolCep: mainAddress?.zipCode ?? null,
+    poolLat: mainAddress?.latitude ?? null,
+    poolLng: mainAddress?.longitude ?? null,
 
     notes: null,
     createdAt: new Date().toISOString(),
@@ -241,16 +298,121 @@ function mapApiCustomerToClient(item: ApiCustomer, companyId: string) {
   };
 }
 
-export async function listClients() {
+function buildPoolAddress(data: any): AddressPayload {
+  return {
+    street:
+      (clean(data.poolStreet) as string | null) ||
+      (clean(data.street) as string | null) ||
+      "Endereço da piscina não informado",
+
+    number:
+      (clean(data.poolNumber) as string | null) ||
+      (clean(data.number) as string | null),
+
+    complement: null,
+
+    neighborhood:
+      (clean(data.poolDistrict) as string | null) ||
+      (clean(data.district) as string | null),
+
+    city:
+      (clean(data.poolCity) as string | null) ||
+      (clean(data.city) as string | null) ||
+      "Cidade não informada",
+
+    state:
+      (clean(data.poolUf) as string | null) ||
+      (clean(data.uf) as string | null) ||
+      "SP",
+
+    zipCode: onlyDigits(data.poolCep) || onlyDigits(data.cep),
+
+    latitude: toNumberOrNull(data.poolLat),
+    longitude: toNumberOrNull(data.poolLng),
+  };
+}
+
+function buildBillingAddress(data: any): AddressPayload | null {
+  const hasBillingAddress =
+    clean(data.street) ||
+    clean(data.number) ||
+    clean(data.district) ||
+    clean(data.city) ||
+    clean(data.uf) ||
+    onlyDigits(data.cep);
+
+  if (!hasBillingAddress) {
+    return null;
+  }
+
+  return {
+    street: (clean(data.street) as string | null) || "Endereço de cobrança não informado",
+    number: clean(data.number) as string | null,
+    complement: null,
+    neighborhood: clean(data.district) as string | null,
+    city: (clean(data.city) as string | null) || "Cidade não informada",
+    state: (clean(data.uf) as string | null) || "SP",
+    zipCode: onlyDigits(data.cep),
+    latitude: null,
+    longitude: null,
+    isMain: false,
+  };
+}
+
+function normalizeAddressForCompare(address: AddressPayload | null) {
+  if (!address) return "";
+
+  return [
+    address.street,
+    address.number,
+    address.neighborhood,
+    address.city,
+    address.state,
+    address.zipCode,
+  ]
+    .map((value) => String(value || "").trim().toLowerCase())
+    .join("|");
+}
+
+function areSameAddress(a: AddressPayload | null, b: AddressPayload | null) {
+  return normalizeAddressForCompare(a) === normalizeAddressForCompare(b);
+}
+
+export async function listClients(opts?: {
+  search?: string;
+  status?: ClientStatus;
+}) {
   const companyId = await getCompanyId();
 
+  const params = new URLSearchParams();
+
+  if (opts?.search?.trim()) {
+    params.set("search", opts.search.trim());
+  }
+
+  if (opts?.status) {
+    params.set("status", opts.status);
+  }
+
+  const query = params.toString();
+
   const data = await mappaFetch<any>(
-    `/api/companies/${companyId}/customers`,
+    `/api/companies/${companyId}/customers${query ? `?${query}` : ""}`,
   );
 
   const customers = extractCustomers(data);
 
   return customers.map((item) => mapApiCustomerToClient(item, companyId));
+}
+
+export async function getClientById(customerId: string) {
+  const companyId = await getCompanyId();
+
+  const data = await mappaFetch<ApiCustomer>(
+    `/api/companies/${companyId}/customers/${customerId}`,
+  );
+
+  return mapApiCustomerToClient(data, companyId);
 }
 
 export async function createClient(data: any) {
@@ -268,14 +430,8 @@ export async function createClient(data: any) {
     throw new Error("Informe o email do cliente.");
   }
 
-  const street =
-    clean(data.poolStreet || data.street) || "Endereço não informado";
-
-  const city =
-    clean(data.poolCity || data.city) || "Cidade não informada";
-
-  const state =
-    clean(data.poolUf || data.uf) || "SP";
+  const poolAddress = buildPoolAddress(data);
+  const billingAddress = buildBillingAddress(data);
 
   const payload = {
     name,
@@ -283,27 +439,58 @@ export async function createClient(data: any) {
     password: "123456",
     phone: onlyDigits(data.phone),
     document: onlyDigits(data.cpf || data.cnpj),
+
+    // Endereço principal sempre é o endereço da piscina.
     address: {
-      street,
-      number: clean(data.poolNumber || data.number),
-      complement: null,
-      neighborhood: clean(data.poolDistrict || data.district),
-      city,
-      state,
-      zipCode: onlyDigits(data.poolCep || data.cep),
-      latitude: data.poolLat ? Number(data.poolLat) : null,
-      longitude: data.poolLng ? Number(data.poolLng) : null,
+      street: poolAddress.street,
+      number: poolAddress.number,
+      complement: poolAddress.complement,
+      neighborhood: poolAddress.neighborhood,
+      city: poolAddress.city,
+      state: poolAddress.state,
+      zipCode: poolAddress.zipCode,
+      latitude: poolAddress.latitude,
+      longitude: poolAddress.longitude,
     },
   };
 
-  const result = await mappaFetch(`/api/companies/${companyId}/customers`, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  const createdCustomer = await mappaFetch<ApiCustomer>(
+    `/api/companies/${companyId}/customers`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+
+  const shouldAddBillingAddress =
+    billingAddress &&
+    !areSameAddress(poolAddress, billingAddress) &&
+    createdCustomer?.id;
+
+  if (shouldAddBillingAddress) {
+    await mappaFetch(
+      `/api/companies/${companyId}/customers/${createdCustomer.id}/addresses`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          street: billingAddress.street,
+          number: billingAddress.number,
+          complement: billingAddress.complement,
+          neighborhood: billingAddress.neighborhood,
+          city: billingAddress.city,
+          state: billingAddress.state,
+          zipCode: billingAddress.zipCode,
+          latitude: billingAddress.latitude,
+          longitude: billingAddress.longitude,
+          isMain: false,
+        }),
+      },
+    );
+  }
 
   revalidatePath("/clients");
 
-  return result;
+  return createdCustomer;
 }
 
 export async function updateClient() {
