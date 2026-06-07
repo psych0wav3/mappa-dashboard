@@ -1,11 +1,9 @@
-//src/app/login/page.tsx
 "use client";
 
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { createClientBrowser } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -33,25 +31,52 @@ export default function LoginPage() {
     if (loading) return;
     setLoading(true);
 
-    const supabase = createClientBrowser();
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password: senha,
-    });
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: email.trim(),
+            password: senha,
+          }),
+        }
+      );
 
-    setLoading(false);
+      if (!response.ok) {
+        throw new Error("E-mail ou senha inválidos.");
+      }
 
-    if (error) {
-      toast.error("Falha no login", { description: error.message });
-      return;
+      const data = await response.json();
+
+      localStorage.setItem("mappa_access_token", data.accessToken);
+      localStorage.setItem("mappa_user", JSON.stringify(data.user));
+
+      document.cookie = `mappa_access_token=${data.accessToken}; path=/; max-age=86400; SameSite=Lax`;
+
+      if (data.user?.companies?.[0]?.companyId) {
+        localStorage.setItem(
+          "mappa_company_id",
+          data.user.companies[0].companyId
+        );
+      }
+
+      toast.success("Bem-vindo!", {
+        description: "Login realizado com sucesso.",
+      });
+
+      window.location.href = "/dashboard";
+    } catch (error) {
+      toast.error("Falha no login", {
+        description:
+          error instanceof Error ? error.message : "Não foi possível entrar.",
+      });
+    } finally {
+      setLoading(false);
     }
-
-    toast.success("Bem-vindo!", {
-      description: "Login realizado com sucesso.",
-    });
-
-    // 👉 Redireciona SEMPRE para o Quickstart
-    router.replace("/quickstart");
   }
 
   return (

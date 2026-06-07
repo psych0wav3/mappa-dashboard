@@ -4,7 +4,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { SidebarLink } from "./SidebarLink";
 import {
   LayoutDashboard,
-  Camera,
   Settings as SettingsIcon,
   ChevronLeft,
   ChevronRight,
@@ -16,17 +15,15 @@ import {
   LogOut,
   User as UserIcon,
   Cog,
-  ClipboardList, // ícone OS
+  ClipboardList,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState, useLayoutEffect } from "react";
-import { createClientBrowser } from "@/lib/supabase/client";
 
 const LS_KEY = "sidebar:collapsed";
 const WIDTH_EXPANDED = 280;
 const WIDTH_COLLAPSED = 80;
 
-/** Slot de texto que aparece somente quando var(--sidebar-w) > 80px */
 function LabelSlot({
   children,
   ready,
@@ -60,14 +57,17 @@ export default function AppSidebar({
 
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
+
     try {
       const raw = localStorage.getItem(LS_KEY);
       if (raw != null) return JSON.parse(raw);
     } catch {}
+
     const css = getComputedStyle(document.documentElement)
       .getPropertyValue("--sidebar-w")
       .trim()
       .replace("px", "");
+
     const w = parseInt(css || "280", 10);
     return w <= WIDTH_COLLAPSED;
   });
@@ -83,6 +83,7 @@ export default function AppSidebar({
         .getPropertyValue("--sidebar-w")
         .trim()
         .replace("px", "");
+
       const current = parseInt(currentCss || "0", 10);
 
       if (current !== target) {
@@ -91,30 +92,39 @@ export default function AppSidebar({
 
       dispatchSidebarWidth(target);
     } catch {}
+
     setReady(true);
-  }, []); // mount only
+  }, []);
 
   useEffect(() => {
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(collapsed));
     } catch {}
+
     const w = collapsed ? WIDTH_COLLAPSED : WIDTH_EXPANDED;
     dispatchSidebarWidth(w);
-    if (
-      typeof document !== "undefined" &&
-      window.matchMedia("(min-width: 1024px)").matches
-    ) {
-      const currentCss = getComputedStyle(document.documentElement)
-        .getPropertyValue("--sidebar-w")
-        .trim()
-        .replace("px", "");
-      const current = parseInt(currentCss || "0", 10);
-      if (current !== w) {
-        document.documentElement.style.setProperty("--sidebar-w", w + "px");
-      }
-    }
+
     try {
-      document.cookie = `sb-collapsed=${collapsed ? "1" : "0"}; Path=/; Max-Age=31536000; SameSite=Lax`;
+      const isDesk = window.matchMedia("(min-width: 1024px)").matches;
+
+      if (typeof document !== "undefined" && isDesk) {
+        const currentCss = getComputedStyle(document.documentElement)
+          .getPropertyValue("--sidebar-w")
+          .trim()
+          .replace("px", "");
+
+        const current = parseInt(currentCss || "0", 10);
+
+        if (current !== w) {
+          document.documentElement.style.setProperty("--sidebar-w", w + "px");
+        }
+      }
+    } catch {}
+
+    try {
+      document.cookie = `sb-collapsed=${
+        collapsed ? "1" : "0"
+      }; Path=/; Max-Age=31536000; SameSite=Lax`;
     } catch {}
   }, [collapsed]);
 
@@ -125,7 +135,6 @@ export default function AppSidebar({
 
   return (
     <>
-      {/* Overlay mobile */}
       <div
         className={`fixed inset-0 z-[100] bg-black/40 lg:hidden transition-opacity ${
           open ? "opacity-100" : "opacity-0 pointer-events-none"
@@ -134,7 +143,6 @@ export default function AppSidebar({
         aria-hidden="true"
       />
 
-      {/* Drawer mobile */}
       <aside
         className={`fixed inset-y-0 left-0 z-[110] w-[80vw] max-w-[320px] text-white shadow-xl lg:hidden
           transition-transform ${open ? "translate-x-0" : "-translate-x-full"}`}
@@ -153,7 +161,6 @@ export default function AppSidebar({
         />
       </aside>
 
-      {/* Sidebar desktop */}
       <aside
         className={`fixed inset-y-0 left-0 z-[80] hidden lg:flex lg:flex-col text-white shadow-lg ${
           ready ? "transition-all duration-300" : ""
@@ -163,7 +170,6 @@ export default function AppSidebar({
       >
         <SidebarContent pathname={pathname} collapsed={collapsed} ready={ready} />
 
-        {/* Toggle */}
         <button
           className="absolute -right-3 top-[72px] grid h-8 w-8 place-items-center rounded-full bg-white shadow-md"
           onClick={() => setCollapsed((v) => !v)}
@@ -201,54 +207,60 @@ function SidebarContent({
     { href: "/clients", label: "Clientes", icon: UserRound },
   ] as const;
 
-  // 🔹 Buscar plano do Supabase (user_metadata.plan)
   const [planLabel, setPlanLabel] = useState<string | null>(null);
 
   useEffect(() => {
-    const supabase = createClientBrowser();
-    supabase.auth
-      .getUser()
-      .then(({ data }) => {
-        const meta = (data.user?.user_metadata || {}) as {
-          plan?: string;
-        };
-        if (!meta.plan) return;
+    try {
+      const raw = localStorage.getItem("mappa_user");
+      if (!raw) return;
 
-        const planKey = meta.plan.toLowerCase();
-        const map: Record<string, string> = {
-          starter: "Starter",
-          pro: "Pro",
-          business: "Business",
-          enterprise: "Enterprise",
-        };
-        setPlanLabel(map[planKey] ?? meta.plan);
-      })
-      .catch(() => {});
+      const user = JSON.parse(raw);
+
+      const role =
+        user?.roles?.[0]?.role ||
+        user?.roles?.[0] ||
+        user?.companies?.[0]?.role ||
+        user?.companyRoles?.[0]?.role ||
+        user?.role ||
+        "COMPANY_ADMIN";
+
+      const map: Record<string, string> = {
+        SUPER_ADMIN: "Super Admin",
+        COMPANY_ADMIN: "Admin",
+        EMPLOYEE: "Funcionário",
+        CUSTOMER: "Cliente",
+      };
+
+      setPlanLabel(map[role] ?? role);
+    } catch {
+      setPlanLabel(null);
+    }
   }, []);
 
-  // --- OS (Workorders) section state ---
   const isWorkordersSection = pathname.startsWith("/workorders");
-  const [workordersOpen, setWorkordersOpen] = useState<boolean>(isWorkordersSection);
+  const [workordersOpen, setWorkordersOpen] =
+    useState<boolean>(isWorkordersSection);
+
   useEffect(() => {
     if (isWorkordersSection) setWorkordersOpen(true);
   }, [isWorkordersSection]);
 
-  // --- Rotas section state ---
   const isRoutesSection = pathname.startsWith("/routes");
   const [routesOpen, setRoutesOpen] = useState<boolean>(isRoutesSection);
+
   useEffect(() => {
     if (isRoutesSection) setRoutesOpen(true);
   }, [isRoutesSection]);
 
-  // --- Configurações ---
   const isSettingsSection =
     pathname.startsWith("/settings") || pathname.startsWith("/account");
+
   const [settingsOpen, setSettingsOpen] = useState<boolean>(isSettingsSection);
+
   useEffect(() => {
     if (isSettingsSection) setSettingsOpen(true);
   }, [isSettingsSection]);
 
-  // Itens de Rotas (mantidos)
   const routeItems = useMemo(
     () => [
       { href: "/routes/builder", label: "Criar rota" },
@@ -257,7 +269,6 @@ function SidebarContent({
     []
   );
 
-  // Itens de OS
   const workorderItems = useMemo(
     () => [
       { href: "/workorders", label: "Dashboard da OS" },
@@ -270,7 +281,8 @@ function SidebarContent({
     const active = pathname === href || pathname.startsWith(href + "/");
 
     if (onNavigate) {
-      const IconCmp = icon as LucideIcon;
+      const IconCmp = icon;
+
       return (
         <button
           key={href}
@@ -283,8 +295,12 @@ function SidebarContent({
             active ? "bg-white/20 text-white" : "text-white hover:bg-white/10"
           }`}
         >
-          <div className={`flex items-center gap-3 ${collapsed ? "justify-center" : ""}`}>
-            {IconCmp ? <IconCmp size={18} aria-hidden className="shrink-0" /> : null}
+          <div
+            className={`flex items-center gap-3 ${
+              collapsed ? "justify-center" : ""
+            }`}
+          >
+            <IconCmp size={18} aria-hidden className="shrink-0" />
             <LabelSlot ready={ready}>{label}</LabelSlot>
           </div>
         </button>
@@ -306,16 +322,23 @@ function SidebarContent({
 
   async function handleSignOut() {
     try {
-      const supabase = createClientBrowser();
-      await supabase.auth.signOut();
+      localStorage.removeItem("mappa_access_token");
+      localStorage.removeItem("mappa_user");
+      localStorage.removeItem("mappa_company_id");
+
+      document.cookie =
+        "mappa_access_token=; path=/; max-age=0; SameSite=Lax";
+
       router.push("/login");
+      router.refresh();
       onNavigate?.();
-    } catch {}
+    } catch {
+      router.push("/login");
+    }
   }
 
   return (
     <div className="flex h-full flex-col">
-      {/* Brand */}
       <div
         className={`flex items-center gap-3 px-4 h-[64px] border-b border-white/20 ${
           collapsed ? "justify-center" : ""
@@ -327,16 +350,14 @@ function SidebarContent({
         >
           A
         </div>
+
         <LabelSlot ready={ready}>
           <span className="font-semibold text-white text-lg">Aqua Mappa</span>
         </LabelSlot>
       </div>
 
-      {/* Badge do plano */}
       {planLabel && (
-        <div
-          className={`px-4 pt-2 ${collapsed ? "flex justify-center" : ""}`}
-        >
+        <div className={`px-4 pt-2 ${collapsed ? "flex justify-center" : ""}`}>
           <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-3 py-1 text-[0.7rem] font-medium text-emerald-100">
             <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_3px_rgba(16,185,129,0.4)]" />
             {collapsed ? (
@@ -348,11 +369,9 @@ function SidebarContent({
         </div>
       )}
 
-      {/* Links principais */}
       <nav className="flex-1 p-2 space-y-1">
-        {links.map((l) => renderLink(l.href, l.label, l.icon))}
+        {links.map((link) => renderLink(link.href, link.label, link.icon))}
 
-        {/* Grupo: Rotas */}
         <div className="mt-2">
           <button
             type="button"
@@ -361,11 +380,13 @@ function SidebarContent({
                 router.push("/routes/dashboard");
                 onNavigate?.();
               } else {
-                setRoutesOpen((v) => !v);
+                setRoutesOpen((value) => !value);
               }
             }}
             className={`w-full flex items-center ${
-              collapsed ? "justify-center px-2 gap-0" : "justify-between px-3 gap-3"
+              collapsed
+                ? "justify-center px-2 gap-0"
+                : "justify-between px-3 gap-3"
             } py-2 rounded-md transition-colors ${
               pathname.startsWith("/routes")
                 ? "bg-white/20 text-white"
@@ -374,7 +395,9 @@ function SidebarContent({
             aria-expanded={routesOpen}
             aria-controls="routes-submenu"
           >
-            <div className={`flex items-center ${collapsed ? "gap-0" : "gap-3"}`}>
+            <div
+              className={`flex items-center ${collapsed ? "gap-0" : "gap-3"}`}
+            >
               <RouteIcon size={18} aria-hidden className="shrink-0" />
               <LabelSlot ready={ready}>Rotas</LabelSlot>
             </div>
@@ -388,7 +411,9 @@ function SidebarContent({
             >
               <ChevronDown
                 size={16}
-                className={`transition-transform ${routesOpen ? "rotate-180" : ""}`}
+                className={`transition-transform ${
+                  routesOpen ? "rotate-180" : ""
+                }`}
                 aria-hidden="true"
               />
             </div>
@@ -401,24 +426,31 @@ function SidebarContent({
             style={{
               maxHeight: routesOpen ? 800 : 0,
               overflow: "hidden",
-              transition: ready ? "max-height 300ms ease, opacity 300ms ease" : "none",
+              transition: ready
+                ? "max-height 300ms ease, opacity 300ms ease"
+                : "none",
               opacity: "calc((var(--sidebar-w) - 80px) / 200)",
               pointerEvents: routesOpen && !collapsed ? "auto" : "none",
             }}
           >
             {collapsed ? (
               <div className="flex flex-col items-center gap-2 py-1">
-                {routeItems.map((it) => {
+                {routeItems.map((item) => {
                   const active =
-                    pathname === it.href || pathname.startsWith(it.href + "/");
-                  const initial = it.label.trim().charAt(0).toUpperCase();
+                    pathname === item.href ||
+                    pathname.startsWith(item.href + "/");
+
+                  const initial = item.label.trim().charAt(0).toUpperCase();
+
                   return (
                     <a
-                      key={it.href}
-                      href={it.href}
+                      key={item.href}
+                      href={item.href}
                       className={[
                         "grid h-7 w-7 place-items-center rounded-md text-xs font-semibold",
-                        active ? "bg-white/30 text-white" : "bg-white/20 text-white",
+                        active
+                          ? "bg-white/30 text-white"
+                          : "bg-white/20 text-white",
                       ].join(" ")}
                       aria-current={active ? "page" : undefined}
                     >
@@ -429,18 +461,20 @@ function SidebarContent({
               </div>
             ) : (
               <div className="space-y-1" role="menu">
-                {routeItems.map((it) => {
+                {routeItems.map((item) => {
                   const active =
-                    pathname === it.href || pathname.startsWith(it.href + "/");
+                    pathname === item.href ||
+                    pathname.startsWith(item.href + "/");
+
                   return (
                     <SidebarLink
-                      key={it.href}
-                      href={it.href}
+                      key={item.href}
+                      href={item.href}
                       active={active}
                       collapsed={false}
                       className="ml-8 text-sm"
                     >
-                      {it.label}
+                      {item.label}
                     </SidebarLink>
                   );
                 })}
@@ -449,7 +483,6 @@ function SidebarContent({
           </div>
         </div>
 
-        {/* Grupo: Ordem de Serviço */}
         <div className="mt-2">
           <button
             type="button"
@@ -458,11 +491,13 @@ function SidebarContent({
                 router.push("/workorders");
                 onNavigate?.();
               } else {
-                setWorkordersOpen((v) => !v);
+                setWorkordersOpen((value) => !value);
               }
             }}
             className={`w-full flex items-center ${
-              collapsed ? "justify-center px-2 gap-0" : "justify-between px-3 gap-3"
+              collapsed
+                ? "justify-center px-2 gap-0"
+                : "justify-between px-3 gap-3"
             } py-2 rounded-md transition-colors ${
               pathname.startsWith("/workorders")
                 ? "bg-white/20 text-white"
@@ -471,7 +506,9 @@ function SidebarContent({
             aria-expanded={workordersOpen}
             aria-controls="workorders-submenu"
           >
-            <div className={`flex items-center ${collapsed ? "gap-0" : "gap-3"}`}>
+            <div
+              className={`flex items-center ${collapsed ? "gap-0" : "gap-3"}`}
+            >
               <ClipboardList size={18} aria-hidden className="shrink-0" />
               <LabelSlot ready={ready}>Ordem de Serviço</LabelSlot>
             </div>
@@ -485,7 +522,9 @@ function SidebarContent({
             >
               <ChevronDown
                 size={16}
-                className={`transition-transform ${workordersOpen ? "rotate-180" : ""}`}
+                className={`transition-transform ${
+                  workordersOpen ? "rotate-180" : ""
+                }`}
                 aria-hidden="true"
               />
             </div>
@@ -498,24 +537,31 @@ function SidebarContent({
             style={{
               maxHeight: workordersOpen ? 800 : 0,
               overflow: "hidden",
-              transition: ready ? "max-height 300ms ease, opacity 300ms ease" : "none",
+              transition: ready
+                ? "max-height 300ms ease, opacity 300ms ease"
+                : "none",
               opacity: "calc((var(--sidebar-w) - 80px) / 200)",
               pointerEvents: workordersOpen && !collapsed ? "auto" : "none",
             }}
           >
             {collapsed ? (
               <div className="flex flex-col items-center gap-2 py-1">
-                {workorderItems.map((it) => {
+                {workorderItems.map((item) => {
                   const active =
-                    pathname === it.href || pathname.startsWith(it.href + "/");
-                  const initial = it.label.trim().charAt(0).toUpperCase();
+                    pathname === item.href ||
+                    pathname.startsWith(item.href + "/");
+
+                  const initial = item.label.trim().charAt(0).toUpperCase();
+
                   return (
                     <a
-                      key={it.href}
-                      href={it.href}
+                      key={item.href}
+                      href={item.href}
                       className={[
                         "grid h-7 w-7 place-items-center rounded-md text-xs font-semibold",
-                        active ? "bg-white/30 text-white" : "bg-white/20 text-white",
+                        active
+                          ? "bg-white/30 text-white"
+                          : "bg-white/20 text-white",
                       ].join(" ")}
                       aria-current={active ? "page" : undefined}
                     >
@@ -526,18 +572,20 @@ function SidebarContent({
               </div>
             ) : (
               <div className="space-y-1" role="menu">
-                {workorderItems.map((it) => {
+                {workorderItems.map((item) => {
                   const active =
-                    pathname === it.href || pathname.startsWith(it.href + "/");
+                    pathname === item.href ||
+                    pathname.startsWith(item.href + "/");
+
                   return (
                     <SidebarLink
-                      key={it.href}
-                      href={it.href}
+                      key={item.href}
+                      href={item.href}
                       active={active}
                       collapsed={false}
                       className="ml-8 text-sm"
                     >
-                      {it.label}
+                      {item.label}
                     </SidebarLink>
                   );
                 })}
@@ -546,7 +594,6 @@ function SidebarContent({
           </div>
         </div>
 
-        {/* Grupo: Configurações */}
         <div className="mt-2">
           <button
             type="button"
@@ -555,11 +602,13 @@ function SidebarContent({
                 onNavigate?.();
                 router.push("/settings");
               } else {
-                setSettingsOpen((v) => !v);
+                setSettingsOpen((value) => !value);
               }
             }}
             className={`w-full flex items-center ${
-              collapsed ? "justify-center px-2 gap-0" : "justify-between px-3 gap-3"
+              collapsed
+                ? "justify-center px-2 gap-0"
+                : "justify-between px-3 gap-3"
             } py-2 rounded-md transition-colors ${
               pathname.startsWith("/settings") || pathname.startsWith("/account")
                 ? "bg-white/20 text-white"
@@ -568,7 +617,9 @@ function SidebarContent({
             aria-expanded={settingsOpen}
             aria-controls="settings-submenu"
           >
-            <div className={`flex items-center ${collapsed ? "gap-0" : "gap-3"}`}>
+            <div
+              className={`flex items-center ${collapsed ? "gap-0" : "gap-3"}`}
+            >
               <SettingsIcon size={18} aria-hidden className="shrink-0" />
               <LabelSlot ready={ready}>Configurações</LabelSlot>
             </div>
@@ -582,7 +633,9 @@ function SidebarContent({
             >
               <ChevronDown
                 size={16}
-                className={`transition-transform ${settingsOpen ? "rotate-180" : ""}`}
+                className={`transition-transform ${
+                  settingsOpen ? "rotate-180" : ""
+                }`}
                 aria-hidden="true"
               />
             </div>
@@ -595,7 +648,9 @@ function SidebarContent({
             style={{
               maxHeight: settingsOpen ? 300 : 0,
               overflow: "hidden",
-              transition: ready ? "max-height 300ms ease, opacity 300ms ease" : "none",
+              transition: ready
+                ? "max-height 300ms ease, opacity 300ms ease"
+                : "none",
               opacity: "calc((var(--sidebar-w) - 80px) / 200)",
               pointerEvents: settingsOpen && !collapsed ? "auto" : "none",
             }}
@@ -611,6 +666,7 @@ function SidebarContent({
                 >
                   Meu perfil
                 </SidebarLink>
+
                 <SidebarLink
                   href="/settings"
                   active={pathname.startsWith("/settings")}
@@ -634,13 +690,14 @@ function SidebarContent({
         </div>
       </nav>
 
-      {/* Footer */}
       <div
         className={`p-4 border-t border-white/20 text-xs text-white/80 ${
           collapsed ? "text-center" : ""
         }`}
       >
-        <span suppressHydrationWarning>© {new Date().getFullYear()} Aqua Mappa</span>
+        <span suppressHydrationWarning>
+          © {new Date().getFullYear()} Aqua Mappa
+        </span>
       </div>
     </div>
   );

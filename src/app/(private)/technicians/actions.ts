@@ -1,194 +1,202 @@
-// src/app/(private)/technicians/actions.ts
 "use server";
 
-import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import type { Prisma, TechnicianRole } from "@prisma/client";
-import { createClientServer } from "@/lib/supabase/server";
 
-// helpers
-const onlyDigits = (s?: string | null) => (s ? s.replace(/\D+/g, "") : null);
-const toNull = (s?: string | null) => {
-  if (s === undefined || s === null) return null;
-  const t = String(s).trim();
-  return t.length ? t : null;
+const API_URL = process.env.API_URL ?? "http://localhost:5264";
+
+const COMPANY_ID =
+  process.env.COMPANY_ID ?? "00000000-0000-0000-0000-000000000001";
+
+const API_ADMIN_EMAIL = process.env.API_ADMIN_EMAIL;
+const API_ADMIN_PASSWORD = process.env.API_ADMIN_PASSWORD;
+
+type ApiEmployee = {
+  id: string;
+  name?: string | null;
+  email: string;
+  phone?: string | null;
+  status?: "ACTIVE" | "INACTIVE" | string;
 };
 
-// 🔐 Puxa a companyId da empresa vinculada ao usuário logado
-async function getCurrentCompanyIdOrThrow() {
-  const supabase = await createClientServer();
-  const { data, error } = await supabase.auth.getUser();
-
-  if (error || !data?.user) {
-    throw new Error("Usuário não autenticado.");
-  }
-
-  const userId = data.user.id;
-
-  const companyUser = await prisma.companyUser.findFirst({
-    where: { userId },
-    select: { companyId: true },
-  });
-
-  if (!companyUser) {
-    throw new Error("Usuário não está vinculado a nenhuma empresa.");
-  }
-
-  return companyUser.companyId;
-}
-
-// garante que o técnico pertence à empresa atual
-async function ensureTechBelongsToCompany(id: string, companyId: string) {
-  const existing = await prisma.technician.findUnique({
-    where: { id },
-    select: { id: true, companyId: true },
-  });
-
-  if (!existing || existing.companyId !== companyId) {
-    throw new Error("Técnico não encontrado para esta empresa.");
-  }
-}
-
-// -----------------------------------------------------
-// CREATE
-// -----------------------------------------------------
-export async function createTechnician(data: {
+type Tech = {
+  id: string;
   firstName: string;
   lastName: string;
   email: string;
-  phone?: string;
-  cpf?: string;
-  role: "TECH" | "OWNER";
-}) {
-  const companyId = await getCurrentCompanyIdOrThrow();
+  phone?: string | null;
+  cpf?: string | null;
+  active: boolean;
+  role: "OWNER" | "TECH";
+};
 
-  const phone = toNull(data.phone);
-  const cpf = toNull(data.cpf);
+type ApiError = {
+  errors?: Array<{
+    statusCode?: number;
+    message?: string;
+    code?: string;
+  }>;
+};
 
-  const tech = await prisma.technician.create({
-    data: {
-      firstName: data.firstName.trim(),
-      lastName: data.lastName.trim(),
-      email: data.email.trim(),
-      phone,
-      phoneDigits: onlyDigits(phone),
-      cpf,
-      role: data.role as TechnicianRole,
-      companyId, // 👈 amarra o técnico à empresa
+async function getApiToken() {
+  if (!API_ADMIN_EMAIL || !API_ADMIN_PASSWORD) {
+    throw new Error(
+      "Configure API_ADMIN_EMAIL e API_ADMIN_PASSWORD no .env.local.",
+    );
+  }
+
+  const response = await fetch(`${API_URL}/api/auth/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
     },
+    body: JSON.stringify({
+      email: API_ADMIN_EMAIL,
+      password: API_ADMIN_PASSWORD,
+    }),
+    cache: "no-store",
   });
 
-  revalidatePath("/technicians");
-  return tech;
-}
+  const text = await response.text();
 
-// -----------------------------------------------------
-// UPDATE
-// -----------------------------------------------------
-export async function updateTechnician(
-  id: string,
-  data: Partial<{
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
-    cpf: string;
-    role: "TECH" | "OWNER";
-    active: boolean;
-  }>,
-) {
-  const companyId = await getCurrentCompanyIdOrThrow();
-  await ensureTechBelongsToCompany(id, companyId);
-
-  const patch: Prisma.TechnicianUpdateInput = {};
-
-  if (data.firstName !== undefined) patch.firstName = data.firstName.trim();
-  if (data.lastName !== undefined) patch.lastName = data.lastName.trim();
-  if (data.email !== undefined) patch.email = data.email.trim();
-
-  if (data.phone !== undefined) {
-    const phone = toNull(data.phone);
-    patch.phone = phone;
-    patch.phoneDigits = onlyDigits(phone);
+  if (!response.ok) {
+    throw new Error(`Erro ao fazer login na API: ${response.status} ${text}`);
   }
 
-  if (data.cpf !== undefined) {
-    const cpf = toNull(data.cpf);
-    patch.cpf = cpf;
+  const json = JSON.parse(text);
+
+  if (!json.accessToken) {
+    throw new Error("A API não retornou accessToken.");
   }
 
-  if (data.role !== undefined) {
-    patch.role = data.role as TechnicianRole;
+  return json.accessToken as string;
+}
+
+function parseApiError(status: number, text: string) {
+  try {
+    const json = JSON.parse(text) as ApiError;
+    const message = json.errors?.[0]?.message;
+
+    if (message) {
+      return `Erro ${status}: ${message}`;
+    }
+
+    return `Erro ${status}: ${text}`;
+  } catch {
+    return `Erro ${status}: ${text}`;
   }
-
-  if (typeof data.active === "boolean") {
-    patch.active = data.active;
-  }
-
-  const tech = await prisma.technician.update({
-    where: { id },
-    data: patch,
-  });
-
-  revalidatePath("/technicians");
-  return tech;
 }
 
-// -----------------------------------------------------
-// TOGGLE ACTIVE
-// -----------------------------------------------------
-export async function toggleTechnicianActive(id: string, makeActive: boolean) {
-  const companyId = await getCurrentCompanyIdOrThrow();
-  await ensureTechBelongsToCompany(id, companyId);
+function splitName(name?: string | null) {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
 
-  const tech = await prisma.technician.update({
-    where: { id },
-    data: { active: makeActive },
-  });
-
-  revalidatePath("/technicians");
-  return tech;
-}
-
-// -----------------------------------------------------
-// DELETE
-// -----------------------------------------------------
-export async function deleteTechnician(id: string) {
-  const companyId = await getCurrentCompanyIdOrThrow();
-  await ensureTechBelongsToCompany(id, companyId);
-
-  const tech = await prisma.technician.delete({ where: { id } });
-  revalidatePath("/technicians");
-  return tech;
-}
-
-// -----------------------------------------------------
-// LIST
-// -----------------------------------------------------
-export async function listTechnicians(opts?: { q?: string; active?: boolean }) {
-  const companyId = await getCurrentCompanyIdOrThrow();
-
-  const where: Prisma.TechnicianWhereInput = {
-    companyId, // 👈 sempre filtra pela empresa atual
+  return {
+    firstName: parts[0] ?? "",
+    lastName: parts.slice(1).join(" "),
   };
+}
 
-  if (typeof opts?.active === "boolean") where.active = opts.active;
+function normalizeEmployee(employee: ApiEmployee): Tech {
+  const { firstName, lastName } = splitName(employee.name);
 
-  if (opts?.q) {
-    const q = opts.q.trim();
-    const qDigits = onlyDigits(q) ?? undefined;
-    where.OR = [
-      { firstName: { contains: q, mode: "insensitive" } },
-      { lastName: { contains: q, mode: "insensitive" } },
-      { email: { contains: q, mode: "insensitive" } },
-      ...(qDigits
-        ? [{ phoneDigits: { contains: qDigits } } as Prisma.TechnicianWhereInput]
-        : []),
-    ];
+  return {
+    id: employee.id,
+    firstName,
+    lastName,
+    email: employee.email,
+    phone: employee.phone ?? null,
+    cpf: null,
+    active: employee.status !== "INACTIVE",
+    role: "TECH",
+  };
+}
+
+function extractEmployees(payload: any): ApiEmployee[] {
+  if (Array.isArray(payload)) {
+    return payload;
   }
 
-  return prisma.technician.findMany({
-    where,
-    orderBy: [{ active: "desc" }, { firstName: "asc" }],
-  });
+  if (Array.isArray(payload?.items)) {
+    return payload.items;
+  }
+
+  if (Array.isArray(payload?.employees)) {
+    return payload.employees;
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  return [];
+}
+
+export async function createTechnician(data: {
+  name: string;
+  email: string;
+  password: string;
+  phone?: string;
+}) {
+  const token = await getApiToken();
+
+  const response = await fetch(
+    `${API_URL}/api/companies/${COMPANY_ID}/employees`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        name: data.name.trim(),
+        email: data.email.trim(),
+        password: data.password.trim(),
+        phone: data.phone?.trim() || "",
+      }),
+      cache: "no-store",
+    },
+  );
+
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(parseApiError(response.status, text));
+  }
+
+  revalidatePath("/technicians");
+
+  return text ? JSON.parse(text) : true;
+}
+
+export async function listTechnicians(): Promise<Tech[]> {
+  const token = await getApiToken();
+
+  const response = await fetch(
+    `${API_URL}/api/companies/${COMPANY_ID}/employees`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      cache: "no-store",
+    },
+  );
+
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(parseApiError(response.status, text));
+  }
+
+  const json = text ? JSON.parse(text) : [];
+  const employees = extractEmployees(json);
+
+  return employees.map(normalizeEmployee);
+}
+
+export async function updateTechnician() {
+  throw new Error("Edição de técnico ainda não está conectada à API.");
+}
+
+export async function deleteTechnician() {
+  throw new Error("Exclusão de técnico ainda não está conectada à API.");
 }

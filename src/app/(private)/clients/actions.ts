@@ -1,249 +1,192 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@prisma/client";
-import { createClientServer } from "@/lib/supabase/server";
 
-/// =========================
-/// Helpers multi-tenant
-/// =========================
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5264";
+const FALLBACK_COMPANY_ID =
+  process.env.NEXT_PUBLIC_COMPANY_ID ||
+  "00000000-0000-0000-0000-000000000001";
 
-/**
- * Retorna o companyId da empresa atual do usuário logado
- * (mesma lógica usada em technicians/actions.ts)
- */
-async function getCurrentCompanyIdOrThrow() {
-  const supabase = await createClientServer();
-  const { data, error } = await supabase.auth.getUser();
+async function getTokenOrThrow() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("mappa_access_token")?.value;
 
-  if (error || !data?.user) {
-    throw new Error("Usuário não autenticado.");
+  if (!token) {
+    throw new Error("Usuário não autenticado. Faça login novamente.");
   }
 
-  const userId = data.user.id;
-
-  const companyUser = await prisma.companyUser.findFirst({
-    where: { userId },
-    select: { companyId: true },
-  });
-
-  if (!companyUser) {
-    throw new Error("Usuário não está vinculado a nenhuma empresa.");
-  }
-
-  return companyUser.companyId;
+  return token;
 }
 
-/**
- * Garante que o cliente pertence à empresa atual
- */
-async function ensureClientBelongsToCompany(id: string, companyId: string) {
-  const existing = await prisma.client.findUnique({
-    where: { id },
-    select: { id: true, companyId: true },
-  });
-
-  if (!existing || existing.companyId !== companyId) {
-    throw new Error("Cliente não encontrado para esta empresa.");
-  }
+async function getCompanyId() {
+  const cookieStore = await cookies();
+  return cookieStore.get("mappa_company_id")?.value || FALLBACK_COMPANY_ID;
 }
 
-/// =========================
-/// Sanitização de Inputs
-/// =========================
+async function mappaFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = await getTokenOrThrow();
 
-const CLIENT_FIELDS = new Set([
-  "firstName",
-  "lastName",
-  "email",
-  "phone",
-  "cpf",
-  "companyName",
-  "cnpj",
-  "street",
-  "number",
-  "district",
-  "city",
-  "uf",
-  "cep",
-  "notes",
-  "poolStreet",
-  "poolNumber",
-  "poolDistrict",
-  "poolCity",
-  "poolUf",
-  "poolCep",
-  "poolLat",
-  "poolLng",
-  "poolSize",
-  "cleaningFrequency",
-  "cleaningWindow",
-  "payDay",
-  "active",
-]);
-
-function sanitizeClientInput(input: any) {
-  const out: Record<string, any> = {};
-
-  for (const k of Object.keys(input || {})) {
-    if (!CLIENT_FIELDS.has(k)) continue;
-    let v = input[k];
-
-    if (v === "") v = null;
-
-    if ((k === "poolLat" || k === "poolLng") && v != null) {
-      const num = typeof v === "string" ? Number(v.trim()) : Number(v);
-      v = Number.isFinite(num) ? num : null;
-    }
-
-    out[k] = v;
-  }
-
-  if (out.uf && typeof out.uf === "string") out.uf = out.uf.toUpperCase();
-  if (out.poolUf && typeof out.poolUf === "string") {
-    out.poolUf = out.poolUf.toUpperCase();
-  }
-
-  return out;
-}
-
-/// =========================
-/// Ações — CRUD
-/// =========================
-
-// 🔎 LISTAR clientes da empresa atual
-export async function listClients() {
-  const companyId = await getCurrentCompanyIdOrThrow();
-
-  return prisma.client.findMany({
-    where: { companyId },
-    orderBy: { createdAt: "desc" },
-  });
-}
-
-// ➕ CRIAR cliente
-export async function createClient(data: any) {
-  const companyId = await getCurrentCompanyIdOrThrow();
-
-  // 💳 (regra de assinatura DESLIGADA por enquanto em dev)
-  /*
-  const supabase = await createClientServer();
-  const { data: auth } = await supabase.auth.getUser();
-  const userId = auth?.user?.id;
-  if (!userId) throw new Error("Usuário não autenticado.");
-
-  const subscription = await getActiveSubscriptionForUser(userId);
-  if (!subscription) throw new Error("Sua assinatura não está ativa.");
-  const totalClients = await getTotalClientsForUser(userId);
-  if (totalClients >= subscription.maxClients) {
-    throw new Error(`Limite do plano atingido.`);
-  }
-  */
-
-  // unicidade global (mantida)
-  if (data.email) {
-    const exists = await prisma.client.findUnique({
-      where: { email: data.email },
-    });
-    if (exists) throw new Error("Email já cadastrado.");
-  }
-
-  if (data.phone) {
-    const exists = await prisma.client.findUnique({
-      where: { phone: data.phone },
-    });
-    if (exists) throw new Error("Telefone já cadastrado.");
-  }
-
-  if (data.cpf) {
-    const exists = await prisma.client.findUnique({
-      where: { cpf: data.cpf },
-    });
-    if (exists) throw new Error("CPF já cadastrado.");
-  }
-
-  if (data.cnpj) {
-    const exists = await prisma.client.findFirst({
-      where: { cnpj: data.cnpj } as any,
-    });
-    if (exists) throw new Error("CNPJ já cadastrado.");
-  }
-
-  const payload = sanitizeClientInput(data);
-
-  await prisma.client.create({
-    data: {
-      ...(payload as Prisma.ClientUncheckedCreateInput),
-      companyId, // 👈 amarra o cliente à empresa atual
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      ...(options?.headers || {}),
     },
   });
 
-  revalidatePath("/clients");
+  if (!response.ok) {
+    let message = `Erro na API: ${response.status}`;
+
+    try {
+      const error = await response.json();
+
+      if (response.status === 403) {
+        message =
+          "Acesso negado. Entre com o usuário admin@piscinasazul.com para acessar clientes.";
+      } else {
+        message =
+          error?.detail ||
+          error?.title ||
+          error?.message ||
+          error?.errors?.[0]?.message ||
+          JSON.stringify(error);
+      }
+    } catch {
+      if (response.status === 403) {
+        message =
+          "Acesso negado. Entre com o usuário admin@piscinasazul.com para acessar clientes.";
+      }
+    }
+
+    throw new Error(message);
+  }
+
+  if (response.status === 204) {
+    return null as T;
+  }
+
+  return response.json();
 }
 
-// ✏️ ATUALIZAR cliente
-export async function updateClient(id: string, data: any) {
-  const companyId = await getCurrentCompanyIdOrThrow();
-  await ensureClientBelongsToCompany(id, companyId);
+function clean(value: unknown) {
+  if (typeof value !== "string") return value ?? null;
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}
 
-  if (data.email) {
-    const c = await prisma.client.findUnique({ where: { email: data.email } });
-    if (c && c.id !== id) throw new Error("Email já cadastrado.");
+function onlyDigits(value: unknown) {
+  if (typeof value !== "string") return null;
+  const digits = value.replace(/\D+/g, "");
+  return digits || null;
+}
+
+function mapApiCustomerToClient(item: any, companyId: string) {
+  const [firstName, ...rest] = String(item.name || "").split(" ");
+
+  return {
+    id: item.id,
+    userId: item.userId,
+    companyId: item.companyId ?? companyId,
+
+    firstName: firstName || item.name || "",
+    lastName: rest.join(" "),
+
+    email: item.email,
+    phone: item.phone,
+    cpf: item.document,
+    cnpj: null,
+    companyName: null,
+
+    active: item.status === "ACTIVE",
+    status: item.status,
+
+    street: item.mainAddress?.street ?? null,
+    number: item.mainAddress?.number ?? null,
+    district: item.mainAddress?.neighborhood ?? null,
+    city: item.mainAddress?.city ?? null,
+    uf: item.mainAddress?.state ?? null,
+    cep: item.mainAddress?.zipCode ?? null,
+
+    poolStreet: item.mainAddress?.street ?? null,
+    poolNumber: item.mainAddress?.number ?? null,
+    poolDistrict: item.mainAddress?.neighborhood ?? null,
+    poolCity: item.mainAddress?.city ?? null,
+    poolUf: item.mainAddress?.state ?? null,
+    poolCep: item.mainAddress?.zipCode ?? null,
+    poolLat: item.mainAddress?.latitude ?? null,
+    poolLng: item.mainAddress?.longitude ?? null,
+
+    notes: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export async function listClients() {
+  const companyId = await getCompanyId();
+
+  const data = await mappaFetch<{ items: any[] }>(
+    `/api/companies/${companyId}/customers`
+  );
+
+  return (data.items || []).map((item) =>
+    mapApiCustomerToClient(item, companyId)
+  );
+}
+
+export async function createClient(data: any) {
+  const companyId = await getCompanyId();
+
+  const firstName = String(data.firstName || "").trim();
+  const lastName = String(data.lastName || "").trim();
+  const name = [firstName, lastName].filter(Boolean).join(" ");
+
+  if (!name) {
+    throw new Error("Informe o nome do cliente.");
   }
 
-  if (data.phone) {
-    const c = await prisma.client.findUnique({ where: { phone: data.phone } });
-    if (c && c.id !== id) throw new Error("Telefone já cadastrado.");
+  if (!data.email) {
+    throw new Error("Informe o email do cliente.");
   }
 
-  if (data.cpf) {
-    const c = await prisma.client.findUnique({ where: { cpf: data.cpf } });
-    if (c && c.id !== id) throw new Error("CPF já cadastrado.");
-  }
+  const payload = {
+    name,
+    email: String(data.email).trim(),
+    password: "123456",
+    phone: onlyDigits(data.phone),
+    document: onlyDigits(data.cpf || data.cnpj),
+    address: {
+      street: clean(data.poolStreet || data.street) || "Endereço não informado",
+      number: clean(data.poolNumber || data.number),
+      complement: null,
+      neighborhood: clean(data.poolDistrict || data.district),
+      city: clean(data.poolCity || data.city) || "Cidade não informada",
+      state: clean(data.poolUf || data.uf) || "SP",
+      zipCode: onlyDigits(data.poolCep || data.cep),
+      latitude: data.poolLat ? Number(data.poolLat) : null,
+      longitude: data.poolLng ? Number(data.poolLng) : null,
+    },
+  };
 
-  if (data.cnpj) {
-    const c = await prisma.client.findFirst({
-      where: { cnpj: data.cnpj } as any,
-    });
-    if (c && c.id !== id) throw new Error("CNPJ já cadastrado.");
-  }
-
-  const payload = sanitizeClientInput(data) as Prisma.ClientUpdateInput;
-
-  await prisma.client.update({
-    where: { id },
-    data: payload,
+  await mappaFetch(`/api/companies/${companyId}/customers`, {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 
   revalidatePath("/clients");
 }
 
-// 🗑 EXCLUIR cliente
-export async function deleteClient(id: string) {
-  const companyId = await getCurrentCompanyIdOrThrow();
-  await ensureClientBelongsToCompany(id, companyId);
-
-  await prisma.client.delete({ where: { id } });
-  revalidatePath("/clients");
+export async function updateClient() {
+  throw new Error("Atualização de cliente ainda não implementada na API.");
 }
 
-// 📍 ATUALIZAR COORDENADAS DO CLIENTE
-export async function saveClientCoords(id: string, lat: number, lng: number) {
-  const companyId = await getCurrentCompanyIdOrThrow();
-  await ensureClientBelongsToCompany(id, companyId);
+export async function deleteClient() {
+  throw new Error("Exclusão de cliente ainda não implementada na API.");
+}
 
-  const _lat = Number(lat);
-  const _lng = Number(lng);
-  if (!Number.isFinite(_lat) || !Number.isFinite(_lng)) {
-    throw new Error("Coordenadas inválidas.");
-  }
-
-  await prisma.client.update({
-    where: { id },
-    data: { poolLat: _lat, poolLng: _lng },
-  });
-
-  revalidatePath("/clients");
-  revalidatePath("/routes/builder");
+export async function saveClientCoords() {
+  throw new Error("Atualização de coordenadas ainda não implementada na API.");
 }

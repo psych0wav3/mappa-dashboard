@@ -1,4 +1,3 @@
-// src/components/technicians/TechnicianForm.tsx
 "use client";
 
 import * as React from "react";
@@ -43,17 +42,13 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const schema = z.object({
-  firstName: z.string().min(2, "Informe o nome"),
-  lastName: z.string().min(2, "Informe o sobrenome"),
+  name: z.string().min(2, "Informe o nome completo"),
   email: z.string().email("Email inválido"),
-  // ❌ removemos o .default() daqui
-  role: z.enum(["OWNER", "TECH"]),
+  password: z.string().optional(),
   phone: z.string().optional(),
-  cpf: z.string().optional(),
   active: z.boolean().optional(),
 });
 
-// ⬅️ usa o OUTPUT do schema
 type Values = z.infer<typeof schema>;
 
 export default function TechnicianForm({
@@ -62,39 +57,61 @@ export default function TechnicianForm({
   trigger = "Novo Técnico",
 }: {
   id?: string;
-  defaultValues?: Partial<Values>;
+  defaultValues?: Partial<{
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string | null;
+    active: boolean;
+  }>;
   trigger?: React.ReactNode;
 }) {
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = useTransition();
 
+  const isEditing = Boolean(id);
+
+  const fullName = `${defaultValues?.firstName ?? ""} ${
+    defaultValues?.lastName ?? ""
+  }`.trim();
+
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: {
-      firstName: defaultValues?.firstName ?? "",
-      lastName: defaultValues?.lastName ?? "",
+      name: fullName,
       email: defaultValues?.email ?? "",
-      // ✅ default agora só aqui
-      role: defaultValues?.role ?? "TECH",
+      password: "123456",
       phone: defaultValues?.phone ?? "",
-      cpf: defaultValues?.cpf ?? "",
       active: defaultValues?.active ?? true,
     },
   });
 
-  const isEditing = Boolean(id);
   const isActive = form.watch("active") ?? true;
 
-  const onSubmit: SubmitHandler<Values> = (values: Values) =>
+  const onSubmit: SubmitHandler<Values> = (values) =>
     startTransition(async () => {
       try {
         if (id) {
-          await updateTechnician(id, values);
+          await updateTechnician();
           toast.success("Técnico atualizado");
         } else {
-          await createTechnician(values);
+          if (!values.password || values.password.trim().length < 6) {
+            form.setError("password", {
+              message: "Informe uma senha com pelo menos 6 caracteres",
+            });
+            return;
+          }
+
+          await createTechnician({
+            name: values.name,
+            email: values.email,
+            password: values.password,
+            phone: values.phone,
+          });
+
           toast.success("Técnico criado");
         }
+
         setOpen(false);
       } catch (e: any) {
         toast.error(e?.message || "Erro ao salvar técnico");
@@ -108,12 +125,9 @@ export default function TechnicianForm({
 
   const handleToggleActive = () =>
     startTransition(async () => {
-      if (!id) return;
       try {
-        const next = !isActive;
-        await updateTechnician(id, { active: next });
-        form.setValue("active", next);
-        toast.success(next ? "Técnico ativado" : "Técnico inativado");
+        await updateTechnician();
+        toast.error("Ativar/Inativar ainda não existe na API.");
       } catch (e: any) {
         toast.error(e?.message || "Não foi possível alterar o status");
       }
@@ -121,11 +135,8 @@ export default function TechnicianForm({
 
   const handleDelete = () =>
     startTransition(async () => {
-      if (!id) return;
       try {
-        await deleteTechnician(id);
-        toast.success("Técnico removido");
-        setOpen(false);
+        await deleteTechnician();
       } catch (e: any) {
         toast.error(e?.message || "Erro ao remover técnico");
       }
@@ -135,11 +146,9 @@ export default function TechnicianForm({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {typeof trigger === "string" ? (
-          <Button className="btn-brand text-white">
-            {trigger}
-          </Button>
+          <Button className="btn-brand text-white">{trigger}</Button>
         ) : (
-          (trigger as React.ReactElement)
+          trigger as React.ReactElement
         )}
       </DialogTrigger>
 
@@ -152,35 +161,19 @@ export default function TechnicianForm({
 
         <Form<Values> {...form}>
           <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField
-                name="firstName"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nome</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                name="lastName"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Sobrenome</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+            <FormField
+              name="name"
+              control={form.control}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nome completo</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               name="email"
@@ -196,59 +189,30 @@ export default function TechnicianForm({
               )}
             />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {!isEditing && (
               <FormField
-                name="phone"
+                name="password"
                 control={form.control}
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Telefone</FormLabel>
+                    <FormLabel>Senha inicial</FormLabel>
                     <FormControl>
-                      <MaskedInput
-                        mask="(99) 99999-9999"
-                        {...field}
-                      />
+                      <Input type="text" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
-              <FormField
-                name="cpf"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>CPF</FormLabel>
-                    <FormControl>
-                      <MaskedInput
-                        mask="999.999.999-99"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+            )}
 
             <FormField
-              name="role"
+              name="phone"
               control={form.control}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Cargo</FormLabel>
+                  <FormLabel>Telefone</FormLabel>
                   <FormControl>
-                    <select
-                      className="h-9 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm"
-                      value={field.value}
-                      onChange={(e) =>
-                        field.onChange(e.target.value as Values["role"])
-                      }
-                    >
-                      <option value="TECH">Técnico</option>
-                      <option value="OWNER">Administrador</option>
-                    </select>
+                    <MaskedInput mask="(99) 99999-9999" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -256,14 +220,8 @@ export default function TechnicianForm({
             />
 
             <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3 text-xs leading-5 text-neutral-700">
-              <div>
-                <span className="font-medium">Administrador:</span> acesso total
-                ao sistema.
-              </div>
-              <div>
-                <span className="font-medium">Técnico:</span> acesso aos
-                clientes/visitas atribuídos.
-              </div>
+              O cadastro será enviado para a API do Aqua Mappa como funcionário
+              da empresa.
             </div>
 
             <div className="flex items-center justify-between gap-2 pt-2">
@@ -290,6 +248,7 @@ export default function TechnicianForm({
                         Excluir
                       </Button>
                     </AlertDialogTrigger>
+
                     <AlertDialogContent>
                       <AlertDialogHeader>
                         <AlertDialogTitle>
@@ -300,6 +259,7 @@ export default function TechnicianForm({
                           desfeita.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
+
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
                         <AlertDialogAction
@@ -317,19 +277,16 @@ export default function TechnicianForm({
               )}
 
               <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleCancel}
-                >
+                <Button type="button" variant="outline" onClick={handleCancel}>
                   Cancelar
                 </Button>
+
                 <Button
                   type="submit"
                   disabled={pending}
                   className="btn-brand text-white"
                 >
-                  {isEditing ? "Salvar" : "Criar"}
+                  {pending ? "Salvando..." : isEditing ? "Salvar" : "Criar"}
                 </Button>
               </div>
             </div>
