@@ -5,84 +5,24 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   createAdminWorkOrder,
   type CustomerOption,
   type TechnicianOption,
 } from "@/app/(private)/workorders/actions";
 
+import PoolCleaningDetails, {
+  type Frequency,
+} from "./components/PoolCleaningDetails";
+
+import AdditionalItemsDetails, {
+  type AdditionalItem,
+  type AdditionalItemKind,
+  itemKindLabel,
+  formatCurrency,
+} from "./components/AdditionalItemsDetails";
+
 type ServiceKind = "POOL_CLEANING" | "ADDITIONAL_SERVICE";
-type Frequency = "ONCE" | "DAILY" | "WEEKLY" | "BIWEEKLY" | "MONTHLY";
-type AdditionalItemKind = "PRODUCT" | "SERVICE";
-
-type AdditionalItem = {
-  id: string;
-  kind: AdditionalItemKind;
-  name: string;
-  quantity: number;
-  unitPrice: number;
-};
-
-const POOL_CLEANING_FREQUENCIES: Array<{
-  value: Frequency;
-  label: string;
-  description: string;
-}> = [
-  {
-    value: "ONCE",
-    label: "Avulsa",
-    description: "Uma limpeza pontual, sem recorrência.",
-  },
-  {
-    value: "DAILY",
-    label: "Diária",
-    description: "Limpeza todos os dias.",
-  },
-  {
-    value: "WEEKLY",
-    label: "Semanal",
-    description: "Limpeza uma vez por semana.",
-  },
-  {
-    value: "BIWEEKLY",
-    label: "Quinzenal",
-    description: "Limpeza a cada 15 dias.",
-  },
-  {
-    value: "MONTHLY",
-    label: "Mensal",
-    description: "Limpeza uma vez por mês.",
-  },
-];
-
-const PRODUCT_SUGGESTIONS = [
-  "Cloro",
-  "Pastilha de cloro",
-  "Decantador",
-  "Algicida",
-  "Clarificante",
-  "Elevador de pH",
-  "Redutor de pH",
-  "Barrilha",
-  "Sulfato de alumínio",
-  "Limpa bordas",
-  "Kit teste pH/cloro",
-  "Refil",
-  "Areia para filtro",
-];
-
-const SERVICE_SUGGESTIONS = [
-  "Troca de areia",
-  "Troca de filtro",
-  "Conserto de bomba",
-  "Tratamento de água verde",
-  "Limpeza pesada",
-  "Manutenção de equipamento",
-  "Instalação de equipamento",
-  "Aspiração extra",
-  "Visita técnica",
-];
 
 function todayISO() {
   const date = new Date();
@@ -106,13 +46,6 @@ function formatCurrencyFromDigits(digits: string) {
   }).format(cents / 100);
 }
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(Number.isFinite(value) ? value : 0);
-}
-
 function moneyToNumber(value: string) {
   const digits = onlyDigits(value);
   const cents = Number(digits || "0");
@@ -122,16 +55,6 @@ function moneyToNumber(value: string) {
 
 function defaultMoney() {
   return formatCurrencyFromDigits("0");
-}
-
-function frequencyLabel(value: Frequency) {
-  const found = POOL_CLEANING_FREQUENCIES.find((item) => item.value === value);
-
-  return found?.label ?? "Avulsa";
-}
-
-function itemKindLabel(kind: AdditionalItemKind) {
-  return kind === "PRODUCT" ? "Produto" : "Serviço";
 }
 
 function generateId() {
@@ -187,9 +110,6 @@ export default function NewWorkOrderClient({
       null,
     [technicians, employeeUserId],
   );
-
-  const suggestions =
-    itemKind === "PRODUCT" ? PRODUCT_SUGGESTIONS : SERVICE_SUGGESTIONS;
 
   const additionalItemsTotal = React.useMemo(
     () =>
@@ -334,7 +254,7 @@ export default function NewWorkOrderClient({
                 total: item.quantity * item.unitPrice,
               }))
             : [],
-      } as any);
+      });
 
       router.push("/workorders?created=1");
       router.refresh();
@@ -363,7 +283,7 @@ export default function NewWorkOrderClient({
       <section className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="mb-3">
           <h2 className="text-sm font-semibold text-slate-800">
-            Tipo de ordem
+            Tipo de Ordem
           </h2>
           <p className="text-xs text-slate-500">
             Escolha se esta OS é uma limpeza de piscina ou uma cobrança
@@ -382,8 +302,9 @@ export default function NewWorkOrderClient({
             }`}
           >
             <div className="text-sm font-semibold text-slate-800">
-              Limpeza de piscina
+              Limpeza de Piscina
             </div>
+
             <div className="mt-1 text-xs leading-5 text-slate-500">
               Serviço principal do cliente. Pode ser avulso, diário, semanal,
               quinzenal ou mensal.
@@ -400,8 +321,9 @@ export default function NewWorkOrderClient({
             }`}
           >
             <div className="text-sm font-semibold text-slate-800">
-              Produto ou serviço adicional
+              Produto ou Serviço Adicional
             </div>
+
             <div className="mt-1 text-xs leading-5 text-slate-500">
               Produtos, materiais e serviços pontuais, como cloro, pastilha,
               decantador, troca de areia, filtro ou conserto de bomba.
@@ -413,7 +335,7 @@ export default function NewWorkOrderClient({
       <section className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="mb-3">
           <h2 className="text-sm font-semibold text-slate-800">
-            Cliente e responsável
+            Cliente e Responsável
           </h2>
           <p className="text-xs text-slate-500">
             Vincule a OS à piscina do cliente e ao técnico responsável.
@@ -481,218 +403,27 @@ export default function NewWorkOrderClient({
         </div>
 
         {serviceKind === "POOL_CLEANING" ? (
-          <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-5">
-              {POOL_CLEANING_FREQUENCIES.map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  onClick={() => setFrequency(item.value)}
-                  className={`rounded-lg border px-3 py-3 text-left transition ${
-                    frequency === item.value
-                      ? "border-sky-500 bg-sky-50 ring-2 ring-sky-100"
-                      : "border-slate-200 bg-white hover:bg-slate-50"
-                  }`}
-                >
-                  <div className="text-sm font-medium text-slate-800">
-                    {item.label}
-                  </div>
-                  <div className="mt-1 text-[11px] leading-4 text-slate-500">
-                    {item.description}
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-1">
-                <label className="block text-sm font-medium text-slate-700">
-                  Valor da limpeza
-                </label>
-
-                <Input
-                  inputMode="numeric"
-                  value={cleaningAmount}
-                  onChange={handleCleaningMoneyChange}
-                  onFocus={(event) => event.currentTarget.select()}
-                  placeholder="R$ 0,00"
-                />
-              </div>
-            </div>
-
-            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
-              A recorrência será ativada quando o backend liberar os planos
-              recorrentes. Por enquanto, será criada uma OS para a data
-              agendada, mantendo a frequência registrada na descrição.
-            </div>
-          </div>
+          <PoolCleaningDetails
+            frequency={frequency}
+            onFrequencyChange={setFrequency}
+            cleaningAmount={cleaningAmount}
+            onCleaningAmountChange={handleCleaningMoneyChange}
+          />
         ) : (
-          <div className="space-y-4">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <div className="grid gap-3 lg:grid-cols-[150px_minmax(260px,1fr)_120px_170px_120px] lg:items-start">
-                <div className="space-y-1">
-                  <label className="block h-5 text-sm font-medium text-slate-700">
-                    Tipo
-                  </label>
-
-                  <select
-                    value={itemKind}
-                    onChange={(event) =>
-                      setItemKind(event.target.value as AdditionalItemKind)
-                    }
-                    className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-sky-400"
-                  >
-                    <option value="PRODUCT">Produto</option>
-                    <option value="SERVICE">Serviço</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block h-5 text-sm font-medium text-slate-700">
-                    Produto ou serviço
-                  </label>
-
-                  <Input
-                    list="workorder-item-suggestions"
-                    value={itemName}
-                    onChange={(event) => setItemName(event.target.value)}
-                    placeholder={
-                      itemKind === "PRODUCT"
-                        ? "Ex.: Cloro, pastilha, decantador..."
-                        : "Ex.: Troca de areia, conserto de bomba..."
-                    }
-                    className="h-10"
-                  />
-
-                  <datalist id="workorder-item-suggestions">
-                    {suggestions.map((item) => (
-                      <option key={item} value={item} />
-                    ))}
-                  </datalist>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block h-5 text-sm font-medium text-slate-700">
-                    Quantidade
-                  </label>
-
-                  <Input
-                    inputMode="decimal"
-                    value={itemQuantity}
-                    onChange={(event) => setItemQuantity(event.target.value)}
-                    placeholder="1"
-                    className="h-10"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block h-5 text-sm font-medium text-slate-700">
-                    Valor unitário
-                  </label>
-
-                  <Input
-                    inputMode="numeric"
-                    value={itemUnitPrice}
-                    onChange={handleItemUnitPriceChange}
-                    onFocus={(event) => event.currentTarget.select()}
-                    placeholder="R$ 0,00"
-                    className="h-10"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block h-5 text-sm font-medium text-transparent">
-                    Ação
-                  </label>
-
-                  <Button
-                    type="button"
-                    onClick={addAdditionalItem}
-                    className="h-10 w-full btn-brand text-white"
-                  >
-                    Adicionar
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="p-3 text-left">Tipo</th>
-                    <th className="p-3 text-left">Item</th>
-                    <th className="p-3 text-right">Qtd.</th>
-                    <th className="p-3 text-right">Valor unit.</th>
-                    <th className="p-3 text-right">Total</th>
-                    <th className="p-3 text-right">Ações</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {additionalItems.map((item) => (
-                    <tr key={item.id} className="border-t">
-                      <td className="p-3">
-                        <span className="inline-flex rounded-full border border-slate-300 bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
-                          {itemKindLabel(item.kind)}
-                        </span>
-                      </td>
-                      <td className="p-3 font-medium text-slate-800">
-                        {item.name}
-                      </td>
-                      <td className="p-3 text-right">{item.quantity}</td>
-                      <td className="p-3 text-right">
-                        {formatCurrency(item.unitPrice)}
-                      </td>
-                      <td className="p-3 text-right font-medium">
-                        {formatCurrency(item.quantity * item.unitPrice)}
-                      </td>
-                      <td className="p-3 text-right">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="border-red-200 text-red-600 hover:bg-red-50"
-                          onClick={() => removeAdditionalItem(item.id)}
-                        >
-                          Excluir
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-
-                  {additionalItems.length === 0 && (
-                    <tr>
-                      <td
-                        className="p-6 text-center text-neutral-500"
-                        colSpan={6}
-                      >
-                        Nenhum produto ou serviço adicionado.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-
-                <tfoot className="border-t bg-slate-50">
-                  <tr>
-                    <td className="p-3 text-right font-semibold" colSpan={4}>
-                      Total da OS
-                    </td>
-                    <td className="p-3 text-right font-semibold">
-                      {formatCurrency(additionalItemsTotal)}
-                    </td>
-                    <td />
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-
-            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
-              Você pode adicionar vários produtos e serviços na mesma OS. O
-              total será calculado automaticamente pela quantidade e valor
-              unitário de cada item.
-            </div>
-          </div>
+          <AdditionalItemsDetails
+            itemKind={itemKind}
+            onItemKindChange={setItemKind}
+            itemName={itemName}
+            onItemNameChange={setItemName}
+            itemQuantity={itemQuantity}
+            onItemQuantityChange={setItemQuantity}
+            itemUnitPrice={itemUnitPrice}
+            onItemUnitPriceChange={handleItemUnitPriceChange}
+            additionalItems={additionalItems}
+            additionalItemsTotal={additionalItemsTotal}
+            onAddItem={addAdditionalItem}
+            onRemoveItem={removeAdditionalItem}
+          />
         )}
 
         <div className="mt-4 space-y-1">

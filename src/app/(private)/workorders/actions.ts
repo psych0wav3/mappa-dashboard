@@ -145,7 +145,15 @@ export type CreateAdminWorkOrderInput = {
   serviceKind: "POOL_CLEANING" | "ADDITIONAL_SERVICE";
   serviceType: string;
 
-  frequency?: "ONCE" | "DAILY" | "WEEKLY" | "BIWEEKLY" | "MONTHLY";
+  frequency?:
+  | "ONCE"
+  | "WEEKLY_ONCE"
+  | "WEEKLY_TWICE"
+  | "WEEKLY_THREE_TIMES"
+  | "WEEKLY_FOUR_TIMES"
+  | "DAILY"
+  | "BIWEEKLY"
+  | "MONTHLY";
 
   title: string;
   description?: string;
@@ -336,10 +344,13 @@ function normalizeServiceOrder(item: ApiServiceOrder): WorkOrderListItem {
 function frequencyLabel(frequency?: CreateAdminWorkOrderInput["frequency"]) {
   const map: Record<string, string> = {
     ONCE: "Avulsa",
-    DAILY: "Diária",
-    WEEKLY: "Semanal",
-    BIWEEKLY: "Quinzenal",
-    MONTHLY: "Mensal",
+    WEEKLY_ONCE: "Semanal, 1x por semana",
+    WEEKLY_TWICE: "2x por semana",
+    WEEKLY_THREE_TIMES: "3x por semana",
+    WEEKLY_FOUR_TIMES: "4x por semana",
+    DAILY: "Diária, todos os dias",
+    BIWEEKLY: "Quinzenal, a cada 15 dias",
+    MONTHLY: "Mensal, uma vez por mês",
   };
 
   return frequency ? map[frequency] ?? frequency : "Avulsa";

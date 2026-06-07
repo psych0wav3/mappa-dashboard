@@ -21,7 +21,7 @@ export default async function NewWorkOrderPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6">
       <div className="mb-4 mt-4 rounded-xl border border-slate-200 bg-white px-5 py-3 text-slate-800 shadow-sm">
-        <h1 className="text-lg font-semibold">Nova ordem de serviço</h1>
+        <h1 className="text-lg font-semibold">Nova Ordem de Serviço</h1>
       </div>
 
       <NewWorkOrderClient customers={customers} technicians={technicians} />
