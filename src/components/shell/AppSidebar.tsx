@@ -271,8 +271,9 @@ function SidebarContent({
 
   const workorderItems = useMemo(
     () => [
-      { href: "/workorders", label: "Dashboard da OS" },
-      { href: "/workorders/approved", label: "OS's Aprovadas" },
+      { href: "/workorders/new", label: "Nova OS" },
+      { href: "/workorders?status=APPROVED", label: "OS Aprovadas" },
+      { href: "/workorders", label: "Todas as OS" },
     ],
     []
   );
@@ -372,6 +373,117 @@ function SidebarContent({
       <nav className="flex-1 p-2 space-y-1">
         {links.map((link) => renderLink(link.href, link.label, link.icon))}
 
+                <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => {
+              if (collapsed) {
+                router.push("/workorders");
+                onNavigate?.();
+              } else {
+                setWorkordersOpen((value) => !value);
+              }
+            }}
+            className={`w-full flex items-center ${
+              collapsed
+                ? "justify-center px-2 gap-0"
+                : "justify-between px-3 gap-3"
+            } py-2 rounded-md transition-colors ${
+              pathname.startsWith("/workorders")
+                ? "bg-white/20 text-white"
+                : "text-white hover:bg-white/10"
+            }`}
+            aria-expanded={workordersOpen}
+            aria-controls="workorders-submenu"
+          >
+            <div
+              className={`flex items-center ${collapsed ? "gap-0" : "gap-3"}`}
+            >
+              <ClipboardList size={18} aria-hidden className="shrink-0" />
+              <LabelSlot ready={ready}>Ordens de Serviço</LabelSlot>
+            </div>
+
+            <div
+              style={{
+                width: "calc(var(--sidebar-w) - 80px)",
+                overflow: "hidden",
+                transition: ready ? "width 300ms ease" : "none",
+              }}
+            >
+              <ChevronDown
+                size={16}
+                className={`transition-transform ${
+                  workordersOpen ? "rotate-180" : ""
+                }`}
+                aria-hidden="true"
+              />
+            </div>
+          </button>
+
+          <div
+            id="workorders-submenu"
+            role="menu"
+            className="mt-1"
+            style={{
+              maxHeight: workordersOpen ? 800 : 0,
+              overflow: "hidden",
+              transition: ready
+                ? "max-height 300ms ease, opacity 300ms ease"
+                : "none",
+              opacity: "calc((var(--sidebar-w) - 80px) / 200)",
+              pointerEvents: workordersOpen && !collapsed ? "auto" : "none",
+            }}
+          >
+            {collapsed ? (
+              <div className="flex flex-col items-center gap-2 py-1">
+                {workorderItems.map((item) => {
+                  const active =
+                    pathname === item.href ||
+                    pathname.startsWith(item.href + "/");
+
+                  const initial = item.label.trim().charAt(0).toUpperCase();
+
+                  return (
+                    <a
+                      key={item.href}
+                      href={item.href}
+                      className={[
+                        "grid h-7 w-7 place-items-center rounded-md text-xs font-semibold",
+                        active
+                          ? "bg-white/30 text-white"
+                          : "bg-white/20 text-white",
+                      ].join(" ")}
+                      aria-current={active ? "page" : undefined}
+                    >
+                      {initial}
+                    </a>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="space-y-1" role="menu">
+                {workorderItems.map((item) => {
+                  const active =
+                    pathname === item.href ||
+                    pathname.startsWith(item.href + "/");
+
+                  return (
+                    <SidebarLink
+                      key={item.href}
+                      href={item.href}
+                      active={active}
+                      collapsed={false}
+                      className="ml-8 text-sm"
+                    >
+                      {item.label}
+                    </SidebarLink>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
         <div className="mt-2">
           <button
             type="button"
@@ -462,117 +574,6 @@ function SidebarContent({
             ) : (
               <div className="space-y-1" role="menu">
                 {routeItems.map((item) => {
-                  const active =
-                    pathname === item.href ||
-                    pathname.startsWith(item.href + "/");
-
-                  return (
-                    <SidebarLink
-                      key={item.href}
-                      href={item.href}
-                      active={active}
-                      collapsed={false}
-                      className="ml-8 text-sm"
-                    >
-                      {item.label}
-                    </SidebarLink>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="mt-2">
-          <button
-            type="button"
-            onClick={() => {
-              if (collapsed) {
-                router.push("/workorders");
-                onNavigate?.();
-              } else {
-                setWorkordersOpen((value) => !value);
-              }
-            }}
-            className={`w-full flex items-center ${
-              collapsed
-                ? "justify-center px-2 gap-0"
-                : "justify-between px-3 gap-3"
-            } py-2 rounded-md transition-colors ${
-              pathname.startsWith("/workorders")
-                ? "bg-white/20 text-white"
-                : "text-white hover:bg-white/10"
-            }`}
-            aria-expanded={workordersOpen}
-            aria-controls="workorders-submenu"
-          >
-            <div
-              className={`flex items-center ${collapsed ? "gap-0" : "gap-3"}`}
-            >
-              <ClipboardList size={18} aria-hidden className="shrink-0" />
-              <LabelSlot ready={ready}>Ordem de Serviço</LabelSlot>
-            </div>
-
-            <div
-              style={{
-                width: "calc(var(--sidebar-w) - 80px)",
-                overflow: "hidden",
-                transition: ready ? "width 300ms ease" : "none",
-              }}
-            >
-              <ChevronDown
-                size={16}
-                className={`transition-transform ${
-                  workordersOpen ? "rotate-180" : ""
-                }`}
-                aria-hidden="true"
-              />
-            </div>
-          </button>
-
-          <div
-            id="workorders-submenu"
-            role="menu"
-            className="mt-1"
-            style={{
-              maxHeight: workordersOpen ? 800 : 0,
-              overflow: "hidden",
-              transition: ready
-                ? "max-height 300ms ease, opacity 300ms ease"
-                : "none",
-              opacity: "calc((var(--sidebar-w) - 80px) / 200)",
-              pointerEvents: workordersOpen && !collapsed ? "auto" : "none",
-            }}
-          >
-            {collapsed ? (
-              <div className="flex flex-col items-center gap-2 py-1">
-                {workorderItems.map((item) => {
-                  const active =
-                    pathname === item.href ||
-                    pathname.startsWith(item.href + "/");
-
-                  const initial = item.label.trim().charAt(0).toUpperCase();
-
-                  return (
-                    <a
-                      key={item.href}
-                      href={item.href}
-                      className={[
-                        "grid h-7 w-7 place-items-center rounded-md text-xs font-semibold",
-                        active
-                          ? "bg-white/30 text-white"
-                          : "bg-white/20 text-white",
-                      ].join(" ")}
-                      aria-current={active ? "page" : undefined}
-                    >
-                      {initial}
-                    </a>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="space-y-1" role="menu">
-                {workorderItems.map((item) => {
                   const active =
                     pathname === item.href ||
                     pathname.startsWith(item.href + "/");

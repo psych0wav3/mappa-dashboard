@@ -3,33 +3,23 @@
 import * as React from "react";
 import TechCombobox, { TechLite } from "./TechCombobox";
 
-const WEEKDAYS = [
-  { v: 1, l: "Seg" },
-  { v: 2, l: "Ter" },
-  { v: 3, l: "Qua" },
-  { v: 4, l: "Qui" },
-  { v: 5, l: "Sex" },
-  { v: 6, l: "Sáb" },
-];
-
 export default function LeftTechDayCard({
   technicians,
   techId,
   onTechChange,
-  weekday,
-  onWeekdayChange,
+  dateISO,
+  onDateChange,
 }: {
   technicians: TechLite[];
   techId?: string;
   onTechChange: (id: string) => void;
-  weekday: number;
-  onWeekdayChange: (v: number) => void;
+  dateISO: string;
+  onDateChange: (value: string) => void;
 }) {
   return (
     <div className="rounded-md border bg-white">
-      {/* cabeçalho sem botões extras */}
       <div className="px-3 py-2 border-b text-sm font-medium text-neutral-700">
-        Técnico e dia
+        Técnico e data
       </div>
 
       <div className="p-3 space-y-3">
@@ -42,23 +32,21 @@ export default function LeftTechDayCard({
         />
 
         <div>
-          <label className="text-xs font-medium text-neutral-600">Dia da Semana</label>
-          <div className="mt-1 flex flex-wrap gap-1.5">
-            {WEEKDAYS.map((d) => (
-              <button
-                key={d.v}
-                className={`h-8 px-2 rounded border text-xs ${
-                  weekday === d.v
-                    ? "btn-brand text-white border-blue-600"
-                    : "border-neutral-300 hover:bg-neutral-50"
-                }`}
-                onClick={() => onWeekdayChange(d.v)}
-                type="button"
-              >
-                {d.l}
-              </button>
-            ))}
-          </div>
+          <label className="text-xs font-medium text-neutral-600">
+            Data da rota
+          </label>
+
+          <input
+            type="date"
+            value={dateISO}
+            onChange={(event) => onDateChange(event.target.value)}
+            className="mt-1 h-10 w-full rounded-md border border-neutral-300 bg-white px-3 text-sm outline-none focus:border-sky-400"
+          />
+        </div>
+
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+          Nesta versão, a rota é criada por data específica. A recorrência
+          semanal será conectada quando o backend liberar os planos recorrentes.
         </div>
       </div>
     </div>

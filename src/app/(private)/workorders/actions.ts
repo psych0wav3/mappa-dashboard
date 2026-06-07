@@ -1,264 +1,546 @@
-// src/app/(private)/workorders/actions.ts
 "use server";
 
-import { prisma } from "@/lib/supabase/prisma";
-import { WorkOrderStatus } from "@prisma/client";
-import { z } from "zod";
+import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
 
-// --- Tipo público para a lista ---
-export type WorkOrderDTO = {
-  id: string;
-  code: string;
-  title: string;
-  clientName: string;
-  status: WorkOrderStatus;
-  scheduledAt?: string | null;
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  process.env.API_URL ||
+  "http://localhost:5264";
+
+const FALLBACK_COMPANY_ID =
+  process.env.NEXT_PUBLIC_COMPANY_ID ||
+  process.env.COMPANY_ID ||
+  "00000000-0000-0000-0000-000000000001";
+
+const API_ADMIN_EMAIL = process.env.API_ADMIN_EMAIL;
+const API_ADMIN_PASSWORD = process.env.API_ADMIN_PASSWORD;
+
+type ApiError = {
+  errors?: Array<{
+    statusCode?: number;
+    message?: string;
+    code?: string;
+  }>;
+  detail?: string;
+  title?: string;
+  message?: string;
 };
 
-// --- Schema CREATE (opcionais + nullable + transform para null) ---
-const CreateSchema = z.object({
-  clientId: z.string().min(1),
+type ApiAddress = {
+  id?: string | null;
+  street?: string | null;
+  number?: string | null;
+  complement?: string | null;
+  neighborhood?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  isMain?: boolean | null;
+};
 
-  technicianId: z
-    .string()
-    .optional()
-    .nullable()
-    .transform((v) => (v && v.trim() ? v : null)),
+type ApiCustomer = {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  document?: string | null;
+  status?: string | null;
+  mainAddress?: ApiAddress | null;
+  addresses?: ApiAddress[] | null;
+};
 
-  title: z.string().min(2),
+type ApiEmployee = {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  status?: string | null;
+};
 
-  description: z
-    .string()
-    .optional()
-    .nullable()
-    .transform((v) => (v && v.trim() ? v : null)),
+type ApiServiceOrder = {
+  id: string;
+  companyId?: string | null;
+  customerId?: string | null;
+  customerAddressId?: string | null;
 
-  // A UI deve enviar "date" como YYYY-MM-DD
-  date: z
-    .string()
-    .optional()
-    .nullable()
-    .transform((v) => (v && v.trim() ? v : null)),
+  employeeUserId?: string | null;
+  employeeName?: string | null;
 
-  startTime: z
-    .string()
-    .optional()
-    .nullable()
-    .transform((v) => (v && v.trim() ? v : null)),
+  title?: string | null;
+  description?: string | null;
 
-  endTime: z
-    .string()
-    .optional()
-    .nullable()
-    .transform((v) => (v && v.trim() ? v : null)),
+  scheduledDate?: string | null;
+  scheduledTime?: string | null;
 
-  amountCents: z.number().int().nonnegative().nullable().optional(),
-});
+  totalAmount?: number | null;
+  status?: string | null;
 
-// --- Schema UPDATE (todos opcionais + nullable + transform para null) ---
-const UpdateSchema = z.object({
-  clientId: z.string().optional(),
+  customerName?: string | null;
+  address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 
-  technicianId: z
-    .string()
-    .optional()
-    .nullable()
-    .transform((v) => (v && v.trim() ? v : null)),
+  openedByUserId?: string | null;
+  finishedByUserId?: string | null;
+  finishedAt?: string | null;
+  customerApprovedAt?: string | null;
+  createdAt?: string | null;
+};
 
-  title: z.string().min(2).optional(),
+export type WorkOrderListItem = {
+  id: string;
+  customerId: string | null;
+  customerAddressId: string | null;
 
-  description: z
-    .string()
-    .optional()
-    .nullable()
-    .transform((v) => (v && v.trim() ? v : null)),
+  employeeUserId: string | null;
+  employeeName: string | null;
 
-  date: z
-    .string()
-    .optional()
-    .nullable()
-    .transform((v) => (v && v.trim() ? v : null)),
+  customerName: string;
+  title: string;
+  description: string | null;
 
-  startTime: z
-    .string()
-    .optional()
-    .nullable()
-    .transform((v) => (v && v.trim() ? v : null)),
+  scheduledDate: string | null;
+  scheduledTime: string | null;
 
-  endTime: z
-    .string()
-    .optional()
-    .nullable()
-    .transform((v) => (v && v.trim() ? v : null)),
+  totalAmount: number | null;
+  status: string;
+  address: string | null;
+  createdAt: string | null;
+};
 
-  amountCents: z.number().int().nonnegative().nullable().optional(),
-});
+export type CustomerOption = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  customerAddressId: string | null;
+  address: string | null;
+};
 
-// ---------------------------------------------------------------------
-// LISTAGEM (ignora soft-deletados) — ordena por num para evitar conflito createdAt/created_at
-// ---------------------------------------------------------------------
-export async function listWorkOrders(): Promise<WorkOrderDTO[]> {
-  const rows = await prisma.workOrder.findMany({
-    where: { deletedAt: null },
-    orderBy: { num: "desc" },
-    include: { client: { select: { firstName: true, lastName: true } } },
-  });
+export type TechnicianOption = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+};
 
-  return rows.map((w) => ({
-    id: w.id,
-    code: w.code,
-    title: w.title,
-    clientName: `${w.client.firstName} ${w.client.lastName}`.trim(),
-    status: w.status,
-    scheduledAt: w.scheduledDate ? w.scheduledDate.toISOString().slice(0, 10) : null,
-  }));
+export type WorkOrderAdditionalItem = {
+  kind: "PRODUCT" | "SERVICE";
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+};
+
+export type CreateAdminWorkOrderInput = {
+  customerId: string;
+  customerAddressId: string;
+
+  employeeUserId: string;
+  employeeName?: string;
+
+  serviceKind: "POOL_CLEANING" | "ADDITIONAL_SERVICE";
+  serviceType: string;
+
+  frequency?: "ONCE" | "DAILY" | "WEEKLY" | "BIWEEKLY" | "MONTHLY";
+
+  title: string;
+  description?: string;
+
+  scheduledDate: string;
+  scheduledTime: string;
+
+  totalAmount?: number;
+
+  additionalItems?: WorkOrderAdditionalItem[];
+};
+
+async function getTokenFromCookie() {
+  const cookieStore = await cookies();
+  return cookieStore.get("mappa_access_token")?.value || null;
 }
 
-// ---------------------------------------------------------------------
-// CRIAÇÃO
-// ---------------------------------------------------------------------
-export async function createWorkOrder(raw: unknown) {
-  const input = CreateSchema.parse(raw);
+async function getTokenFromApiLogin() {
+  if (!API_ADMIN_EMAIL || !API_ADMIN_PASSWORD) {
+    throw new Error(
+      "Usuário não autenticado. Configure API_ADMIN_EMAIL e API_ADMIN_PASSWORD no .env.local.",
+    );
+  }
 
-  const res = await prisma.$transaction(async (tx) => {
-    const tmpCode = `TMP-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-    const created = await tx.workOrder.create({
-      data: {
-        code: tmpCode,
-        title: input.title,
-        description: input.description ?? null,
-        clientId: input.clientId,
-        technicianId: input.technicianId ?? null,
-        amountCents: input.amountCents ?? null,
-        status: WorkOrderStatus.aberta,
-        scheduledDate: input.date ? new Date(`${input.date}T00:00:00.000`) : null,
-        startTime: input.startTime ?? null,
-        endTime: input.endTime ?? null,
-      },
-      select: { id: true, num: true },
-    });
-
-    const finalCode = `OS-${String(created.num).padStart(4, "0")}`;
-
-    const updated = await tx.workOrder.update({
-      where: { id: created.id },
-      data: { code: finalCode },
-      include: {
-        client: { select: { firstName: true, lastName: true } },
-      },
-    });
-
-    return updated;
+  const response = await fetch(`${API_URL}/api/auth/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email: API_ADMIN_EMAIL,
+      password: API_ADMIN_PASSWORD,
+    }),
+    cache: "no-store",
   });
 
-  return {
-    id: res.id,
-    code: res.code,
-    title: res.title,
-    clientName: `${res.client.firstName} ${res.client.lastName}`.trim(),
-    status: res.status,
-    scheduledAt: res.scheduledDate ? res.scheduledDate.toISOString().slice(0, 10) : null,
-  } satisfies WorkOrderDTO;
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`Erro ao autenticar na API: ${response.status} ${text}`);
+  }
+
+  const json = JSON.parse(text);
+
+  if (!json.accessToken) {
+    throw new Error("A API não retornou accessToken.");
+  }
+
+  return json.accessToken as string;
 }
 
-// ---------------------------------------------------------------------
-// DETALHE (para view/edit)
-// ---------------------------------------------------------------------
-export async function getWorkOrderById(id: string) {
-  return prisma.workOrder.findUnique({
-    where: { id },
-    include: {
-      client: { select: { id: true, firstName: true, lastName: true, email: true } },
-      technician: { select: { id: true, firstName: true, lastName: true, email: true } },
+async function getTokenOrThrow() {
+  const cookieToken = await getTokenFromCookie();
+
+  if (cookieToken) {
+    return cookieToken;
+  }
+
+  return getTokenFromApiLogin();
+}
+
+async function getCompanyId() {
+  const cookieStore = await cookies();
+
+  return cookieStore.get("mappa_company_id")?.value || FALLBACK_COMPANY_ID;
+}
+
+function parseApiError(status: number, text: string) {
+  try {
+    const error = JSON.parse(text) as ApiError;
+
+    const message =
+      error?.errors?.[0]?.message ||
+      error?.detail ||
+      error?.title ||
+      error?.message ||
+      JSON.stringify(error);
+
+    return `Erro ${status}: ${message}`;
+  } catch {
+    return `Erro ${status}: ${text || "Falha na API."}`;
+  }
+}
+
+async function mappaFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = await getTokenOrThrow();
+
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      ...(options?.headers || {}),
     },
   });
+
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(parseApiError(response.status, text));
+  }
+
+  if (response.status === 204 || !text) {
+    return null as T;
+  }
+
+  return JSON.parse(text) as T;
 }
 
-// ---------------------------------------------------------------------
-// CANCELAR OS
-// ---------------------------------------------------------------------
-export async function cancelWorkOrder(id: string) {
-  const cur = await prisma.workOrder.findUnique({
-    where: { id },
-    select: { deletedAt: true },
-  });
-  if (cur?.deletedAt) throw new Error("OS já excluída.");
+function extractItems<T>(payload: any): T[] {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
 
-  const updated = await prisma.workOrder.update({
-    where: { id },
-    data: { status: WorkOrderStatus.cancelada },
-    select: { id: true, status: true },
-  });
+  if (Array.isArray(payload?.items)) {
+    return payload.items;
+  }
 
-  return updated;
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  return [];
 }
 
-// ---------------------------------------------------------------------
-// ENVIAR PARA APROVAÇÃO (stub)
-// ---------------------------------------------------------------------
-export async function sendWorkOrderForApproval(id: string) {
-  // Implementar depois a notificação pro app do cliente
-  return { id, ok: true };
+function getMainAddress(customer: ApiCustomer) {
+  if (customer.mainAddress) {
+    return customer.mainAddress;
+  }
+
+  if (Array.isArray(customer.addresses)) {
+    return (
+      customer.addresses.find((address) => address.isMain) ||
+      customer.addresses[0] ||
+      null
+    );
+  }
+
+  return null;
 }
 
-// ---------------------------------------------------------------------
-// ATUALIZAR (edição)
-// ---------------------------------------------------------------------
-export async function updateWorkOrder(id: string, raw: unknown) {
-  const input = UpdateSchema.parse(raw);
+function formatAddress(address?: ApiAddress | null) {
+  if (!address) return null;
 
-  const cur = await prisma.workOrder.findUnique({
-    where: { id },
-    select: { deletedAt: true },
-  });
-  if (cur?.deletedAt) throw new Error("OS excluída não pode ser editada.");
+  const line1 = [address.street, address.number].filter(Boolean).join(", ");
+  const line2 = [address.neighborhood, address.city, address.state]
+    .filter(Boolean)
+    .join(" - ");
 
-  const data: any = {};
-  if (input.title !== undefined) data.title = input.title;
-  if (input.description !== undefined) data.description = input.description;
-  if (input.clientId !== undefined) data.clientId = input.clientId;
-  if (input.technicianId !== undefined) data.technicianId = input.technicianId;
-  if (input.amountCents !== undefined) data.amountCents = input.amountCents;
-  if (input.date !== undefined)
-    data.scheduledDate = input.date ? new Date(`${input.date}T00:00:00.000`) : null;
-  if (input.startTime !== undefined) data.startTime = input.startTime;
-  if (input.endTime !== undefined) data.endTime = input.endTime;
+  return [line1, line2].filter(Boolean).join(" | ") || null;
+}
 
-  const updated = await prisma.workOrder.update({
-    where: { id },
-    data,
-    include: { client: { select: { firstName: true, lastName: true } } },
-  });
-
+function normalizeServiceOrder(item: ApiServiceOrder): WorkOrderListItem {
   return {
-    id: updated.id,
-    code: updated.code,
-    title: updated.title,
-    clientName: `${updated.client.firstName} ${updated.client.lastName}`.trim(),
-    status: updated.status,
-    scheduledAt: updated.scheduledDate
-      ? updated.scheduledDate.toISOString().slice(0, 10)
-      : null,
-  } satisfies WorkOrderDTO;
+    id: item.id,
+
+    customerId: item.customerId ?? null,
+    customerAddressId: item.customerAddressId ?? null,
+
+    employeeUserId: item.employeeUserId ?? null,
+    employeeName: item.employeeName ?? null,
+
+    customerName: item.customerName ?? "Cliente",
+    title: item.title ?? "Ordem de serviço",
+    description: item.description ?? null,
+
+    scheduledDate: item.scheduledDate ?? null,
+    scheduledTime: item.scheduledTime ?? null,
+
+    totalAmount: item.totalAmount ?? null,
+    status: item.status ?? "UNKNOWN",
+    address: item.address ?? null,
+    createdAt: item.createdAt ?? null,
+  };
 }
 
-// ---------------------------------------------------------------------
-// EXCLUIR — SOFT DELETE (marca deletedAt)
-// ---------------------------------------------------------------------
-export async function deleteWorkOrder(id: string) {
-  const row = await prisma.workOrder.findUnique({
-    where: { id },
-    select: { id: true, deletedAt: true },
+function frequencyLabel(frequency?: CreateAdminWorkOrderInput["frequency"]) {
+  const map: Record<string, string> = {
+    ONCE: "Avulsa",
+    DAILY: "Diária",
+    WEEKLY: "Semanal",
+    BIWEEKLY: "Quinzenal",
+    MONTHLY: "Mensal",
+  };
+
+  return frequency ? map[frequency] ?? frequency : "Avulsa";
+}
+
+function serviceKindLabel(kind: CreateAdminWorkOrderInput["serviceKind"]) {
+  return kind === "POOL_CLEANING"
+    ? "Limpeza de piscina"
+    : "Produto ou serviço adicional";
+}
+
+function additionalItemKindLabel(kind: WorkOrderAdditionalItem["kind"]) {
+  return kind === "PRODUCT" ? "Produto" : "Serviço";
+}
+
+function buildAdditionalItemsDescription(items?: WorkOrderAdditionalItem[]) {
+  if (!items?.length) {
+    return "";
+  }
+
+  const lines = items.map((item, index) => {
+    const quantity = Number(item.quantity || 0);
+    const unitPrice = Number(item.unitPrice || 0);
+    const total = Number(item.total || quantity * unitPrice || 0);
+
+    return `${index + 1}. ${additionalItemKindLabel(item.kind)}: ${
+      item.name
+    } | Qtd: ${quantity} | Unitário: R$ ${unitPrice.toFixed(
+      2,
+    )} | Total: R$ ${total.toFixed(2)}`;
   });
 
-  if (!row) return { id };
-  if (row.deletedAt) return { id };
+  return ["Itens da OS:", ...lines].join("\n");
+}
 
-  await prisma.workOrder.update({
-    where: { id },
-    data: { deletedAt: new Date() },
-  });
+function buildDescription(data: CreateAdminWorkOrderInput) {
+  const pieces = [
+    `Tipo da OS: ${serviceKindLabel(data.serviceKind)}.`,
+    `Serviço/tipo principal: ${data.serviceType}.`,
 
-  return { id };
+    data.serviceKind === "POOL_CLEANING"
+      ? `Frequência solicitada: ${frequencyLabel(data.frequency)}.`
+      : "",
+
+    data.serviceKind === "ADDITIONAL_SERVICE"
+      ? buildAdditionalItemsDescription(data.additionalItems)
+      : "",
+
+    `Data agendada: ${data.scheduledDate}.`,
+    `Horário previsto: ${data.scheduledTime}.`,
+
+    data.employeeName ? `Técnico responsável: ${data.employeeName}.` : "",
+
+    data.description?.trim()
+      ? `Observações: ${data.description.trim()}`
+      : "",
+  ];
+
+  return pieces.filter(Boolean).join("\n");
+}
+
+export async function listWorkOrders(opts?: {
+  status?: string;
+  customerId?: string;
+  scheduledDate?: string;
+}) {
+  const companyId = await getCompanyId();
+
+  const params = new URLSearchParams();
+
+  if (opts?.status) {
+    params.set("status", opts.status);
+  }
+
+  if (opts?.customerId) {
+    params.set("customerId", opts.customerId);
+  }
+
+  if (opts?.scheduledDate) {
+    params.set("scheduledDate", opts.scheduledDate);
+  }
+
+  const query = params.toString();
+
+  const data = await mappaFetch<any>(
+    `/api/companies/${companyId}/service-orders${query ? `?${query}` : ""}`,
+  );
+
+  return extractItems<ApiServiceOrder>(data).map(normalizeServiceOrder);
+}
+
+export async function listCustomerOptions(): Promise<CustomerOption[]> {
+  const companyId = await getCompanyId();
+
+  const data = await mappaFetch<any>(
+    `/api/companies/${companyId}/customers?status=ACTIVE`,
+  );
+
+  const customers = extractItems<ApiCustomer>(data);
+
+  const details = await Promise.all(
+    customers.map(async (customer) => {
+      try {
+        return await mappaFetch<ApiCustomer>(
+          `/api/companies/${companyId}/customers/${customer.id}`,
+        );
+      } catch {
+        return customer;
+      }
+    }),
+  );
+
+  return details
+    .map((customer) => {
+      const mainAddress = getMainAddress(customer);
+
+      return {
+        id: customer.id,
+        name: customer.name ?? "Cliente",
+        email: customer.email ?? null,
+        phone: customer.phone ?? null,
+        customerAddressId: mainAddress?.id ?? null,
+        address: formatAddress(mainAddress),
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}
+
+export async function listTechnicianOptions(): Promise<TechnicianOption[]> {
+  const companyId = await getCompanyId();
+
+  const data = await mappaFetch<any>(
+    `/api/companies/${companyId}/employees`,
+  );
+
+  const employees = extractItems<ApiEmployee>(data);
+
+  return employees
+    .filter((employee) => employee.status !== "INACTIVE")
+    .map((employee) => ({
+      id: employee.id,
+      name: employee.name ?? "Técnico",
+      email: employee.email ?? null,
+      phone: employee.phone ?? null,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}
+
+export async function createAdminWorkOrder(data: CreateAdminWorkOrderInput) {
+  const companyId = await getCompanyId();
+
+  if (!data.customerId) {
+    throw new Error("Selecione o cliente.");
+  }
+
+  if (!data.customerAddressId) {
+    throw new Error("O cliente selecionado não possui endereço principal.");
+  }
+
+  if (!data.employeeUserId) {
+    throw new Error("Selecione o técnico responsável.");
+  }
+
+  if (!data.title.trim()) {
+    throw new Error("Informe o título da ordem de serviço.");
+  }
+
+  if (!data.scheduledDate) {
+    throw new Error("Informe a data agendada.");
+  }
+
+  if (!data.scheduledTime) {
+    throw new Error("Informe o horário previsto.");
+  }
+
+  if (
+    data.serviceKind === "ADDITIONAL_SERVICE" &&
+    (!data.additionalItems || data.additionalItems.length === 0)
+  ) {
+    throw new Error("Adicione pelo menos um produto ou serviço à OS.");
+  }
+
+  const totalAmount = Number(data.totalAmount ?? 0);
+
+  const created = await mappaFetch<ApiServiceOrder>(
+    `/api/companies/${companyId}/service-orders/admin`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        customerId: data.customerId,
+        customerAddressId: data.customerAddressId,
+
+        // Campos atuais da API
+        title: data.title.trim(),
+        description: buildDescription(data),
+        scheduledDate: data.scheduledDate,
+        totalAmount,
+
+        // Campos preparados para o ajuste do backend
+        employeeUserId: data.employeeUserId,
+        scheduledTime: data.scheduledTime,
+        serviceKind: data.serviceKind,
+        serviceType: data.serviceType,
+        frequency: data.frequency ?? "ONCE",
+        additionalItems: data.additionalItems ?? [],
+      }),
+    },
+  );
+
+  revalidatePath("/workorders");
+  revalidatePath("/routes/builder");
+
+  return created;
 }
