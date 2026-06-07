@@ -4,6 +4,10 @@ import * as React from "react";
 import { z } from "zod";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useTransition } from "react";
+import { toast } from "sonner";
+
+import { createTechnician } from "@/app/(private)/technicians/actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,24 +26,6 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/MaskedInput";
-import { useTransition } from "react";
-import { toast } from "sonner";
-import {
-  createTechnician,
-  updateTechnician,
-  deleteTechnician,
-} from "@/app/(private)/technicians/actions";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 
 const schema = z.object({
   name: z.string().min(2, "Informe o nome completo"),
@@ -51,6 +37,27 @@ const schema = z.object({
 
 type Values = z.infer<typeof schema>;
 
+function buildDefaults(defaultValues?: Partial<{
+  firstName: string;
+  lastName: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  active: boolean;
+}>): Values {
+  const fullName =
+    defaultValues?.name ??
+    `${defaultValues?.firstName ?? ""} ${defaultValues?.lastName ?? ""}`.trim();
+
+  return {
+    name: fullName,
+    email: defaultValues?.email ?? "",
+    password: "123456",
+    phone: defaultValues?.phone ?? "",
+    active: defaultValues?.active ?? true,
+  };
+}
+
 export default function TechnicianForm({
   id,
   defaultValues,
@@ -60,6 +67,7 @@ export default function TechnicianForm({
   defaultValues?: Partial<{
     firstName: string;
     lastName: string;
+    name: string;
     email: string;
     phone: string | null;
     active: boolean;
@@ -71,47 +79,44 @@ export default function TechnicianForm({
 
   const isEditing = Boolean(id);
 
-  const fullName = `${defaultValues?.firstName ?? ""} ${
-    defaultValues?.lastName ?? ""
-  }`.trim();
+  const defaults = React.useMemo(
+    () => buildDefaults(defaultValues),
+    [defaultValues],
+  );
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      name: fullName,
-      email: defaultValues?.email ?? "",
-      password: "123456",
-      phone: defaultValues?.phone ?? "",
-      active: defaultValues?.active ?? true,
-    },
+    defaultValues: defaults,
   });
 
-  const isActive = form.watch("active") ?? true;
+  React.useEffect(() => {
+    form.reset(defaults);
+  }, [id, defaults, form]);
 
   const onSubmit: SubmitHandler<Values> = (values) =>
     startTransition(async () => {
       try {
-        if (id) {
-          await updateTechnician();
-          toast.success("Técnico atualizado");
-        } else {
-          if (!values.password || values.password.trim().length < 6) {
-            form.setError("password", {
-              message: "Informe uma senha com pelo menos 6 caracteres",
-            });
-            return;
-          }
-
-          await createTechnician({
-            name: values.name,
-            email: values.email,
-            password: values.password,
-            phone: values.phone,
-          });
-
-          toast.success("Técnico criado");
+        if (isEditing) {
+          toast.error("Edição de técnico ainda não está disponível na API.");
+          return;
         }
 
+        if (!values.password || values.password.trim().length < 6) {
+          form.setError("password", {
+            message: "Informe uma senha com pelo menos 6 caracteres",
+          });
+          return;
+        }
+
+        await createTechnician({
+          name: values.name,
+          email: values.email,
+          password: values.password,
+          phone: values.phone,
+        });
+
+        toast.success("Técnico criado");
+        form.reset(buildDefaults({}));
         setOpen(false);
       } catch (e: any) {
         toast.error(e?.message || "Erro ao salvar técnico");
@@ -119,45 +124,44 @@ export default function TechnicianForm({
     });
 
   const handleCancel = () => {
-    form.reset();
+    form.reset(isEditing ? defaults : buildDefaults({}));
     setOpen(false);
   };
 
-  const handleToggleActive = () =>
-    startTransition(async () => {
-      try {
-        await updateTechnician();
-        toast.error("Ativar/Inativar ainda não existe na API.");
-      } catch (e: any) {
-        toast.error(e?.message || "Não foi possível alterar o status");
-      }
-    });
-
-  const handleDelete = () =>
-    startTransition(async () => {
-      try {
-        await deleteTechnician();
-      } catch (e: any) {
-        toast.error(e?.message || "Erro ao remover técnico");
-      }
-    });
+  const inputDisabled = isEditing;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+
+        if (next) {
+          form.reset(isEditing ? defaults : buildDefaults({}));
+        }
+      }}
+    >
       <DialogTrigger asChild>
         {typeof trigger === "string" ? (
           <Button className="btn-brand text-white">{trigger}</Button>
         ) : (
-          trigger as React.ReactElement
+          (trigger as React.ReactElement)
         )}
       </DialogTrigger>
 
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? "Editar Técnico" : "Novo Técnico"}
+            {isEditing ? "Visualizar técnico" : "Novo Técnico"}
           </DialogTitle>
         </DialogHeader>
+
+        {isEditing && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            A edição, inativação e exclusão de técnicos ainda dependem de rotas
+            no backend. Por enquanto, os dados ficam apenas para visualização.
+          </div>
+        )}
 
         <Form<Values> {...form}>
           <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
@@ -168,7 +172,7 @@ export default function TechnicianForm({
                 <FormItem>
                   <FormLabel>Nome completo</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input {...field} disabled={inputDisabled} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -182,7 +186,11 @@ export default function TechnicianForm({
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="email" {...field} />
+                    <Input
+                      type="email"
+                      {...field}
+                      disabled={inputDisabled}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -212,65 +220,29 @@ export default function TechnicianForm({
                 <FormItem>
                   <FormLabel>Telefone</FormLabel>
                   <FormControl>
-                    <MaskedInput mask="(99) 99999-9999" {...field} />
+                    <MaskedInput
+                      mask="(99) 99999-9999"
+                      {...field}
+                      disabled={inputDisabled}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3 text-xs leading-5 text-neutral-700">
-              O cadastro será enviado para a API do Aqua Mappa como funcionário
-              da empresa.
-            </div>
+            {!isEditing && (
+              <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3 text-xs leading-5 text-neutral-700">
+                O cadastro será enviado para a API do Aqua Mappa como
+                funcionário da empresa.
+              </div>
+            )}
 
             <div className="flex items-center justify-between gap-2 pt-2">
               {isEditing ? (
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="border-neutral-400 text-neutral-700"
-                    onClick={handleToggleActive}
-                    disabled={pending}
-                  >
-                    {isActive ? "Inativar" : "Ativar"}
-                  </Button>
-
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="border-red-500 text-red-600"
-                        disabled={pending}
-                      >
-                        Excluir
-                      </Button>
-                    </AlertDialogTrigger>
-
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>
-                          Confirmar exclusão
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Deseja excluir este técnico? Esta ação não pode ser
-                          desfeita.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                          className="btn-brand text-white"
-                          onClick={handleDelete}
-                        >
-                          Confirmar
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                <div className="text-xs text-neutral-500">
+                  Edição, inativação e exclusão serão liberadas quando a API
+                  tiver essas rotas.
                 </div>
               ) : (
                 <span />
@@ -278,16 +250,18 @@ export default function TechnicianForm({
 
               <div className="flex items-center gap-2">
                 <Button type="button" variant="outline" onClick={handleCancel}>
-                  Cancelar
+                  {isEditing ? "Fechar" : "Cancelar"}
                 </Button>
 
-                <Button
-                  type="submit"
-                  disabled={pending}
-                  className="btn-brand text-white"
-                >
-                  {pending ? "Salvando..." : isEditing ? "Salvar" : "Criar"}
-                </Button>
+                {!isEditing && (
+                  <Button
+                    type="submit"
+                    disabled={pending}
+                    className="btn-brand text-white"
+                  >
+                    {pending ? "Criando..." : "Criar"}
+                  </Button>
+                )}
               </div>
             </div>
           </form>

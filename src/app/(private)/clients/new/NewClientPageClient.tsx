@@ -1,4 +1,3 @@
-// src/app/(private)/clients/new/NewClientPageClient.tsx
 "use client";
 
 import * as React from "react";
@@ -24,19 +23,16 @@ import { toast } from "sonner";
 import { createClient } from "@/app/(private)/clients/actions";
 
 const schema = z.object({
-  // pessoa
   firstName: z.string().min(2, "Informe o nome"),
   lastName: z.string().min(2, "Informe o sobrenome"),
   email: z.string().email("Email inválido"),
   phone: z.string().optional(),
   cpf: z.string().optional(),
 
-  // empresa
   hasCompany: z.boolean().optional(),
   companyName: z.string().optional(),
   cnpj: z.string().optional(),
 
-  // endereço de cobrança
   cep: z.string().optional(),
   street: z.string().optional(),
   number: z.string().optional(),
@@ -44,10 +40,8 @@ const schema = z.object({
   city: z.string().optional(),
   uf: z.string().max(2).optional(),
 
-  // informações úteis
   notes: z.string().optional(),
 
-  // localização da piscina
   poolCep: z.string().optional(),
   poolStreet: z.string().optional(),
   poolNumber: z.string().optional(),
@@ -56,7 +50,9 @@ const schema = z.object({
   poolUf: z.string().max(2).optional(),
 
   technicianId: z.string().optional(),
-  days: z.array(z.enum(["dom", "seg", "ter", "qua", "qui", "sex", "sab"])).optional(),
+  days: z
+    .array(z.enum(["dom", "seg", "ter", "qua", "qui", "sex", "sab"]))
+    .optional(),
 
   active: z.boolean().optional(),
 });
@@ -65,12 +61,19 @@ type Values = z.infer<typeof schema>;
 
 const onlyDigits = (s: string) => s.replace(/\D+/g, "");
 
-// ViaCEP helper
 async function fetchViaCep(cepDigits: string) {
   const res = await fetch(`https://viacep.com.br/ws/${cepDigits}/json/`);
-  if (!res.ok) throw new Error("Falha ao consultar CEP");
+
+  if (!res.ok) {
+    throw new Error("Falha ao consultar CEP");
+  }
+
   const data = await res.json();
-  if (data?.erro) return null;
+
+  if (data?.erro) {
+    return null;
+  }
+
   return {
     street: data?.logradouro ?? "",
     district: data?.bairro ?? "",
@@ -79,7 +82,6 @@ async function fetchViaCep(cepDigits: string) {
   };
 }
 
-// defaults base para "novo"
 function buildDefaults(): Values {
   return {
     firstName: "",
@@ -87,24 +89,30 @@ function buildDefaults(): Values {
     email: "",
     phone: "",
     cpf: "",
+
     hasCompany: false,
     companyName: "",
     cnpj: "",
+
     cep: "",
     street: "",
     number: "",
     district: "",
     city: "",
     uf: "",
+
     notes: "",
+
     poolCep: "",
     poolStreet: "",
     poolNumber: "",
     poolDistrict: "",
     poolCity: "",
     poolUf: "",
+
     technicianId: "",
     days: [],
+
     active: true,
   };
 }
@@ -112,6 +120,7 @@ function buildDefaults(): Values {
 export default function NewClientPageClient() {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -122,28 +131,34 @@ export default function NewClientPageClient() {
 
   const copyBillingToPool = () => {
     const v = form.getValues();
+
     form.setValue("poolCep", v.cep || "");
     form.setValue("poolStreet", v.street || "");
     form.setValue("poolNumber", v.number || "");
     form.setValue("poolDistrict", v.district || "");
     form.setValue("poolCity", v.city || "");
     form.setValue("poolUf", v.uf || "");
+
     toast.message("Localização da piscina copiada do endereço de cobrança");
   };
 
   const tryFillByCep = async (cepField: "cep" | "poolCep") => {
     const raw = form.getValues(cepField) || "";
     const digits = onlyDigits(raw);
+
     if (digits.length !== 8) {
       toast.error("CEP deve ter 8 dígitos");
       return;
     }
+
     try {
       const addr = await fetchViaCep(digits);
+
       if (!addr) {
         toast.error("CEP não encontrado");
         return;
       }
+
       if (cepField === "cep") {
         form.setValue("street", addr.street);
         form.setValue("district", addr.district);
@@ -155,6 +170,7 @@ export default function NewClientPageClient() {
         form.setValue("poolCity", addr.city);
         form.setValue("poolUf", addr.uf);
       }
+
       toast.success("Endereço preenchido pelo CEP");
     } catch (e: any) {
       toast.error(e?.message || "Falha ao consultar CEP");
@@ -164,16 +180,22 @@ export default function NewClientPageClient() {
   const onSubmit = (values: Values) =>
     startTransition(async () => {
       try {
+        setErrorMessage(null);
+
         if (!values.hasCompany) {
           values.companyName = "";
           values.cnpj = "";
         }
+
         await createClient(values);
-        toast.success("Cliente criado");
-        router.push("/clients");
-        router.refresh?.();
+
+        router.push("/clients?created=1");
+        router.refresh();
       } catch (e: any) {
-        toast.error(e?.message || "Erro ao salvar cliente");
+        const message = e?.message || "Erro ao salvar cliente";
+
+        setErrorMessage(message);
+        toast.error(message);
       }
     });
 
@@ -184,328 +206,393 @@ export default function NewClientPageClient() {
 
   return (
     <Form {...form}>
-      <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
-        {/* Pessoa */}
-        <section className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormField
-              name="firstName"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nome</FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              name="lastName"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Sobrenome</FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+      <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
+        {errorMessage && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {errorMessage}
           </div>
+        )}
 
-          <label className="inline-flex items-center gap-2 select-none">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-neutral-300"
-              checked={!!hasCompany}
-              onChange={(e) => form.setValue("hasCompany", e.target.checked)}
-            />
-            <span className="text-sm text-neutral-700">Cadastrar empresa</span>
-          </label>
-
-          {hasCompany && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <CollapsibleSection
+          title="Dados do cliente"
+          description="Nome, contato, documento e dados de empresa."
+          defaultOpen
+        >
+          <section className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField
-                name="companyName"
+                name="firstName"
                 control={form.control}
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Nome da empresa</FormLabel>
-                    <FormControl><Input {...field} /></FormControl>
+                    <FormLabel>Nome</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
               <FormField
-                name="cnpj"
+                name="lastName"
                 control={form.control}
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>CNPJ</FormLabel>
+                    <FormLabel>Sobrenome</FormLabel>
                     <FormControl>
-                      <MaskedInput mask="99.999.999/9999-99" {...field} />
+                      <Input {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
-          )}
 
-          <FormField
-            name="email"
-            control={form.control}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Email</FormLabel>
-                <FormControl><Input type="email" {...field} /></FormControl>
-                <FormMessage />
-              </FormItem>
+            <FormField
+              name="email"
+              control={form.control}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input type="email" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <FormField
+                name="phone"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Telefone</FormLabel>
+                    <FormControl>
+                      <MaskedInput mask="(99) 99999-9999" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                name="cpf"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>CPF</FormLabel>
+                    <FormControl>
+                      <MaskedInput mask="999.999.999-99" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <label className="inline-flex select-none items-center gap-2">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-neutral-300"
+                checked={!!hasCompany}
+                onChange={(e) => form.setValue("hasCompany", e.target.checked)}
+              />
+              <span className="text-sm text-neutral-700">
+                Cadastrar empresa
+              </span>
+            </label>
+
+            {hasCompany && (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <FormField
+                  name="companyName"
+                  control={form.control}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nome da empresa</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  name="cnpj"
+                  control={form.control}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>CNPJ</FormLabel>
+                      <FormControl>
+                        <MaskedInput mask="99.999.999/9999-99" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             )}
-          />
+          </section>
+        </CollapsibleSection>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <CollapsibleSection
+          title="Endereço de cobrança e informações úteis"
+          description="Endereço principal do cliente e observações internas."
+          defaultOpen
+        >
+          <section className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
+              <FormField
+                name="cep"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem className="sm:col-span-3">
+                    <FormLabel>CEP</FormLabel>
+                    <FormControl>
+                      <MaskedInput
+                        mask="99999-999"
+                        {...field}
+                        onBlur={async () => {
+                          await tryFillByCep("cep");
+                        }}
+                        onChange={(e) => {
+                          field.onChange(e);
+
+                          const digits = onlyDigits(e.target.value);
+
+                          if (digits.length === 8) {
+                            tryFillByCep("cep");
+                          }
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                name="city"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem className="sm:col-span-3">
+                    <FormLabel>Cidade</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                name="uf"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem className="sm:col-span-1">
+                    <FormLabel>UF</FormLabel>
+                    <FormControl>
+                      <Input
+                        maxLength={2}
+                        className="text-center sm:max-w-[64px]"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                name="district"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem className="sm:col-span-5">
+                    <FormLabel>Bairro</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+              <FormField
+                name="street"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem className="sm:col-span-3">
+                    <FormLabel>Endereço</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                name="number"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem className="sm:col-span-1">
+                    <FormLabel>Número</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             <FormField
-              name="phone"
+              name="notes"
               control={form.control}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Telefone</FormLabel>
+                  <FormLabel>Observações</FormLabel>
                   <FormControl>
-                    <MaskedInput mask="(99) 99999-9999" {...field} />
+                    <Textarea rows={3} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <FormField
-              name="cpf"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>CPF</FormLabel>
-                  <FormControl>
-                    <MaskedInput mask="999.999.999-99" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        </section>
+          </section>
+        </CollapsibleSection>
 
-        {/* Endereço de cobrança */}
-        <SectionTitle>ENDEREÇO DE COBRANÇA</SectionTitle>
-        <section className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
-            <FormField
-              name="cep"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem className="sm:col-span-3">
-                  <FormLabel>CEP</FormLabel>
-                  <FormControl>
-                    <MaskedInput
-                      mask="99999-999"
-                      {...field}
-                      onBlur={async () => { await tryFillByCep("cep"); }}
-                      onChange={(e) => {
-                        field.onChange(e);
-                        const digits = onlyDigits(e.target.value);
-                        if (digits.length === 8) tryFillByCep("cep");
-                      }}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+        <CollapsibleSection
+          title="Localização da piscina"
+          description="Endereço onde o serviço será realizado."
+          defaultOpen
+          action={
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={copyBillingToPool}
+            >
+              Usar o mesmo do endereço de cobrança
+            </Button>
+          }
+        >
+          <section className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
+              <FormField
+                name="poolCep"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem className="sm:col-span-3">
+                    <FormLabel>CEP</FormLabel>
+                    <FormControl>
+                      <MaskedInput
+                        mask="99999-999"
+                        {...field}
+                        onBlur={async () => {
+                          await tryFillByCep("poolCep");
+                        }}
+                        onChange={(e) => {
+                          field.onChange(e);
 
-            <FormField
-              name="city"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem className="sm:col-span-3">
-                  <FormLabel>Cidade</FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                          const digits = onlyDigits(e.target.value);
 
-            <FormField
-              name="uf"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem className="sm:col-span-1">
-                  <FormLabel>UF</FormLabel>
-                  <FormControl>
-                    <Input
-                      maxLength={2}
-                      className="sm:max-w-[64px] text-center"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                          if (digits.length === 8) {
+                            tryFillByCep("poolCep");
+                          }
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <FormField
-              name="district"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem className="sm:col-span-5">
-                  <FormLabel>Bairro</FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+              <FormField
+                name="poolCity"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem className="sm:col-span-3">
+                    <FormLabel>Cidade</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <FormField
-              name="street"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem className="sm:col-span-3">
-                  <FormLabel>Endereço</FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              name="number"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem className="sm:col-span-1">
-                  <FormLabel>Número</FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        </section>
+              <FormField
+                name="poolUf"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem className="sm:col-span-1">
+                    <FormLabel>UF</FormLabel>
+                    <FormControl>
+                      <Input
+                        maxLength={2}
+                        className="text-center sm:max-w-[64px]"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-        {/* Informações úteis */}
-        <SectionTitle>INFORMAÇÕES ÚTEIS</SectionTitle>
-        <FormField
-          name="notes"
-          control={form.control}
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Observações</FormLabel>
-              <FormControl><Textarea rows={3} {...field} /></FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+              <FormField
+                name="poolDistrict"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem className="sm:col-span-5">
+                    <FormLabel>Bairro</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
-        {/* Localização da piscina */}
-        <div className="flex items-center justify-between">
-          <SectionTitle>LOCALIZAÇÃO DA PISCINA</SectionTitle>
-          <Button type="button" variant="outline" size="sm" onClick={copyBillingToPool}>
-            Usar o mesmo do endereço de cobrança
-          </Button>
-        </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+              <FormField
+                name="poolStreet"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem className="sm:col-span-3">
+                    <FormLabel>Endereço</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-        <section className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
-            <FormField
-              name="poolCep"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem className="sm:col-span-3">
-                  <FormLabel>CEP</FormLabel>
-                  <FormControl>
-                    <MaskedInput
-                      mask="99999-999"
-                      {...field}
-                      onBlur={async () => { await tryFillByCep("poolCep"); }}
-                      onChange={(e) => {
-                        field.onChange(e);
-                        const digits = onlyDigits(e.target.value);
-                        if (digits.length === 8) tryFillByCep("poolCep");
-                      }}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+              <FormField
+                name="poolNumber"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem className="sm:col-span-1">
+                    <FormLabel>Número</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </section>
+        </CollapsibleSection>
 
-            <FormField
-              name="poolCity"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem className="sm:col-span-3">
-                  <FormLabel>Cidade</FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              name="poolUf"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem className="sm:col-span-1">
-                  <FormLabel>UF</FormLabel>
-                  <FormControl>
-                    <Input
-                      maxLength={2}
-                      className="sm:max-w-[64px] text-center"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              name="poolDistrict"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem className="sm:col-span-5">
-                  <FormLabel>Bairro</FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <FormField
-              name="poolStreet"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem className="sm:col-span-3">
-                  <FormLabel>Endereço</FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              name="poolNumber"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem className="sm:col-span-1">
-                  <FormLabel>Número</FormLabel>
-                  <FormControl><Input {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        </section>
-
-        {/* Rodapé */}
         <div className="mt-6 flex items-center justify-between">
           <Button
             type="button"
@@ -520,6 +607,7 @@ export default function NewClientPageClient() {
             <Button type="button" variant="outline" onClick={handleCancel}>
               Cancelar
             </Button>
+
             <Button
               type="submit"
               disabled={pending}
@@ -534,11 +622,50 @@ export default function NewClientPageClient() {
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
+function CollapsibleSection({
+  title,
+  description,
+  defaultOpen = false,
+  action,
+  children,
+}: {
+  title: string;
+  description?: string;
+  defaultOpen?: boolean;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = React.useState(defaultOpen);
+
   return (
-    <div className="pt-1">
-      <div className="text-sm font-medium text-neutral-800">{children}</div>
-      <div className="mt-1 h-px w-full bg-neutral-200" />
-    </div>
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+        <button
+          type="button"
+          onClick={() => setOpen((current) => !current)}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        >
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-sm font-semibold text-slate-700">
+            {open ? "−" : "+"}
+          </span>
+
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-slate-800">
+              {title}
+            </span>
+
+            {description && (
+              <span className="block truncate text-xs text-slate-500">
+                {description}
+              </span>
+            )}
+          </span>
+        </button>
+
+        {action && <div className="shrink-0">{action}</div>}
+      </div>
+
+      {open && <div className="p-4">{children}</div>}
+    </section>
   );
 }

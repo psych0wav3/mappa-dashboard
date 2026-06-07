@@ -3,25 +3,126 @@
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5264";
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  process.env.API_URL ||
+  "http://localhost:5264";
+
 const FALLBACK_COMPANY_ID =
   process.env.NEXT_PUBLIC_COMPANY_ID ||
+  process.env.COMPANY_ID ||
   "00000000-0000-0000-0000-000000000001";
 
-async function getTokenOrThrow() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("mappa_access_token")?.value;
+const API_ADMIN_EMAIL = process.env.API_ADMIN_EMAIL;
+const API_ADMIN_PASSWORD = process.env.API_ADMIN_PASSWORD;
 
-  if (!token) {
-    throw new Error("Usuário não autenticado. Faça login novamente.");
+type ApiError = {
+  errors?: Array<{
+    statusCode?: number;
+    message?: string;
+    code?: string;
+  }>;
+  detail?: string;
+  title?: string;
+  message?: string;
+};
+
+type ApiCustomer = {
+  id: string;
+  userId?: string | null;
+  companyId?: string | null;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  document?: string | null;
+  status?: string | null;
+  mainAddress?: {
+    id?: string | null;
+    street?: string | null;
+    number?: string | null;
+    complement?: string | null;
+    neighborhood?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zipCode?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+  } | null;
+};
+
+async function getTokenFromCookie() {
+  const cookieStore = await cookies();
+  return cookieStore.get("mappa_access_token")?.value || null;
+}
+
+async function getTokenFromApiLogin() {
+  if (!API_ADMIN_EMAIL || !API_ADMIN_PASSWORD) {
+    throw new Error(
+      "Usuário não autenticado. Configure API_ADMIN_EMAIL e API_ADMIN_PASSWORD no .env.local.",
+    );
   }
 
-  return token;
+  const response = await fetch(`${API_URL}/api/auth/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email: API_ADMIN_EMAIL,
+      password: API_ADMIN_PASSWORD,
+    }),
+    cache: "no-store",
+  });
+
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`Erro ao autenticar na API: ${response.status} ${text}`);
+  }
+
+  const json = JSON.parse(text);
+
+  if (!json.accessToken) {
+    throw new Error("A API não retornou accessToken.");
+  }
+
+  return json.accessToken as string;
+}
+
+async function getTokenOrThrow() {
+  const cookieToken = await getTokenFromCookie();
+
+  if (cookieToken) {
+    return cookieToken;
+  }
+
+  return getTokenFromApiLogin();
 }
 
 async function getCompanyId() {
   const cookieStore = await cookies();
-  return cookieStore.get("mappa_company_id")?.value || FALLBACK_COMPANY_ID;
+
+  return (
+    cookieStore.get("mappa_company_id")?.value ||
+    FALLBACK_COMPANY_ID
+  );
+}
+
+function parseApiError(status: number, text: string) {
+  try {
+    const error = JSON.parse(text) as ApiError;
+
+    const message =
+      error?.errors?.[0]?.message ||
+      error?.detail ||
+      error?.title ||
+      error?.message ||
+      JSON.stringify(error);
+
+    return `Erro ${status}: ${message}`;
+  } catch {
+    return `Erro ${status}: ${text || "Falha na API."}`;
+  }
 }
 
 async function mappaFetch<T>(path: string, options?: RequestInit): Promise<T> {
@@ -37,71 +138,86 @@ async function mappaFetch<T>(path: string, options?: RequestInit): Promise<T> {
     },
   });
 
+  const text = await response.text();
+
   if (!response.ok) {
-    let message = `Erro na API: ${response.status}`;
-
-    try {
-      const error = await response.json();
-
-      if (response.status === 403) {
-        message =
-          "Acesso negado. Entre com o usuário admin@piscinasazul.com para acessar clientes.";
-      } else {
-        message =
-          error?.detail ||
-          error?.title ||
-          error?.message ||
-          error?.errors?.[0]?.message ||
-          JSON.stringify(error);
-      }
-    } catch {
-      if (response.status === 403) {
-        message =
-          "Acesso negado. Entre com o usuário admin@piscinasazul.com para acessar clientes.";
-      }
-    }
-
-    throw new Error(message);
+    throw new Error(parseApiError(response.status, text));
   }
 
-  if (response.status === 204) {
+  if (response.status === 204 || !text) {
     return null as T;
   }
 
-  return response.json();
+  return JSON.parse(text) as T;
 }
 
 function clean(value: unknown) {
   if (typeof value !== "string") return value ?? null;
+
   const trimmed = value.trim();
+
   return trimmed === "" ? null : trimmed;
 }
 
 function onlyDigits(value: unknown) {
   if (typeof value !== "string") return null;
+
   const digits = value.replace(/\D+/g, "");
+
   return digits || null;
 }
 
-function mapApiCustomerToClient(item: any, companyId: string) {
-  const [firstName, ...rest] = String(item.name || "").split(" ");
+function splitName(name?: string | null) {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  return {
+    firstName: parts[0] || "",
+    lastName: parts.slice(1).join(" "),
+  };
+}
+
+function extractCustomers(payload: any): ApiCustomer[] {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload?.items)) {
+    return payload.items;
+  }
+
+  if (Array.isArray(payload?.customers)) {
+    return payload.customers;
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  return [];
+}
+
+function mapApiCustomerToClient(item: ApiCustomer, companyId: string) {
+  const { firstName, lastName } = splitName(item.name);
 
   return {
     id: item.id,
-    userId: item.userId,
+    userId: item.userId ?? null,
     companyId: item.companyId ?? companyId,
 
-    firstName: firstName || item.name || "",
-    lastName: rest.join(" "),
+    firstName,
+    lastName,
 
-    email: item.email,
-    phone: item.phone,
-    cpf: item.document,
+    email: item.email ?? "",
+    phone: item.phone ?? null,
+    cpf: item.document ?? null,
     cnpj: null,
     companyName: null,
 
-    active: item.status === "ACTIVE",
-    status: item.status,
+    active: item.status !== "INACTIVE",
+    status: item.status ?? "ACTIVE",
 
     street: item.mainAddress?.street ?? null,
     number: item.mainAddress?.number ?? null,
@@ -128,13 +244,13 @@ function mapApiCustomerToClient(item: any, companyId: string) {
 export async function listClients() {
   const companyId = await getCompanyId();
 
-  const data = await mappaFetch<{ items: any[] }>(
-    `/api/companies/${companyId}/customers`
+  const data = await mappaFetch<any>(
+    `/api/companies/${companyId}/customers`,
   );
 
-  return (data.items || []).map((item) =>
-    mapApiCustomerToClient(item, companyId)
-  );
+  const customers = extractCustomers(data);
+
+  return customers.map((item) => mapApiCustomerToClient(item, companyId));
 }
 
 export async function createClient(data: any) {
@@ -152,6 +268,15 @@ export async function createClient(data: any) {
     throw new Error("Informe o email do cliente.");
   }
 
+  const street =
+    clean(data.poolStreet || data.street) || "Endereço não informado";
+
+  const city =
+    clean(data.poolCity || data.city) || "Cidade não informada";
+
+  const state =
+    clean(data.poolUf || data.uf) || "SP";
+
   const payload = {
     name,
     email: String(data.email).trim(),
@@ -159,24 +284,26 @@ export async function createClient(data: any) {
     phone: onlyDigits(data.phone),
     document: onlyDigits(data.cpf || data.cnpj),
     address: {
-      street: clean(data.poolStreet || data.street) || "Endereço não informado",
+      street,
       number: clean(data.poolNumber || data.number),
       complement: null,
       neighborhood: clean(data.poolDistrict || data.district),
-      city: clean(data.poolCity || data.city) || "Cidade não informada",
-      state: clean(data.poolUf || data.uf) || "SP",
+      city,
+      state,
       zipCode: onlyDigits(data.poolCep || data.cep),
       latitude: data.poolLat ? Number(data.poolLat) : null,
       longitude: data.poolLng ? Number(data.poolLng) : null,
     },
   };
 
-  await mappaFetch(`/api/companies/${companyId}/customers`, {
+  const result = await mappaFetch(`/api/companies/${companyId}/customers`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
 
   revalidatePath("/clients");
+
+  return result;
 }
 
 export async function updateClient() {

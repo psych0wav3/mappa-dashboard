@@ -105,10 +105,6 @@ export default function NewTechnicianClient() {
         </div>
       </div>
 
-      <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3 text-xs leading-5 text-neutral-700">
-        O técnico será criado como funcionário da empresa na API do Aqua Mappa.
-      </div>
-
       <div className="mt-6 flex items-center justify-between">
         <button
           type="button"
