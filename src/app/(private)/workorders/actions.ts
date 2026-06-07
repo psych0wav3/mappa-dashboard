@@ -231,19 +231,29 @@ function parseApiError(status: number, text: string) {
 }
 
 async function mappaFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = await getTokenOrThrow();
+  async function requestWithToken(token: string) {
+    return fetch(`${API_URL}${path}`, {
+      ...options,
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        ...(options?.headers || {}),
+      },
+    });
+  }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    cache: "no-store",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...(options?.headers || {}),
-    },
-  });
+  let token = await getTokenOrThrow();
 
-  const text = await response.text();
+  let response = await requestWithToken(token);
+  let text = await response.text();
+
+  if (response.status === 401) {
+    token = await getTokenFromApiLogin();
+
+    response = await requestWithToken(token);
+    text = await response.text();
+  }
 
   if (!response.ok) {
     throw new Error(parseApiError(response.status, text));
