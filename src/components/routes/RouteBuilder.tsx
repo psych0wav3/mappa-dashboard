@@ -3,6 +3,8 @@
 import * as React from "react";
 import { toast } from "sonner";
 import {
+  Check,
+  ChevronDown,
   ClipboardList,
   MapPin,
   Route,
@@ -34,6 +36,14 @@ const MOCK_TECHNICIANS: RouteTechnician[] = [
   {
     id: "tech-3",
     name: "Magno Piscinas",
+  },
+  {
+    id: "tech-4",
+    name: "João Manutenção",
+  },
+  {
+    id: "tech-5",
+    name: "Adevaldo Piscineiro",
   },
 ];
 
@@ -109,6 +119,145 @@ const MOCK_WORK_ORDERS: AvailableWorkOrder[] = [
     lng: -44.94525,
   },
 ];
+
+function TechnicianSearchSelect({
+  technicians,
+  value,
+  onChange,
+}: {
+  technicians: RouteTechnician[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState("");
+
+  const wrapperRef = React.useRef<HTMLDivElement | null>(null);
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const selectedTechnician =
+    technicians.find((technician) => technician.id === value) || null;
+
+  const filteredTechnicians = React.useMemo(() => {
+    const term = query.trim().toLowerCase();
+
+    if (!term) return technicians;
+
+    return technicians.filter((technician) =>
+      technician.name.toLowerCase().includes(term),
+    );
+  }, [query, technicians]);
+
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (!wrapperRef.current) return;
+
+      if (!wrapperRef.current.contains(event.target as Node)) {
+        setOpen(false);
+        setQuery("");
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) return;
+
+    const timer = window.setTimeout(() => {
+      inputRef.current?.focus();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [open]);
+
+  function handleOpen() {
+    setOpen(true);
+    setQuery("");
+  }
+
+  function handleSelect(id: string) {
+    onChange(id);
+    setOpen(false);
+    setQuery("");
+  }
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <div className="relative">
+        <Search
+          size={15}
+          className={`pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 transition ${
+            open ? "text-slate-400" : "text-transparent"
+          }`}
+        />
+
+        <input
+          ref={inputRef}
+          type="text"
+          value={
+            open
+              ? query
+              : selectedTechnician
+                ? selectedTechnician.name
+                : ""
+          }
+          readOnly={!open}
+          onClick={handleOpen}
+          onFocus={handleOpen}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={open ? "Pesquisar técnico..." : "Selecione um técnico..."}
+          className={`h-10 w-full rounded-md border border-slate-300 bg-white pr-10 text-sm outline-none transition hover:bg-slate-50 focus:border-sky-400 ${
+            open ? "pl-9" : "pl-3"
+          }`}
+        />
+
+        <ChevronDown
+          className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 transition ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </div>
+
+      {open && (
+        <div className="absolute left-0 right-0 z-50 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+          <div className="max-h-56 overflow-y-auto p-1">
+            {filteredTechnicians.map((technician) => {
+              const selected = technician.id === value;
+
+              return (
+                <button
+                  key={technician.id}
+                  type="button"
+                  onClick={() => handleSelect(technician.id)}
+                  className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
+                    selected
+                      ? "bg-sky-50 text-sky-800"
+                      : "text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <span>{technician.name}</span>
+
+                  {selected && <Check className="h-4 w-4" />}
+                </button>
+              );
+            })}
+
+            {filteredTechnicians.length === 0 && (
+              <div className="px-3 py-6 text-center text-sm text-slate-500">
+                Nenhum técnico encontrado.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function MockRouteMap({ orders }: { orders: SelectedRouteOrder[] }) {
   return (
@@ -282,24 +431,16 @@ export default function RouteBuilder() {
                 Técnico responsável
               </h2>
               <p className="text-xs text-slate-500">
-                Selecione quem executará esta rota.
+                Pesquise e selecione quem executará esta rota.
               </p>
             </div>
           </div>
 
-          <select
+          <TechnicianSearchSelect
+            technicians={MOCK_TECHNICIANS}
             value={technicianId}
-            onChange={(event) => setTechnicianId(event.target.value)}
-            className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-sky-400"
-          >
-            <option value="">Selecione um técnico...</option>
-
-            {MOCK_TECHNICIANS.map((technician) => (
-              <option key={technician.id} value={technician.id}>
-                {technician.name}
-              </option>
-            ))}
-          </select>
+            onChange={setTechnicianId}
+          />
         </section>
 
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
