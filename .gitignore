@@ -26,10 +26,6 @@ yarn-error.log*
 prisma/dev.db
 prisma/*.db-journal
 
-# Supabase (se existir)
-.supabase/
-EOF
-
 # vercel
 .vercel
 

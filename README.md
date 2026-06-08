@@ -70,7 +70,6 @@ Todos os relacionamentos já estão indexados para **consultas de calendário e 
 
 ### Pré-requisitos
 - Node.js 18+
-- Postgres (via Supabase)
 - API Key do Google Maps
 
 ### Variáveis de ambiente
@@ -136,7 +135,6 @@ App rodará em http://localhost:3000
 - **ORM**: Prisma, com tipagem forte e migrations.
 - **Frontend**: Next.js (App Router) + React + Tailwind + shadcn/ui.
 - **Mapas**: Google Maps API (Markers, Advanced Markers, Autocomplete).
-- **Realtime**: Supabase Realtime (para status das visitas).
 
 
 

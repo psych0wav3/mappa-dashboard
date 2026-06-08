@@ -2,49 +2,28 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import {
-  Check,
-  ChevronDown,
-  ClipboardList,
-  MapPin,
-  Route,
-  Search,
-  UserRound,
-} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import RouteFiltersBar from "@/components/routes/RouteFiltersBar";
+import WeeklyTechnicianBoard from "@/components/routes/WeeklyTechnicianBoard";
 import AvailableWorkOrdersCard from "@/components/routes/AvailableWorkOrdersCard";
-import SelectedRouteOrdersCard from "@/components/routes/SelectedRouteOrdersCard";
+import FullWidthRouteMap from "@/components/routes/FullWidthRouteMap";
 
 import {
   type AvailableWorkOrder,
+  type PlannedRouteOrder,
   type RouteTechnician,
-  type SelectedRouteOrder,
+  type RouteWeekday,
+  generateId,
   weekdaysLabel,
 } from "@/components/routes/routeBuilderMockTypes";
 
 const MOCK_TECHNICIANS: RouteTechnician[] = [
-  {
-    id: "tech-1",
-    name: "Ellen Richter",
-  },
-  {
-    id: "tech-2",
-    name: "Lucas Técnico",
-  },
-  {
-    id: "tech-3",
-    name: "Magno Piscinas",
-  },
-  {
-    id: "tech-4",
-    name: "João Manutenção",
-  },
-  {
-    id: "tech-5",
-    name: "Adevaldo Piscineiro",
-  },
+  { id: "tech-1", name: "Ellen Richter" },
+  { id: "tech-2", name: "Lucas Técnico" },
+  { id: "tech-3", name: "Magno Piscinas" },
+  { id: "tech-4", name: "João Manutenção" },
+  { id: "tech-5", name: "Adevaldo Piscineiro" },
 ];
 
 const MOCK_WORK_ORDERS: AvailableWorkOrder[] = [
@@ -118,221 +97,95 @@ const MOCK_WORK_ORDERS: AvailableWorkOrder[] = [
     lat: -23.40031,
     lng: -44.94525,
   },
+  {
+    id: "os-6",
+    customerId: "customer-6",
+    customerName: "Casa Itamambuca",
+    title: "Limpeza de piscina",
+    serviceKind: "POOL_CLEANING",
+    frequencyLabel: "Diária",
+    weekdays: [
+      "MONDAY",
+      "TUESDAY",
+      "WEDNESDAY",
+      "THURSDAY",
+      "FRIDAY",
+      "SATURDAY",
+      "SUNDAY",
+    ],
+    scheduledTime: "07:30",
+    address: "Rua Um, 33 - Itamambuca - Ubatuba/SP",
+    status: "APPROVED",
+    lat: -23.4061,
+    lng: -44.9511,
+  },
+  {
+    id: "os-7",
+    customerId: "customer-7",
+    customerName: "Pousada Maré Alta",
+    title: "Limpeza de piscina",
+    serviceKind: "POOL_CLEANING",
+    frequencyLabel: "4x",
+    weekdays: ["MONDAY", "WEDNESDAY", "FRIDAY", "SATURDAY"],
+    scheduledTime: "11:00",
+    address: "Rua Dez, 220 - Ubatuba/SP",
+    status: "APPROVED",
+    lat: -23.4073,
+    lng: -44.9479,
+  },
+  {
+    id: "os-8",
+    customerId: "customer-8",
+    customerName: "Casa do Bosque",
+    title: "Aplicação de produto",
+    serviceKind: "ADDITIONAL_SERVICE",
+    frequencyLabel: "Avulsa",
+    weekdays: [],
+    scheduledTime: "16:00",
+    address: "Rua do Bosque, 12 - Ubatuba/SP",
+    status: "APPROVED",
+    lat: -23.3999,
+    lng: -44.9498,
+  },
 ];
 
-function TechnicianSearchSelect({
-  technicians,
-  value,
-  onChange,
-}: {
-  technicians: RouteTechnician[];
-  value: string;
-  onChange: (id: string) => void;
-}) {
-  const [open, setOpen] = React.useState(false);
-  const [query, setQuery] = React.useState("");
-
-  const wrapperRef = React.useRef<HTMLDivElement | null>(null);
-  const inputRef = React.useRef<HTMLInputElement | null>(null);
-
-  const selectedTechnician =
-    technicians.find((technician) => technician.id === value) || null;
-
-  const filteredTechnicians = React.useMemo(() => {
-    const term = query.trim().toLowerCase();
-
-    if (!term) return technicians;
-
-    return technicians.filter((technician) =>
-      technician.name.toLowerCase().includes(term),
-    );
-  }, [query, technicians]);
-
-  React.useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (!wrapperRef.current) return;
-
-      if (!wrapperRef.current.contains(event.target as Node)) {
-        setOpen(false);
-        setQuery("");
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
-
-  React.useEffect(() => {
-    if (!open) return;
-
-    const timer = window.setTimeout(() => {
-      inputRef.current?.focus();
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-  }, [open]);
-
-  function handleOpen() {
-    setOpen(true);
-    setQuery("");
+function defaultWeekdaysForOrder(order: AvailableWorkOrder): RouteWeekday[] {
+  if (order.weekdays.length > 0) {
+    return order.weekdays;
   }
 
-  function handleSelect(id: string) {
-    onChange(id);
-    setOpen(false);
-    setQuery("");
-  }
-
-  return (
-    <div ref={wrapperRef} className="relative">
-      <div className="relative">
-        <Search
-          size={15}
-          className={`pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 transition ${
-            open ? "text-slate-400" : "text-transparent"
-          }`}
-        />
-
-        <input
-          ref={inputRef}
-          type="text"
-          value={
-            open
-              ? query
-              : selectedTechnician
-                ? selectedTechnician.name
-                : ""
-          }
-          readOnly={!open}
-          onClick={handleOpen}
-          onFocus={handleOpen}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={open ? "Pesquisar técnico..." : "Selecione um técnico..."}
-          className={`h-10 w-full rounded-md border border-slate-300 bg-white pr-10 text-sm outline-none transition hover:bg-slate-50 focus:border-sky-400 ${
-            open ? "pl-9" : "pl-3"
-          }`}
-        />
-
-        <ChevronDown
-          className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 transition ${
-            open ? "rotate-180" : ""
-          }`}
-        />
-      </div>
-
-      {open && (
-        <div className="absolute left-0 right-0 z-50 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
-          <div className="max-h-56 overflow-y-auto p-1">
-            {filteredTechnicians.map((technician) => {
-              const selected = technician.id === value;
-
-              return (
-                <button
-                  key={technician.id}
-                  type="button"
-                  onClick={() => handleSelect(technician.id)}
-                  className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
-                    selected
-                      ? "bg-sky-50 text-sky-800"
-                      : "text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  <span>{technician.name}</span>
-
-                  {selected && <Check className="h-4 w-4" />}
-                </button>
-              );
-            })}
-
-            {filteredTechnicians.length === 0 && (
-              <div className="px-3 py-6 text-center text-sm text-slate-500">
-                Nenhum técnico encontrado.
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MockRouteMap({ orders }: { orders: SelectedRouteOrder[] }) {
-  return (
-    <div className="relative h-[520px] overflow-hidden bg-[linear-gradient(135deg,#dff8e8_0%,#dff8e8_35%,#d8eefc_35%,#d8eefc_50%,#f4f9ff_50%,#f4f9ff_100%)]">
-      <div className="absolute inset-0 opacity-40">
-        <div className="absolute left-[8%] top-[20%] h-[2px] w-[85%] rotate-12 bg-slate-400" />
-        <div className="absolute left-[20%] top-[70%] h-[2px] w-[70%] -rotate-12 bg-slate-400" />
-        <div className="absolute left-[45%] top-0 h-full w-[2px] rotate-12 bg-slate-400" />
-      </div>
-
-      {orders.map((order, index) => {
-        const positions = [
-          { left: "50%", top: "45%" },
-          { left: "58%", top: "35%" },
-          { left: "45%", top: "58%" },
-          { left: "66%", top: "54%" },
-          { left: "39%", top: "38%" },
-          { left: "55%", top: "68%" },
-        ];
-
-        const pos = positions[index % positions.length];
-
-        return (
-          <div
-            key={order.id}
-            className="absolute"
-            style={{
-              left: pos.left,
-              top: pos.top,
-              transform: "translate(-50%, -50%)",
-            }}
-            title={order.customerName}
-          >
-            <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-sky-600 text-sm font-bold text-white shadow-lg">
-              {index + 1}
-            </div>
-          </div>
-        );
-      })}
-
-      {orders.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="rounded-xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-600 shadow-sm">
-            Adicione OS à rota para visualizar os pins no mapa.
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  return ["MONDAY"];
 }
 
 export default function RouteBuilder() {
   const [technicianId, setTechnicianId] = React.useState("");
+  const [weekLabel, setWeekLabel] = React.useState("Semana atual");
   const [search, setSearch] = React.useState("");
-  const [selectedOrders, setSelectedOrders] = React.useState<
-    SelectedRouteOrder[]
+  const [plannedOrders, setPlannedOrders] = React.useState<
+    PlannedRouteOrder[]
   >([]);
-
-  const selectedIds = React.useMemo(
-    () => new Set(selectedOrders.map((item) => item.id)),
-    [selectedOrders],
-  );
 
   const selectedTechnician = React.useMemo(
     () => MOCK_TECHNICIANS.find((item) => item.id === technicianId) || null,
     [technicianId],
   );
 
+  const plannedServiceOrderIds = React.useMemo(
+    () => new Set(plannedOrders.map((item) => item.id)),
+    [plannedOrders],
+  );
+
   const availableOrders = React.useMemo(() => {
     const term = search.trim().toLowerCase();
 
     return MOCK_WORK_ORDERS.filter((order) => {
-      if (selectedIds.has(order.id)) return false;
+      if (plannedServiceOrderIds.has(order.id)) {
+        return false;
+      }
 
-      if (!term) return true;
+      if (!term) {
+        return true;
+      }
 
       return [
         order.customerName,
@@ -345,29 +198,37 @@ export default function RouteBuilder() {
         .toLowerCase()
         .includes(term);
     });
-  }, [search, selectedIds]);
+  }, [plannedServiceOrderIds, search]);
 
   const poolCount = React.useMemo(
-    () => new Set(selectedOrders.map((item) => item.customerId)).size,
-    [selectedOrders],
+    () => new Set(plannedOrders.map((item) => item.customerId)).size,
+    [plannedOrders],
   );
 
   function addOrder(order: AvailableWorkOrder) {
-    setSelectedOrders((current) => [
+    if (!technicianId) {
+      toast.error("Selecione o técnico responsável antes de adicionar OS.");
+      return;
+    }
+
+    setPlannedOrders((current) => [
       ...current,
       {
         ...order,
+        plannedId: generateId(),
+        technicianId,
+        weekdays: defaultWeekdaysForOrder(order),
         order: current.length + 1,
       },
     ]);
 
-    toast.success("OS adicionada à rota.");
+    toast.success("OS adicionada ao planejamento semanal.");
   }
 
-  function removeOrder(id: string) {
-    setSelectedOrders((current) =>
+  function removeOrder(plannedId: string) {
+    setPlannedOrders((current) =>
       current
-        .filter((item) => item.id !== id)
+        .filter((item) => item.plannedId !== plannedId)
         .map((item, index) => ({
           ...item,
           order: index + 1,
@@ -375,18 +236,20 @@ export default function RouteBuilder() {
     );
   }
 
-  function updateSelectedOrder(
-    id: string,
-    patch: Partial<Pick<SelectedRouteOrder, "scheduledTime" | "weekdays">>,
+  function updateOrder(
+    plannedId: string,
+    patch: Partial<Pick<PlannedRouteOrder, "scheduledTime" | "weekdays">>,
   ) {
-    setSelectedOrders((current) =>
-      current.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+    setPlannedOrders((current) =>
+      current.map((item) =>
+        item.plannedId === plannedId ? { ...item, ...patch } : item,
+      ),
     );
   }
 
-  function moveOrder(id: string, direction: "up" | "down") {
-    setSelectedOrders((current) => {
-      const index = current.findIndex((item) => item.id === id);
+  function moveOrderWithinWeek(plannedId: string, direction: "up" | "down") {
+    setPlannedOrders((current) => {
+      const index = current.findIndex((item) => item.plannedId === plannedId);
       if (index === -1) return current;
 
       const nextIndex = direction === "up" ? index - 1 : index + 1;
@@ -399,11 +262,23 @@ export default function RouteBuilder() {
       copy[index] = nextItem;
       copy[nextIndex] = currentItem;
 
-      return copy.map((row, rowIndex) => ({
-        ...row,
-        order: rowIndex + 1,
+      return copy.map((item, itemIndex) => ({
+        ...item,
+        order: itemIndex + 1,
       }));
     });
+  }
+
+  function handlePreviousWeek() {
+    setWeekLabel("Semana anterior");
+  }
+
+  function handleCurrentWeek() {
+    setWeekLabel("Semana atual");
+  }
+
+  function handleNextWeek() {
+    setWeekLabel("Próxima semana");
   }
 
   function handleSaveRoute() {
@@ -412,8 +287,8 @@ export default function RouteBuilder() {
       return;
     }
 
-    if (selectedOrders.length === 0) {
-      toast.error("Adicione pelo menos uma OS à rota.");
+    if (plannedOrders.length === 0) {
+      toast.error("Adicione pelo menos uma OS ao planejamento.");
       return;
     }
 
@@ -421,133 +296,92 @@ export default function RouteBuilder() {
   }
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[430px_1fr]">
-      <div className="space-y-5">
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center gap-2">
-            <UserRound className="h-4 w-4 text-sky-600" />
-            <div>
-              <h2 className="text-sm font-semibold text-slate-800">
-                Técnico responsável
-              </h2>
-              <p className="text-xs text-slate-500">
-                Pesquise e selecione quem executará esta rota.
-              </p>
-            </div>
+    <div className="space-y-6">
+      <RouteFiltersBar
+        technicians={MOCK_TECHNICIANS}
+        technicianId={technicianId}
+        onTechnicianChange={setTechnicianId}
+        weekLabel={weekLabel}
+        onPreviousWeek={handlePreviousWeek}
+        onCurrentWeek={handleCurrentWeek}
+        onNextWeek={handleNextWeek}
+        search={search}
+        onSearchChange={setSearch}
+      />
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-800">
+              OS aprovadas disponíveis
+            </h2>
+            <p className="text-xs text-slate-500">
+              Selecione as OS que entrarão no planejamento semanal do técnico.
+            </p>
           </div>
 
-          <TechnicianSearchSelect
-            technicians={MOCK_TECHNICIANS}
-            value={technicianId}
-            onChange={setTechnicianId}
-          />
-        </section>
+          <span className="w-fit rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
+            {availableOrders.length} disponíveis
+          </span>
+        </div>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center gap-2">
-            <Route className="h-4 w-4 text-sky-600" />
-            <div>
-              <h2 className="text-sm font-semibold text-slate-800">
-                Resumo da rota
-              </h2>
-              <p className="text-xs text-slate-500">
-                A rota será criada com as OS selecionadas.
-              </p>
-            </div>
+        <AvailableWorkOrdersCard orders={availableOrders} onAddOrder={addOrder} />
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-800">
+              Planejamento semanal
+            </h2>
+            <p className="text-xs text-slate-500">
+              Dias na vertical e horários na horizontal. Cada card aparece na
+              janela do horário previsto.
+            </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2 sm:w-[360px]">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="text-xs text-slate-500">Técnico</div>
+              <div className="mt-1 truncate text-sm font-semibold text-slate-800">
+                {selectedTechnician?.name ?? "Não selecionado"}
+              </div>
+            </div>
+
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
               <div className="text-xs text-slate-500">OS</div>
-              <div className="mt-1 text-lg font-semibold text-slate-800">
-                {selectedOrders.length}
+              <div className="mt-1 text-sm font-semibold text-slate-800">
+                {plannedOrders.length}
               </div>
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
               <div className="text-xs text-slate-500">Piscinas</div>
-              <div className="mt-1 text-lg font-semibold text-slate-800">
+              <div className="mt-1 text-sm font-semibold text-slate-800">
                 {poolCount}
               </div>
             </div>
           </div>
-        </section>
+        </div>
 
-        <SelectedRouteOrdersCard
-          orders={selectedOrders}
-          onRemove={removeOrder}
-          onMove={moveOrder}
-          onChangeOrder={updateSelectedOrder}
+        <WeeklyTechnicianBoard
+          orders={plannedOrders}
+          onRemoveOrder={removeOrder}
+          onUpdateOrder={updateOrder}
+          onMoveOrder={moveOrderWithinWeek}
         />
+      </section>
 
+      <FullWidthRouteMap orders={plannedOrders} weekLabel={weekLabel} />
+
+      <div className="flex justify-end">
         <Button
           type="button"
-          className="h-11 w-full btn-brand text-white"
+          className="h-11 min-w-[180px] btn-brand text-white"
           onClick={handleSaveRoute}
         >
           Criar rota
         </Button>
-      </div>
-
-      <div className="space-y-5">
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <ClipboardList className="h-4 w-4 text-sky-600" />
-              <div>
-                <h2 className="text-sm font-semibold text-slate-800">
-                  OS aprovadas disponíveis
-                </h2>
-                <p className="text-xs text-slate-500">
-                  Selecione as OS que entrarão nesta rota.
-                </p>
-              </div>
-            </div>
-
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
-              {availableOrders.length} disponíveis
-            </span>
-          </div>
-
-          <div className="relative mb-3">
-            <Search
-              size={16}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
-            />
-
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Buscar por cliente, endereço, serviço ou dia..."
-              className="pl-9"
-            />
-          </div>
-
-          <AvailableWorkOrdersCard
-            orders={availableOrders}
-            onAddOrder={addOrder}
-          />
-        </section>
-
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b px-4 py-3">
-            <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-sky-600" />
-              <div>
-                <h2 className="text-sm font-semibold text-slate-800">Mapa</h2>
-                <p className="text-xs text-slate-500">
-                  Os pins aparecem conforme as OS são adicionadas.
-                </p>
-              </div>
-            </div>
-
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
-              {selectedOrders.length} pins
-            </span>
-          </div>
-
-          <MockRouteMap orders={selectedOrders} />
-        </section>
       </div>
     </div>
   );

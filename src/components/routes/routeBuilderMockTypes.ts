@@ -27,7 +27,9 @@ export type AvailableWorkOrder = {
   lng: number;
 };
 
-export type SelectedRouteOrder = AvailableWorkOrder & {
+export type PlannedRouteOrder = AvailableWorkOrder & {
+  plannedId: string;
+  technicianId: string;
   order: number;
 };
 
@@ -39,6 +41,16 @@ export const WEEKDAY_LABELS: Record<RouteWeekday, string> = {
   FRIDAY: "Sexta",
   SATURDAY: "Sábado",
   SUNDAY: "Domingo",
+};
+
+export const WEEKDAY_SHORT_LABELS: Record<RouteWeekday, string> = {
+  MONDAY: "Seg",
+  TUESDAY: "Ter",
+  WEDNESDAY: "Qua",
+  THURSDAY: "Qui",
+  FRIDAY: "Sex",
+  SATURDAY: "Sáb",
+  SUNDAY: "Dom",
 };
 
 export const WEEKDAY_OPTIONS: Array<{
@@ -57,6 +69,10 @@ export const WEEKDAY_OPTIONS: Array<{
 
 export function weekdayLabel(day: RouteWeekday) {
   return WEEKDAY_LABELS[day] ?? day;
+}
+
+export function weekdayShortLabel(day: RouteWeekday) {
+  return WEEKDAY_SHORT_LABELS[day] ?? day;
 }
 
 export function weekdaysLabel(days: RouteWeekday[]) {
@@ -79,4 +95,12 @@ export function statusLabel(status: AvailableWorkOrder["status"]) {
   };
 
   return map[status] ?? status;
+}
+
+export function generateId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
