@@ -90,6 +90,15 @@ type ApiServiceOrder = {
   createdAt?: string | null;
 };
 
+export type Weekday =
+  | "MONDAY"
+  | "TUESDAY"
+  | "WEDNESDAY"
+  | "THURSDAY"
+  | "FRIDAY"
+  | "SATURDAY"
+  | "SUNDAY";
+
 export type WorkOrderListItem = {
   id: string;
   customerId: string | null;
@@ -146,14 +155,16 @@ export type CreateAdminWorkOrderInput = {
   serviceType: string;
 
   frequency?:
-  | "ONCE"
-  | "WEEKLY_ONCE"
-  | "WEEKLY_TWICE"
-  | "WEEKLY_THREE_TIMES"
-  | "WEEKLY_FOUR_TIMES"
-  | "DAILY"
-  | "BIWEEKLY"
-  | "MONTHLY";
+    | "ONCE"
+    | "WEEKLY_ONCE"
+    | "WEEKLY_TWICE"
+    | "WEEKLY_THREE_TIMES"
+    | "WEEKLY_FOUR_TIMES"
+    | "DAILY"
+    | "BIWEEKLY"
+    | "MONTHLY";
+
+  frequencyWeekdays?: Weekday[];
 
   title: string;
   description?: string;
@@ -356,6 +367,26 @@ function frequencyLabel(frequency?: CreateAdminWorkOrderInput["frequency"]) {
   return frequency ? map[frequency] ?? frequency : "Avulsa";
 }
 
+function weekdayLabel(day: string) {
+  const map: Record<string, string> = {
+    MONDAY: "Segunda",
+    TUESDAY: "Terça",
+    WEDNESDAY: "Quarta",
+    THURSDAY: "Quinta",
+    FRIDAY: "Sexta",
+    SATURDAY: "Sábado",
+    SUNDAY: "Domingo",
+  };
+
+  return map[day] ?? day;
+}
+
+function weekdaysLabel(days?: string[]) {
+  if (!days?.length) return "Não se aplica";
+
+  return days.map(weekdayLabel).join(", ");
+}
+
 function serviceKindLabel(kind: CreateAdminWorkOrderInput["serviceKind"]) {
   return kind === "POOL_CLEANING"
     ? "Limpeza de piscina"
@@ -393,6 +424,10 @@ function buildDescription(data: CreateAdminWorkOrderInput) {
 
     data.serviceKind === "POOL_CLEANING"
       ? `Frequência solicitada: ${frequencyLabel(data.frequency)}.`
+      : "",
+
+    data.serviceKind === "POOL_CLEANING"
+      ? `Dias da semana: ${weekdaysLabel(data.frequencyWeekdays)}.`
       : "",
 
     data.serviceKind === "ADDITIONAL_SERVICE"
@@ -527,6 +562,15 @@ export async function createAdminWorkOrder(data: CreateAdminWorkOrderInput) {
   }
 
   if (
+    data.serviceKind === "POOL_CLEANING" &&
+    data.frequency !== "ONCE" &&
+    data.frequency !== "DAILY" &&
+    (!data.frequencyWeekdays || data.frequencyWeekdays.length === 0)
+  ) {
+    throw new Error("Selecione os dias da semana da limpeza.");
+  }
+
+  if (
     data.serviceKind === "ADDITIONAL_SERVICE" &&
     (!data.additionalItems || data.additionalItems.length === 0)
   ) {
@@ -543,18 +587,17 @@ export async function createAdminWorkOrder(data: CreateAdminWorkOrderInput) {
         customerId: data.customerId,
         customerAddressId: data.customerAddressId,
 
-        // Campos atuais da API
         title: data.title.trim(),
         description: buildDescription(data),
         scheduledDate: data.scheduledDate,
         totalAmount,
 
-        // Campos preparados para o ajuste do backend
         employeeUserId: data.employeeUserId,
         scheduledTime: data.scheduledTime,
         serviceKind: data.serviceKind,
         serviceType: data.serviceType,
         frequency: data.frequency ?? "ONCE",
+        frequencyWeekdays: data.frequencyWeekdays ?? [],
         additionalItems: data.additionalItems ?? [],
       }),
     },

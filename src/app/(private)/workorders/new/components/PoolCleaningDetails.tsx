@@ -14,6 +14,15 @@ export type Frequency =
   | "BIWEEKLY"
   | "MONTHLY";
 
+export type Weekday =
+  | "MONDAY"
+  | "TUESDAY"
+  | "WEDNESDAY"
+  | "THURSDAY"
+  | "FRIDAY"
+  | "SATURDAY"
+  | "SUNDAY";
+
 export const POOL_CLEANING_FREQUENCIES: Array<{
   value: Frequency;
   label: string;
@@ -61,6 +70,22 @@ export const POOL_CLEANING_FREQUENCIES: Array<{
   },
 ];
 
+const WEEKDAY_OPTIONS: Array<{
+  value: Weekday;
+  short: string;
+  label: string;
+}> = [
+  { value: "MONDAY", short: "Seg", label: "Segunda" },
+  { value: "TUESDAY", short: "Ter", label: "Terça" },
+  { value: "WEDNESDAY", short: "Qua", label: "Quarta" },
+  { value: "THURSDAY", short: "Qui", label: "Quinta" },
+  { value: "FRIDAY", short: "Sex", label: "Sexta" },
+  { value: "SATURDAY", short: "Sáb", label: "Sábado" },
+  { value: "SUNDAY", short: "Dom", label: "Domingo" },
+];
+
+const ALL_WEEKDAYS = WEEKDAY_OPTIONS.map((item) => item.value);
+
 export function frequencyLabel(value: Frequency) {
   return (
     POOL_CLEANING_FREQUENCIES.find((item) => item.value === value)?.label ??
@@ -75,21 +100,120 @@ export function frequencyDescription(value: Frequency) {
   );
 }
 
+export function weekdayLabel(value: Weekday) {
+  return WEEKDAY_OPTIONS.find((item) => item.value === value)?.label ?? value;
+}
+
+export function weekdaysLabel(values: Weekday[]) {
+  if (!values.length) return "Não se aplica";
+
+  return values.map(weekdayLabel).join(", ");
+}
+
 function formatCurrencyFromText(value: string) {
   return value || "R$ 0,00";
+}
+
+function weekdayLimit(frequency: Frequency) {
+  const map: Record<Frequency, number> = {
+    ONCE: 0,
+    WEEKLY_ONCE: 1,
+    WEEKLY_TWICE: 2,
+    WEEKLY_THREE_TIMES: 3,
+    WEEKLY_FOUR_TIMES: 4,
+    DAILY: 7,
+    BIWEEKLY: 1,
+    MONTHLY: 1,
+  };
+
+  return map[frequency];
+}
+
+function weekdayHelper(frequency: Frequency) {
+  const limit = weekdayLimit(frequency);
+
+  if (frequency === "ONCE") {
+    return "Limpeza avulsa não precisa de dia fixo.";
+  }
+
+  if (frequency === "DAILY") {
+    return "Na limpeza diária, todos os dias ficam selecionados.";
+  }
+
+  if (limit === 1) {
+    return "Escolha 1 dia da semana.";
+  }
+
+  return `Escolha ${limit} dias da semana.`;
 }
 
 export default function PoolCleaningDetails({
   frequency,
   onFrequencyChange,
+  selectedWeekdays,
+  onWeekdaysChange,
   cleaningAmount,
   onCleaningAmountChange,
 }: {
   frequency: Frequency;
   onFrequencyChange: (frequency: Frequency) => void;
+  selectedWeekdays: Weekday[];
+  onWeekdaysChange: (weekdays: Weekday[]) => void;
   cleaningAmount: string;
   onCleaningAmountChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
+  const limit = weekdayLimit(frequency);
+  const shouldShowWeekdays = frequency !== "ONCE";
+
+  React.useEffect(() => {
+    if (frequency === "ONCE") {
+      if (selectedWeekdays.length > 0) {
+        onWeekdaysChange([]);
+      }
+
+      return;
+    }
+
+    if (frequency === "DAILY") {
+      const same =
+        selectedWeekdays.length === ALL_WEEKDAYS.length &&
+        ALL_WEEKDAYS.every((day) => selectedWeekdays.includes(day));
+
+      if (!same) {
+        onWeekdaysChange(ALL_WEEKDAYS);
+      }
+
+      return;
+    }
+
+    if (selectedWeekdays.length > limit) {
+      onWeekdaysChange(selectedWeekdays.slice(0, limit));
+    }
+  }, [frequency, limit, onWeekdaysChange, selectedWeekdays]);
+
+  function handleFrequencyClick(nextFrequency: Frequency) {
+    onFrequencyChange(nextFrequency);
+  }
+
+  function toggleWeekday(day: Weekday) {
+    if (frequency === "DAILY") return;
+
+    const alreadySelected = selectedWeekdays.includes(day);
+
+    if (alreadySelected) {
+      onWeekdaysChange(selectedWeekdays.filter((item) => item !== day));
+      return;
+    }
+
+    if (selectedWeekdays.length >= limit) {
+      const next = [...selectedWeekdays.slice(1), day];
+      onWeekdaysChange(next);
+      return;
+    }
+
+    onWeekdaysChange([...selectedWeekdays, day]);
+  }
+
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -107,7 +231,7 @@ export default function PoolCleaningDetails({
                   <button
                     key={item.value}
                     type="button"
-                    onClick={() => onFrequencyChange(item.value)}
+                    onClick={() => handleFrequencyClick(item.value)}
                     className={cn(
                       "min-h-[74px] rounded-xl border px-3 py-2 text-left transition-all",
                       selected
@@ -153,14 +277,67 @@ export default function PoolCleaningDetails({
             />
           </div>
         </div>
+
+        {shouldShowWeekdays && (
+          <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
+            <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="text-sm font-medium text-slate-700">
+                  Dias da semana
+                </div>
+
+                <div className="text-xs text-slate-500">
+                  {weekdayHelper(frequency)}
+                </div>
+              </div>
+
+              <div className="text-xs font-medium text-slate-500">
+                {frequency === "DAILY"
+                  ? "7/7 dias"
+                  : `${selectedWeekdays.length}/${limit} selecionado${
+                      limit > 1 ? "s" : ""
+                    }`}
+              </div>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-4 lg:grid-cols-7">
+              {WEEKDAY_OPTIONS.map((day) => {
+                const selected = selectedWeekdays.includes(day.value);
+                const disabled = frequency === "DAILY";
+
+                return (
+                  <button
+                    key={day.value}
+                    type="button"
+                    onClick={() => toggleWeekday(day.value)}
+                    disabled={disabled}
+                    className={cn(
+                      "rounded-lg border px-3 py-2 text-center text-sm font-medium transition-all",
+                      selected
+                        ? "border-sky-500 bg-sky-50 text-sky-800 ring-1 ring-sky-100"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
+                      disabled && "cursor-not-allowed opacity-80",
+                    )}
+                  >
+                    <div>{day.short}</div>
+
+                    <div className="mt-0.5 text-[11px] font-normal">
+                      {day.label}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <table className="w-full table-fixed text-sm">
           <colgroup>
+            <col className="w-[30%]" />
+            <col className="w-[20%]" />
             <col className="w-[34%]" />
-            <col className="w-[22%]" />
-            <col className="w-[28%]" />
             <col className="w-[16%]" />
           </colgroup>
 
@@ -169,12 +346,15 @@ export default function PoolCleaningDetails({
               <th className="p-3 text-left font-semibold text-slate-700">
                 Serviço
               </th>
+
               <th className="p-3 text-left font-semibold text-slate-700">
                 Frequência
               </th>
+
               <th className="p-3 text-left font-semibold text-slate-700">
-                Detalhe
+                Dias
               </th>
+
               <th className="p-3 text-right font-semibold text-slate-700">
                 Valor
               </th>
@@ -195,7 +375,9 @@ export default function PoolCleaningDetails({
 
               <td className="p-3 align-middle text-slate-600">
                 <span className="block truncate">
-                  {frequencyDescription(frequency)}
+                  {frequency === "ONCE"
+                    ? "Não se aplica"
+                    : weekdaysLabel(selectedWeekdays)}
                 </span>
               </td>
 

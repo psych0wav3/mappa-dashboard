@@ -13,6 +13,7 @@ import {
 
 import PoolCleaningDetails, {
   type Frequency,
+  type Weekday,
 } from "./components/PoolCleaningDetails";
 
 import AdditionalItemsDetails, {
@@ -78,6 +79,7 @@ export default function NewWorkOrderClient({
     React.useState<ServiceKind>("POOL_CLEANING");
 
   const [frequency, setFrequency] = React.useState<Frequency>("ONCE");
+  const [cleaningWeekdays, setCleaningWeekdays] = React.useState<Weekday[]>([]);
 
   const [customerId, setCustomerId] = React.useState("");
   const [employeeUserId, setEmployeeUserId] = React.useState("");
@@ -170,6 +172,7 @@ export default function NewWorkOrderClient({
 
     if (kind === "POOL_CLEANING") {
       setFrequency("ONCE");
+      setCleaningWeekdays([]);
       setCleaningAmount(defaultMoney());
       return;
     }
@@ -239,6 +242,8 @@ export default function NewWorkOrderClient({
         serviceKind,
         serviceType,
         frequency: serviceKind === "POOL_CLEANING" ? frequency : "ONCE",
+        frequencyWeekdays:
+          serviceKind === "POOL_CLEANING" ? cleaningWeekdays : [],
         title,
         description: description.trim(),
         scheduledDate,
@@ -406,6 +411,8 @@ export default function NewWorkOrderClient({
           <PoolCleaningDetails
             frequency={frequency}
             onFrequencyChange={setFrequency}
+            selectedWeekdays={cleaningWeekdays}
+            onWeekdaysChange={setCleaningWeekdays}
             cleaningAmount={cleaningAmount}
             onCleaningAmountChange={handleCleaningMoneyChange}
           />
