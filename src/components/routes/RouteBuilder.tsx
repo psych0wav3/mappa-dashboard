@@ -1,352 +1,222 @@
 "use client";
 
 import * as React from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import LeftTechDayCard from "./LeftTechDayCard";
-import RouteListCard from "./RouteListCard";
-import RightAssignmentCard from "./RightAssignmentCard";
-import MapCanvas from "./MapCanvas";
-import { DragEndEvent } from "@dnd-kit/core";
-import { arrayMove } from "@dnd-kit/sortable";
 import { toast } from "sonner";
 import {
-  getRouteForDate,
-  saveRouteForDate,
-} from "@/app/(private)/routes/actions";
+  ClipboardList,
+  MapPin,
+  Route,
+  Search,
+  UserRound,
+} from "lucide-react";
 
-type Tech = {
-  id: string;
-  firstName: string;
-  lastName: string;
-};
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import AvailableWorkOrdersCard from "@/components/routes/AvailableWorkOrdersCard";
+import SelectedRouteOrdersCard from "@/components/routes/SelectedRouteOrdersCard";
 
-type ClientLite = {
-  id: string;
-  firstName: string;
-  lastName: string;
+import {
+  type AvailableWorkOrder,
+  type RouteTechnician,
+  type SelectedRouteOrder,
+  weekdaysLabel,
+} from "@/components/routes/routeBuilderMockTypes";
 
-  customerAddressId?: string | null;
+const MOCK_TECHNICIANS: RouteTechnician[] = [
+  {
+    id: "tech-1",
+    name: "Ellen Richter",
+  },
+  {
+    id: "tech-2",
+    name: "Lucas Técnico",
+  },
+  {
+    id: "tech-3",
+    name: "Magno Piscinas",
+  },
+];
 
-  street?: string | null;
-  number?: string | null;
-  district?: string | null;
-  city?: string | null;
-  uf?: string | null;
+const MOCK_WORK_ORDERS: AvailableWorkOrder[] = [
+  {
+    id: "os-1",
+    customerId: "customer-1",
+    customerName: "Thai Pousada",
+    title: "Limpeza de piscina",
+    serviceKind: "POOL_CLEANING",
+    frequencyLabel: "Semanal",
+    weekdays: ["THURSDAY"],
+    scheduledTime: "09:00",
+    address: "Rua das Amendoeiras, 55 - Itamambuca - Ubatuba/SP",
+    status: "APPROVED",
+    lat: -23.40465,
+    lng: -44.95022,
+  },
+  {
+    id: "os-2",
+    customerId: "customer-2",
+    customerName: "Casa Praia Norte",
+    title: "Limpeza de piscina",
+    serviceKind: "POOL_CLEANING",
+    frequencyLabel: "2x",
+    weekdays: ["MONDAY", "THURSDAY"],
+    scheduledTime: "10:30",
+    address: "Rua Quinze, 120 - Itamambuca - Ubatuba/SP",
+    status: "APPROVED",
+    lat: -23.40291,
+    lng: -44.94859,
+  },
+  {
+    id: "os-3",
+    customerId: "customer-3",
+    customerName: "Condomínio Jardim das Águas",
+    title: "Limpeza de piscina",
+    serviceKind: "POOL_CLEANING",
+    frequencyLabel: "3x",
+    weekdays: ["MONDAY", "WEDNESDAY", "FRIDAY"],
+    scheduledTime: "13:00",
+    address: "Rua Manoel Soares da Silva, 800 - Itamambuca - Ubatuba/SP",
+    status: "APPROVED",
+    lat: -23.40128,
+    lng: -44.95391,
+  },
+  {
+    id: "os-4",
+    customerId: "customer-4",
+    customerName: "Casa da Serra",
+    title: "Troca de areia + Cloro",
+    serviceKind: "ADDITIONAL_SERVICE",
+    frequencyLabel: "Avulsa",
+    weekdays: [],
+    scheduledTime: "15:00",
+    address: "Estrada do Casanga, 210 - Ubatuba/SP",
+    status: "APPROVED",
+    lat: -23.40851,
+    lng: -44.94685,
+  },
+  {
+    id: "os-5",
+    customerId: "customer-5",
+    customerName: "Residencial Mar Azul",
+    title: "Limpeza de piscina",
+    serviceKind: "POOL_CLEANING",
+    frequencyLabel: "Quinzenal",
+    weekdays: ["SATURDAY"],
+    scheduledTime: "08:30",
+    address: "Rua dos Coqueiros, 44 - Ubatuba/SP",
+    status: "APPROVED",
+    lat: -23.40031,
+    lng: -44.94525,
+  },
+];
 
-  poolStreet?: string | null;
-  poolNumber?: string | null;
-  poolDistrict?: string | null;
-  poolCity?: string | null;
-  poolUf?: string | null;
+function MockRouteMap({ orders }: { orders: SelectedRouteOrder[] }) {
+  return (
+    <div className="relative h-[520px] overflow-hidden bg-[linear-gradient(135deg,#dff8e8_0%,#dff8e8_35%,#d8eefc_35%,#d8eefc_50%,#f4f9ff_50%,#f4f9ff_100%)]">
+      <div className="absolute inset-0 opacity-40">
+        <div className="absolute left-[8%] top-[20%] h-[2px] w-[85%] rotate-12 bg-slate-400" />
+        <div className="absolute left-[20%] top-[70%] h-[2px] w-[70%] -rotate-12 bg-slate-400" />
+        <div className="absolute left-[45%] top-0 h-full w-[2px] rotate-12 bg-slate-400" />
+      </div>
 
-  lat?: number | null;
-  lng?: number | null;
-};
+      {orders.map((order, index) => {
+        const positions = [
+          { left: "50%", top: "45%" },
+          { left: "58%", top: "35%" },
+          { left: "45%", top: "58%" },
+          { left: "66%", top: "54%" },
+          { left: "39%", top: "38%" },
+          { left: "55%", top: "68%" },
+        ];
 
-type SelectedItem = {
-  id: string;
-  label: string;
-  customerAddressId?: string | null;
-  windowStart: number;
-  windowEnd: number;
-  order: number;
-  lat?: number | null;
-  lng?: number | null;
-};
+        const pos = positions[index % positions.length];
 
-function pad2(value: number) {
-  return String(value).padStart(2, "0");
+        return (
+          <div
+            key={order.id}
+            className="absolute"
+            style={{
+              left: pos.left,
+              top: pos.top,
+              transform: "translate(-50%, -50%)",
+            }}
+            title={order.customerName}
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-sky-600 text-sm font-bold text-white shadow-lg">
+              {index + 1}
+            </div>
+          </div>
+        );
+      })}
+
+      {orders.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="rounded-xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-600 shadow-sm">
+            Adicione OS à rota para visualizar os pins no mapa.
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
-function todayISO() {
-  const date = new Date();
-
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(
-    date.getDate(),
-  )}`;
-}
-
-function haversineKm(
-  a: { lat: number; lng: number },
-  b: { lat: number; lng: number },
-) {
-  const R = 6371;
-  const toRad = (x: number) => (x * Math.PI) / 180;
-
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const la1 = toRad(a.lat);
-  const la2 = toRad(b.lat);
-
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
-
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
-
-function buildAddress(c: ClientLite) {
-  const street = c.poolStreet ?? c.street ?? "";
-  const number = c.poolNumber ?? c.number ?? "";
-  const city = c.poolCity ?? c.city ?? "";
-  const uf = c.poolUf ?? c.uf ?? "";
-
-  const line1 = [street, number].filter(Boolean).join(", ");
-  const line2 = [city, uf].filter(Boolean).join(" / ");
-
-  return [line1, line2].filter(Boolean).join(" — ");
-}
-
-async function geocodeAddress(
-  addr: string,
-): Promise<{ lat: number; lng: number } | null> {
-  if (!addr.trim()) return null;
-
-  const gm = (globalThis as any).google?.maps;
-
-  if (!gm?.Geocoder) return null;
-
-  const geocoder = new gm.Geocoder();
-
-  return new Promise((resolve) => {
-    geocoder.geocode({ address: addr }, (results: any, status: any) => {
-      if (status === "OK" && results && results[0]) {
-        const loc = results[0].geometry.location;
-
-        resolve({
-          lat: loc.lat(),
-          lng: loc.lng(),
-        });
-      } else {
-        resolve(null);
-      }
-    });
-  });
-}
-
-function mergeByIdKeepUser(
-  serverItems: SelectedItem[],
-  userItems: SelectedItem[],
-): SelectedItem[] {
-  const byId = new Map(userItems.map((item) => [item.id, item]));
-
-  const merged = serverItems.map((serverItem) => {
-    const userItem = byId.get(serverItem.id);
-
-    return userItem
-      ? {
-          ...serverItem,
-          windowStart: userItem.windowStart,
-          windowEnd: userItem.windowEnd,
-          order: userItem.order,
-        }
-      : serverItem;
-  });
-
-  for (const userItem of userItems) {
-    if (!merged.some((item) => item.id === userItem.id)) {
-      merged.push(userItem);
-    }
-  }
-
-  return merged
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-    .map((item, index) => ({
-      ...item,
-      order: index + 1,
-    }));
-}
-
-export default function RouteBuilder({
-  technicians,
-  clients,
-}: {
-  technicians: Tech[];
-  clients: ClientLite[];
-}) {
-  const [mounted, setMounted] = React.useState(false);
-  const [dateISO, setDateISO] = React.useState("");
-  const [techId, setTechId] = React.useState(technicians[0]?.id ?? "");
-  const [selecionados, setSelecionados] = React.useState<SelectedItem[]>([]);
-  const [loadingRoute, setLoadingRoute] = React.useState(false);
-
-  const searchRef = React.useRef<HTMLInputElement | null>(null);
+export default function RouteBuilder() {
+  const [technicianId, setTechnicianId] = React.useState("");
   const [search, setSearch] = React.useState("");
-
-  React.useEffect(() => {
-    setMounted(true);
-    setDateISO(todayISO());
-  }, []);
-
-  React.useEffect(() => {
-    const el = searchRef.current;
-
-    if (!el) return;
-
-    const handler = (event: Event) => {
-      const customEvent = event as CustomEvent<string>;
-
-      if (typeof customEvent.detail === "string") {
-        setSearch(customEvent.detail);
-      }
-    };
-
-    el.addEventListener("gm-place", handler as EventListener);
-
-    return () => {
-      el.removeEventListener("gm-place", handler as EventListener);
-    };
-  }, []);
-
-  const enabled = Boolean(techId) && Boolean(dateISO);
-
-  const clientIndex = React.useMemo(() => {
-    const idx = new Map<
-      string,
-      {
-        customerAddressId?: string | null;
-        firstName: string;
-        lastName: string;
-        lat?: number | null;
-        lng?: number | null;
-      }
-    >();
-
-    clients.forEach((client) => {
-      idx.set(client.id, {
-        customerAddressId: client.customerAddressId ?? null,
-        firstName: client.firstName,
-        lastName: client.lastName,
-        lat: client.lat ?? null,
-        lng: client.lng ?? null,
-      });
-    });
-
-    return idx;
-  }, [clients]);
-
-  React.useEffect(() => {
-    let cancelled = false;
-
-    async function loadRoute() {
-      if (!techId || !dateISO) {
-        setSelecionados([]);
-        return;
-      }
-
-      try {
-        setLoadingRoute(true);
-
-        const routeItems = await getRouteForDate({
-          employeeUserId: techId,
-          routeDate: dateISO,
-        });
-
-        const normalized = routeItems.map((item: any, index: number) => {
-          const client = clientIndex.get(item.id);
-
-          return {
-            id: item.id,
-            label:
-              item.label ||
-              [client?.firstName, client?.lastName].filter(Boolean).join(" ") ||
-              "Cliente",
-            customerAddressId: client?.customerAddressId ?? null,
-            windowStart: item.windowStart ?? 9,
-            windowEnd: item.windowEnd ?? 10,
-            order: item.order ?? index + 1,
-            lat: item.lat ?? client?.lat ?? null,
-            lng: item.lng ?? client?.lng ?? null,
-          };
-        });
-
-        if (!cancelled) {
-          setSelecionados((prev) => mergeByIdKeepUser(normalized, prev));
-        }
-      } catch (error: any) {
-        console.error("Falha ao carregar rota:", error?.message || error);
-
-        if (!cancelled) {
-          setSelecionados([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingRoute(false);
-        }
-      }
-    }
-
-    loadRoute();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [techId, dateISO, clientIndex]);
+  const [selectedOrders, setSelectedOrders] = React.useState<
+    SelectedRouteOrder[]
+  >([]);
 
   const selectedIds = React.useMemo(
-    () => new Set(selecionados.map((item) => item.id)),
-    [selecionados],
+    () => new Set(selectedOrders.map((item) => item.id)),
+    [selectedOrders],
   );
 
-  const availableClients = React.useMemo(
-    () => clients.filter((client) => !selectedIds.has(client.id)),
-    [clients, selectedIds],
+  const selectedTechnician = React.useMemo(
+    () => MOCK_TECHNICIANS.find((item) => item.id === technicianId) || null,
+    [technicianId],
   );
 
-  const addClient = async (client: ClientLite) => {
-    if (selectedIds.has(client.id)) return;
+  const availableOrders = React.useMemo(() => {
+    const term = search.trim().toLowerCase();
 
-    let lat = client.lat ?? undefined;
-    let lng = client.lng ?? undefined;
+    return MOCK_WORK_ORDERS.filter((order) => {
+      if (selectedIds.has(order.id)) return false;
 
-    if (lat == null || lng == null) {
-      try {
-        const addr = buildAddress(client);
-        const hit = await geocodeAddress(addr);
+      if (!term) return true;
 
-        if (hit) {
-          lat = hit.lat;
-          lng = hit.lng;
+      return [
+        order.customerName,
+        order.title,
+        order.frequencyLabel,
+        order.address,
+        weekdaysLabel(order.weekdays),
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(term);
+    });
+  }, [search, selectedIds]);
 
-          import("@/app/(private)/clients/actions")
-            .then(({ saveClientCoords }) =>
-              saveClientCoords(client.id, hit.lat, hit.lng),
-            )
-            .catch(() => {});
-        }
-      } catch {
-        // Não bloqueia a criação da rota se o geocode falhar.
-      }
-    }
+  const poolCount = React.useMemo(
+    () => new Set(selectedOrders.map((item) => item.customerId)).size,
+    [selectedOrders],
+  );
 
-    setSelecionados((current) => [
+  function addOrder(order: AvailableWorkOrder) {
+    setSelectedOrders((current) => [
       ...current,
       {
-        id: client.id,
-        label: `${client.firstName} ${client.lastName}`.trim(),
-        customerAddressId: client.customerAddressId ?? null,
-        windowStart: 9,
-        windowEnd: 10,
+        ...order,
         order: current.length + 1,
-        lat,
-        lng,
       },
     ]);
 
-    setSearch("");
+    toast.success("OS adicionada à rota.");
+  }
 
-    if (searchRef.current) {
-      searchRef.current.value = "";
-      const event = new Event("input", { bubbles: true });
-      searchRef.current.dispatchEvent(event);
-    }
-
-    toast.message("Cliente adicionado à rota.");
-  };
-
-  const removeClient = (id: string) => {
-    setSelecionados((current) =>
+  function removeOrder(id: string) {
+    setSelectedOrders((current) =>
       current
         .filter((item) => item.id !== id)
         .map((item, index) => ({
@@ -354,273 +224,189 @@ export default function RouteBuilder({
           order: index + 1,
         })),
     );
-  };
+  }
 
-  const updateItem = (id: string, patch: Partial<SelectedItem>) => {
-    setSelecionados((current) =>
+  function updateSelectedOrder(
+    id: string,
+    patch: Partial<Pick<SelectedRouteOrder, "scheduledTime" | "weekdays">>,
+  ) {
+    setSelectedOrders((current) =>
       current.map((item) => (item.id === id ? { ...item, ...patch } : item)),
-    );
-  };
-
-  const onDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-
-    if (!over || active.id === over.id) return;
-
-    setSelecionados((current) =>
-      arrayMove(
-        current,
-        current.findIndex((item) => item.id === String(active.id)),
-        current.findIndex((item) => item.id === String(over.id)),
-      ).map((item, index) => ({
-        ...item,
-        order: index + 1,
-      })),
-    );
-  };
-
-  const conflitos = React.useMemo(() => {
-    const list = [...selecionados].sort(
-      (a, b) => a.windowStart - b.windowStart || a.order - b.order,
-    );
-
-    const bad: Array<{ a: string; b: string }> = [];
-
-    for (let i = 0; i < list.length - 1; i++) {
-      for (let j = i + 1; j < list.length; j++) {
-        const A = list[i];
-        const B = list[j];
-
-        if (A.windowStart < B.windowEnd && B.windowStart < A.windowEnd) {
-          bad.push({ a: A.id, b: B.id });
-        }
-      }
-    }
-
-    return bad;
-  }, [selecionados]);
-
-  const hasConflict = (id: string) =>
-    conflitos.some((conflict) => conflict.a === id || conflict.b === id);
-
-  const existeConflito = conflitos.length > 0;
-
-  const stats = React.useMemo(() => {
-    const minutos = selecionados.reduce(
-      (total, item) => total + (item.windowEnd - item.windowStart) * 60,
-      0,
-    );
-
-    let km = 0;
-
-    const pts = selecionados.filter(
-      (item) => item.lat != null && item.lng != null,
-    ) as Array<Required<Pick<SelectedItem, "lat" | "lng">>>;
-
-    for (let i = 1; i < pts.length; i++) {
-      km += haversineKm(
-        {
-          lat: pts[i - 1].lat,
-          lng: pts[i - 1].lng,
-        },
-        {
-          lat: pts[i].lat,
-          lng: pts[i].lng,
-        },
-      );
-    }
-
-    return { minutos, km };
-  }, [selecionados]);
-
-  const salvar = async () => {
-    try {
-      if (!techId) throw new Error("Selecione o técnico.");
-      if (!dateISO) throw new Error("Informe a data da rota.");
-      if (selecionados.length === 0) {
-        throw new Error("Adicione clientes à rota.");
-      }
-
-      for (const item of selecionados) {
-        if (item.windowStart >= item.windowEnd) {
-          throw new Error(`Janela inválida para ${item.label}.`);
-        }
-
-        if (!item.customerAddressId) {
-          throw new Error(
-            `O cliente ${item.label} não possui endereço principal da piscina.`,
-          );
-        }
-      }
-
-      const result = await saveRouteForDate({
-        employeeUserId: techId,
-        routeDate: dateISO,
-        items: selecionados.map((item, index) => ({
-          clientId: item.id,
-          customerAddressId: item.customerAddressId,
-          clientName: item.label,
-          windowStart: item.windowStart,
-          windowEnd: item.windowEnd,
-          order: index + 1,
-        })),
-      });
-
-      if (Array.isArray(result.items)) {
-        setSelecionados((previous) => mergeByIdKeepUser(result.items, previous));
-      }
-
-      toast.success("Rota criada com sucesso!");
-    } catch (error: any) {
-      toast.error(error?.message || "Erro ao salvar rota");
-    }
-  };
-
-  const getAddress = React.useCallback(
-    (id: string) => {
-      const client = clients.find((item) => item.id === id);
-
-      if (!client) return undefined;
-
-      return buildAddress(client);
-    },
-    [clients],
-  );
-
-  const getAddressParts = React.useCallback(
-    (id: string) => {
-      const client = clients.find((item) => item.id === id);
-
-      if (!client) return undefined;
-
-      const street = client.poolStreet ?? client.street ?? "";
-      const number = client.poolNumber ?? client.number ?? undefined;
-      const neighborhood = client.poolDistrict ?? client.district ?? undefined;
-      const city = client.poolCity ?? client.city ?? undefined;
-      const state = client.poolUf ?? client.uf ?? undefined;
-
-      return {
-        street,
-        number,
-        neighborhood,
-        city,
-        state,
-      };
-    },
-    [clients],
-  );
-
-  if (!mounted) {
-    return (
-      <div className="flex items-center justify-center h-96 text-neutral-500">
-        Carregando mapa…
-      </div>
     );
   }
 
+  function moveOrder(id: string, direction: "up" | "down") {
+    setSelectedOrders((current) => {
+      const index = current.findIndex((item) => item.id === id);
+      if (index === -1) return current;
+
+      const nextIndex = direction === "up" ? index - 1 : index + 1;
+      if (nextIndex < 0 || nextIndex >= current.length) return current;
+
+      const copy = [...current];
+      const currentItem = copy[index];
+      const nextItem = copy[nextIndex];
+
+      copy[index] = nextItem;
+      copy[nextIndex] = currentItem;
+
+      return copy.map((row, rowIndex) => ({
+        ...row,
+        order: rowIndex + 1,
+      }));
+    });
+  }
+
+  function handleSaveRoute() {
+    if (!selectedTechnician) {
+      toast.error("Selecione o técnico responsável.");
+      return;
+    }
+
+    if (selectedOrders.length === 0) {
+      toast.error("Adicione pelo menos uma OS à rota.");
+      return;
+    }
+
+    toast.success("Tela pronta. Integração com API pendente.");
+  }
+
   return (
-    <div className="space-y-4">
-      {existeConflito && (
-        <div className="rounded-md bg-red-50 border border-red-200 text-red-700 px-3 py-2 text-sm">
-          Existem janelas sobrepostas. Você ainda pode salvar, mas recomenda-se
-          ajustar.
-        </div>
-      )}
-
-      {loadingRoute && (
-        <div className="rounded-md bg-slate-50 border border-slate-200 text-slate-600 px-3 py-2 text-sm">
-          Carregando rota desta data…
-        </div>
-      )}
-
-      <div className="grid grid-cols-12 gap-4">
-        <div className="col-span-12 lg:col-span-4 space-y-4">
-          <LeftTechDayCard
-            technicians={technicians}
-            techId={techId}
-            onTechChange={setTechId}
-            dateISO={dateISO}
-            onDateChange={setDateISO}
-          />
-
-          <RouteListCard
-            items={selecionados}
-            onDragEnd={onDragEnd}
-            hasConflict={hasConflict}
-            stats={stats}
-            onChangeItem={updateItem}
-            onRemoveItem={removeClient}
-            getAddress={getAddress}
-            getAddressParts={getAddressParts}
-          />
-
-          <div className="flex">
-            <Button
-              className="w-full btn-brand hover:bg-blue-700 text-white"
-              onClick={salvar}
-              disabled={!enabled}
-            >
-              Salvar rota
-            </Button>
+    <div className="grid gap-5 xl:grid-cols-[430px_1fr]">
+      <div className="space-y-5">
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center gap-2">
+            <UserRound className="h-4 w-4 text-sky-600" />
+            <div>
+              <h2 className="text-sm font-semibold text-slate-800">
+                Técnico responsável
+              </h2>
+              <p className="text-xs text-slate-500">
+                Selecione quem executará esta rota.
+              </p>
+            </div>
           </div>
-        </div>
 
-        <div className="col-span-12 lg:col-span-8 space-y-4">
-          <RightAssignmentCard
-            clients={availableClients}
-            enabled={enabled}
-            onAddClient={(client) => {
-              void addClient(client);
-            }}
-          />
+          <select
+            value={technicianId}
+            onChange={(event) => setTechnicianId(event.target.value)}
+            className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-sky-400"
+          >
+            <option value="">Selecione um técnico...</option>
 
-          <div className="rounded-md border bg-white">
-            <div className="px-3 py-2 border-b">
-              <div className="relative w-full max-w-[320px]">
-                <Input
-                  ref={searchRef}
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Buscar endereço no mapa…"
-                  className="pr-8"
-                />
+            {MOCK_TECHNICIANS.map((technician) => (
+              <option key={technician.id} value={technician.id}>
+                {technician.name}
+              </option>
+            ))}
+          </select>
+        </section>
 
-                {search.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearch("");
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center gap-2">
+            <Route className="h-4 w-4 text-sky-600" />
+            <div>
+              <h2 className="text-sm font-semibold text-slate-800">
+                Resumo da rota
+              </h2>
+              <p className="text-xs text-slate-500">
+                A rota será criada com as OS selecionadas.
+              </p>
+            </div>
+          </div>
 
-                      if (searchRef.current) {
-                        searchRef.current.value = "";
-                        const event = new Event("input", { bubbles: true });
-                        searchRef.current.dispatchEvent(event);
-                        searchRef.current.focus();
-                      }
-                    }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700"
-                    aria-label="Limpar busca"
-                  >
-                    ×
-                  </button>
-                )}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="text-xs text-slate-500">OS</div>
+              <div className="mt-1 text-lg font-semibold text-slate-800">
+                {selectedOrders.length}
               </div>
             </div>
 
-            <MapCanvas
-              markers={selecionados
-                .filter((item) => item.lat != null && item.lng != null)
-                .map((item, index) => ({
-                  id: item.id,
-                  lat: item.lat as number,
-                  lng: item.lng as number,
-                  label: String(index + 1),
-                }))}
-              searchInputRef={searchRef}
-              height={520}
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="text-xs text-slate-500">Piscinas</div>
+              <div className="mt-1 text-lg font-semibold text-slate-800">
+                {poolCount}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <SelectedRouteOrdersCard
+          orders={selectedOrders}
+          onRemove={removeOrder}
+          onMove={moveOrder}
+          onChangeOrder={updateSelectedOrder}
+        />
+
+        <Button
+          type="button"
+          className="h-11 w-full btn-brand text-white"
+          onClick={handleSaveRoute}
+        >
+          Criar rota
+        </Button>
+      </div>
+
+      <div className="space-y-5">
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="h-4 w-4 text-sky-600" />
+              <div>
+                <h2 className="text-sm font-semibold text-slate-800">
+                  OS aprovadas disponíveis
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Selecione as OS que entrarão nesta rota.
+                </p>
+              </div>
+            </div>
+
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
+              {availableOrders.length} disponíveis
+            </span>
+          </div>
+
+          <div className="relative mb-3">
+            <Search
+              size={16}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
+            />
+
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar por cliente, endereço, serviço ou dia..."
+              className="pl-9"
             />
           </div>
-        </div>
+
+          <AvailableWorkOrdersCard
+            orders={availableOrders}
+            onAddOrder={addOrder}
+          />
+        </section>
+
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b px-4 py-3">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-sky-600" />
+              <div>
+                <h2 className="text-sm font-semibold text-slate-800">Mapa</h2>
+                <p className="text-xs text-slate-500">
+                  Os pins aparecem conforme as OS são adicionadas.
+                </p>
+              </div>
+            </div>
+
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
+              {selectedOrders.length} pins
+            </span>
+          </div>
+
+          <MockRouteMap orders={selectedOrders} />
+        </section>
       </div>
     </div>
   );
