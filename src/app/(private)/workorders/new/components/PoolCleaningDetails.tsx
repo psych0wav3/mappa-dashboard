@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 export type Frequency =
   | "ONCE"
@@ -21,7 +22,7 @@ export const POOL_CLEANING_FREQUENCIES: Array<{
   {
     value: "ONCE",
     label: "Avulsa",
-    description: "Uma limpeza pontual, sem recorrência.",
+    description: "Uma limpeza pontual.",
   },
   {
     value: "WEEKLY_ONCE",
@@ -30,17 +31,17 @@ export const POOL_CLEANING_FREQUENCIES: Array<{
   },
   {
     value: "WEEKLY_TWICE",
-    label: "2x por semana",
+    label: "2x",
     description: "Duas limpezas por semana.",
   },
   {
     value: "WEEKLY_THREE_TIMES",
-    label: "3x por semana",
+    label: "3x",
     description: "Três limpezas por semana.",
   },
   {
     value: "WEEKLY_FOUR_TIMES",
-    label: "4x por semana",
+    label: "4x",
     description: "Quatro limpezas por semana.",
   },
   {
@@ -61,15 +62,17 @@ export const POOL_CLEANING_FREQUENCIES: Array<{
 ];
 
 export function frequencyLabel(value: Frequency) {
-  const found = POOL_CLEANING_FREQUENCIES.find((item) => item.value === value);
-
-  return found?.label ?? "Avulsa";
+  return (
+    POOL_CLEANING_FREQUENCIES.find((item) => item.value === value)?.label ??
+    "Avulsa"
+  );
 }
 
 export function frequencyDescription(value: Frequency) {
-  const found = POOL_CLEANING_FREQUENCIES.find((item) => item.value === value);
-
-  return found?.description ?? "Uma limpeza pontual.";
+  return (
+    POOL_CLEANING_FREQUENCIES.find((item) => item.value === value)
+      ?.description ?? "Uma limpeza pontual."
+  );
 }
 
 function formatCurrencyFromText(value: string) {
@@ -90,35 +93,49 @@ export default function PoolCleaningDetails({
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-        <div className="grid gap-3 lg:grid-cols-[220px_1fr_180px] lg:items-start">
-          <div className="space-y-1">
-            <label className="block h-5 text-sm font-medium text-slate-700">
-              Serviço
-            </label>
-
-            <div className="flex h-10 items-center rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800">
-              Limpeza de piscina
-            </div>
-          </div>
-
+        <div className="grid gap-4 lg:grid-cols-[1fr_180px]">
           <div className="space-y-1">
             <label className="block h-5 text-sm font-medium text-slate-700">
               Frequência
             </label>
 
-            <select
-              value={frequency}
-              onChange={(event) =>
-                onFrequencyChange(event.target.value as Frequency)
-              }
-              className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-sky-400"
-            >
-              {POOL_CLEANING_FREQUENCIES.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label} — {item.description}
-                </option>
-              ))}
-            </select>
+            <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-8">
+              {POOL_CLEANING_FREQUENCIES.map((item) => {
+                const selected = frequency === item.value;
+
+                return (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => onFrequencyChange(item.value)}
+                    className={cn(
+                      "min-h-[74px] rounded-xl border px-3 py-2 text-left transition-all",
+                      selected
+                        ? "border-sky-500 bg-sky-50 shadow-sm ring-1 ring-sky-100"
+                        : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50",
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "text-sm font-semibold leading-5",
+                        selected ? "text-sky-900" : "text-slate-900",
+                      )}
+                    >
+                      {item.label}
+                    </div>
+
+                    <div
+                      className={cn(
+                        "mt-1 text-[11px] leading-4",
+                        selected ? "text-sky-700" : "text-slate-600",
+                      )}
+                    >
+                      {item.description}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="space-y-1">
@@ -139,33 +156,50 @@ export default function PoolCleaningDetails({
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <table className="w-full text-sm">
+        <table className="w-full table-fixed text-sm">
+          <colgroup>
+            <col className="w-[34%]" />
+            <col className="w-[22%]" />
+            <col className="w-[28%]" />
+            <col className="w-[16%]" />
+          </colgroup>
+
           <thead className="bg-slate-50">
             <tr>
-              <th className="p-3 text-left">Serviço</th>
-              <th className="p-3 text-left">Frequência</th>
-              <th className="p-3 text-left">Detalhe</th>
-              <th className="p-3 text-right">Valor</th>
+              <th className="p-3 text-left font-semibold text-slate-700">
+                Serviço
+              </th>
+              <th className="p-3 text-left font-semibold text-slate-700">
+                Frequência
+              </th>
+              <th className="p-3 text-left font-semibold text-slate-700">
+                Detalhe
+              </th>
+              <th className="p-3 text-right font-semibold text-slate-700">
+                Valor
+              </th>
             </tr>
           </thead>
 
           <tbody>
             <tr className="border-t">
-              <td className="p-3 font-medium text-slate-800">
+              <td className="p-3 align-middle font-medium text-slate-800">
                 Limpeza de piscina
               </td>
 
-              <td className="p-3">
-                <span className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700">
+              <td className="p-3 align-middle">
+                <span className="inline-flex min-w-[96px] justify-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700">
                   {frequencyLabel(frequency)}
                 </span>
               </td>
 
-              <td className="p-3 text-slate-600">
-                {frequencyDescription(frequency)}
+              <td className="p-3 align-middle text-slate-600">
+                <span className="block truncate">
+                  {frequencyDescription(frequency)}
+                </span>
               </td>
 
-              <td className="p-3 text-right font-semibold text-slate-800">
+              <td className="p-3 align-middle text-right font-semibold text-slate-800">
                 {formatCurrencyFromText(cleaningAmount)}
               </td>
             </tr>
