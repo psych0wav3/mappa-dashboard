@@ -6,11 +6,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTransition } from "react";
 import { toast } from "sonner";
+import { AlertTriangle, Trash2, UserCheck, UserX } from "lucide-react";
 
-import {
-  createClient,
-  getClientById,
-} from "@/app/(private)/clients/actions";
+import { createClient, getClientById } from "@/app/(private)/clients/actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -136,11 +134,17 @@ export default function ClientForm({
   defaultValues,
   trigger = "Novo cliente",
   technicians = [],
+  onDeactivate,
+  onReactivate,
+  onDelete,
 }: {
   id?: string;
   defaultValues?: Partial<Values>;
   trigger?: React.ReactNode;
   technicians?: TechnicianOpt[];
+  onDeactivate?: () => void;
+  onReactivate?: () => void;
+  onDelete?: () => Promise<void> | void;
 }) {
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = useTransition();
@@ -159,6 +163,7 @@ export default function ClientForm({
   });
 
   const hasCompany = form.watch("hasCompany");
+  const isActive = form.watch("active") !== false;
 
   React.useEffect(() => {
     form.reset(defaults);
@@ -180,9 +185,14 @@ export default function ClientForm({
 
         if (!alive) return;
 
-        form.reset(buildDefaults(details as unknown as Partial<Values>));
-      } catch (e: any) {
-        toast.error(e?.message || "Erro ao buscar detalhes do cliente.");
+        form.reset(
+          buildDefaults({
+            ...(details as unknown as Partial<Values>),
+            active: defaultValues?.active ?? (details as any)?.active ?? true,
+          }),
+        );
+      } catch (error: any) {
+        toast.error(error?.message || "Erro ao buscar detalhes do cliente.");
       } finally {
         if (alive) {
           setLoadingDetails(false);
@@ -195,7 +205,7 @@ export default function ClientForm({
     return () => {
       alive = false;
     };
-  }, [open, id, form]);
+  }, [open, id, form, defaultValues?.active]);
 
   const copyBillingToPool = () => {
     if (isEditing) {
@@ -249,8 +259,8 @@ export default function ClientForm({
       }
 
       toast.success("Endereço preenchido pelo CEP");
-    } catch (e: any) {
-      toast.error(e?.message || "Falha ao consultar CEP");
+    } catch (error: any) {
+      toast.error(error?.message || "Falha ao consultar CEP");
     }
   };
 
@@ -272,15 +282,50 @@ export default function ClientForm({
         toast.success("Cliente criado");
         form.reset(buildDefaults({}));
         setOpen(false);
-      } catch (e: any) {
-        toast.error(e?.message || "Erro ao salvar cliente");
+      } catch (error: any) {
+        toast.error(error?.message || "Erro ao salvar cliente");
       }
     });
 
-  const handleCancel = () => {
+  const handleClose = () => {
     form.reset(isEditing ? defaults : buildDefaults({}));
     setOpen(false);
   };
+
+  function handleDeactivate() {
+    if (!onDeactivate) return;
+
+    onDeactivate();
+    form.setValue("active", false);
+    setOpen(false);
+  }
+
+  function handleReactivate() {
+    if (!onReactivate) return;
+
+    onReactivate();
+    form.setValue("active", true);
+    setOpen(false);
+  }
+
+  function handleDelete() {
+    if (!onDelete) return;
+
+    const confirmed = window.confirm(
+      "Tem certeza que deseja excluir este cliente definitivamente? Essa ação não poderá ser desfeita.",
+    );
+
+    if (!confirmed) return;
+
+    startTransition(async () => {
+      try {
+        await onDelete();
+        setOpen(false);
+      } catch (error: any) {
+        toast.error(error?.message || "Erro ao excluir cliente.");
+      }
+    });
+  }
 
   const inputDisabled = isEditing || loadingDetails;
 
@@ -321,14 +366,6 @@ export default function ClientForm({
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 pb-24 sm:p-6 sm:pb-28">
-            {isEditing && (
-              <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                A edição, inativação e exclusão de clientes ainda dependem de
-                rotas no backend. Por enquanto, os dados ficam apenas para
-                visualização.
-              </div>
-            )}
-
             {loadingDetails && (
               <div className="mb-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
                 Carregando dados completos do cliente...
@@ -374,10 +411,11 @@ export default function ClientForm({
                       className="h-4 w-4 rounded border-neutral-300"
                       checked={!!hasCompany}
                       disabled={inputDisabled}
-                      onChange={(e) =>
-                        form.setValue("hasCompany", e.target.checked)
+                      onChange={(event) =>
+                        form.setValue("hasCompany", event.target.checked)
                       }
                     />
+
                     <span className="text-sm text-neutral-700">
                       Cadastrar empresa
                     </span>
@@ -474,6 +512,21 @@ export default function ClientForm({
                       )}
                     />
                   </div>
+
+                  {isEditing && (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-slate-700">
+                          Status
+                        </label>
+
+                        <Input
+                          value={isActive ? "Ativo" : "Inativo"}
+                          disabled
+                        />
+                      </div>
+                    </div>
+                  )}
                 </section>
 
                 <SectionTitle>ENDEREÇO DE COBRANÇA</SectionTitle>
@@ -494,10 +547,10 @@ export default function ClientForm({
                               onBlur={async () => {
                                 await tryFillByCep("cep");
                               }}
-                              onChange={(e) => {
-                                field.onChange(e);
+                              onChange={(event) => {
+                                field.onChange(event);
 
-                                const digits = onlyDigits(e.target.value);
+                                const digits = onlyDigits(event.target.value);
 
                                 if (digits.length === 8) {
                                   tryFillByCep("cep");
@@ -639,10 +692,10 @@ export default function ClientForm({
                               onBlur={async () => {
                                 await tryFillByCep("poolCep");
                               }}
-                              onChange={(e) => {
-                                field.onChange(e);
+                              onChange={(event) => {
+                                field.onChange(event);
 
-                                const digits = onlyDigits(e.target.value);
+                                const digits = onlyDigits(event.target.value);
 
                                 if (digits.length === 8) {
                                   tryFillByCep("poolCep");
@@ -738,9 +791,55 @@ export default function ClientForm({
           </div>
 
           <div className="sticky bottom-0 z-20 border-t bg-white px-4 py-3 sm:px-6">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Button type="button" variant="outline" onClick={handleCancel}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                {isEditing && isActive && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                    onClick={handleDeactivate}
+                    disabled={pending || loadingDetails}
+                  >
+                    <UserX className="mr-2 h-4 w-4" />
+                    Inativar cliente
+                  </Button>
+                )}
+
+                {isEditing && !isActive && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                      onClick={handleReactivate}
+                      disabled={pending || loadingDetails}
+                    >
+                      <UserCheck className="mr-2 h-4 w-4" />
+                      Reativar
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-red-300 text-red-700 hover:bg-red-50"
+                      onClick={handleDelete}
+                      disabled={pending || loadingDetails}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      {pending ? "Excluindo..." : "Excluir definitivamente"}
+                    </Button>
+                  </>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleClose}
+                  disabled={pending}
+                >
                   Fechar
                 </Button>
 

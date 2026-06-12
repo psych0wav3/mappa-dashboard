@@ -108,23 +108,21 @@ async function getTokenFromApiLogin() {
   return json.accessToken as string;
 }
 
-async function getTokenOrThrow() {
-  const cookieToken = await getTokenFromCookie();
-
-  if (cookieToken) {
-    return cookieToken;
+function parseApiError(status: number, text: string) {
+  if (status === 401) {
+    return "Sessão expirada ou usuário sem autorização. Faça login novamente.";
   }
 
-  return getTokenFromApiLogin();
-}
+  const lowerText = text.toLowerCase();
 
-async function getCompanyId() {
-  const cookieStore = await cookies();
+  if (
+    lowerText.includes("uq_users_email") ||
+    lowerText.includes("duplicate key") ||
+    lowerText.includes("users_email")
+  ) {
+    return "Já existe um usuário cadastrado com este e-mail. Use outro e-mail ou localize o cliente existente na lista.";
+  }
 
-  return cookieStore.get("mappa_company_id")?.value || FALLBACK_COMPANY_ID;
-}
-
-function parseApiError(status: number, text: string) {
   try {
     const error = JSON.parse(text) as ApiError;
 
@@ -135,26 +133,70 @@ function parseApiError(status: number, text: string) {
       error?.message ||
       JSON.stringify(error);
 
+    if (
+      String(message).toLowerCase().includes("uq_users_email") ||
+      String(message).toLowerCase().includes("duplicate key")
+    ) {
+      return "Já existe um usuário cadastrado com este e-mail. Use outro e-mail ou localize o cliente existente na lista.";
+    }
+
+    if (status === 409) {
+      return (
+        message ||
+        "Não foi possível concluir a operação. Este registro possui vínculos no sistema."
+      );
+    }
+
+    if (status === 404) {
+      return message || "Cliente não encontrado.";
+    }
+
+    if (status === 500) {
+      return message || "Erro interno da API.";
+    }
+
     return `Erro ${status}: ${message}`;
   } catch {
+    if (status === 409) {
+      return "Não foi possível concluir a operação. Este registro possui vínculos no sistema.";
+    }
+
+    if (status === 404) {
+      return "Cliente não encontrado.";
+    }
+
     return `Erro ${status}: ${text || "Falha na API."}`;
   }
 }
 
 async function mappaFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = await getTokenOrThrow();
+  async function doFetch(token: string) {
+    return fetch(`${API_URL}${path}`, {
+      ...options,
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        ...(options?.headers || {}),
+      },
+    });
+  }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    cache: "no-store",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...(options?.headers || {}),
-    },
-  });
+  let token = await getTokenFromCookie();
 
-  const text = await response.text();
+  if (!token) {
+    token = await getTokenFromApiLogin();
+  }
+
+  let response = await doFetch(token);
+  let text = await response.text();
+
+  if (response.status === 401) {
+    token = await getTokenFromApiLogin();
+
+    response = await doFetch(token);
+    text = await response.text();
+  }
 
   if (!response.ok) {
     throw new Error(parseApiError(response.status, text));
@@ -165,6 +207,12 @@ async function mappaFetch<T>(path: string, options?: RequestInit): Promise<T> {
   }
 
   return JSON.parse(text) as T;
+}
+
+async function getCompanyId() {
+  const cookieStore = await cookies();
+
+  return cookieStore.get("mappa_company_id")?.value || FALLBACK_COMPANY_ID;
 }
 
 function clean(value: unknown) {
@@ -231,30 +279,37 @@ function getMainAddress(item: ApiCustomer) {
   }
 
   if (Array.isArray(item.addresses)) {
-    return item.addresses.find((address) => address.isMain) || item.addresses[0] || null;
+    return (
+      item.addresses.find((address) => address.isMain === true) ||
+      item.addresses[0] ||
+      null
+    );
   }
 
   return null;
 }
 
-function getSecondaryAddress(item: ApiCustomer, mainAddress?: ApiAddress | null) {
+function getBillingAddress(item: ApiCustomer, mainAddress?: ApiAddress | null) {
   if (!Array.isArray(item.addresses)) {
     return null;
   }
 
-  return (
+  const billing =
+    item.addresses.find((address) => address.isMain === false) ||
     item.addresses.find((address) => {
-      if (!mainAddress?.id) return !address.isMain;
+      if (!mainAddress?.id) return false;
       return address.id !== mainAddress.id;
-    }) || null
-  );
+    }) ||
+    null;
+
+  return billing;
 }
 
 function mapApiCustomerToClient(item: ApiCustomer, companyId: string) {
   const { firstName, lastName } = splitName(item.name);
 
-  const mainAddress = getMainAddress(item);
-  const secondaryAddress = getSecondaryAddress(item, mainAddress);
+  const poolAddress = getMainAddress(item);
+  const billingAddress = getBillingAddress(item, poolAddress);
 
   return {
     id: item.id,
@@ -273,24 +328,21 @@ function mapApiCustomerToClient(item: ApiCustomer, companyId: string) {
     active: item.status !== "INACTIVE",
     status: item.status ?? "ACTIVE",
 
-    // Endereço de cobrança, quando existir endereço secundário.
-    // Se não existir, deixamos vazio na visualização para não confundir com a piscina.
-    street: secondaryAddress?.street ?? null,
-    number: secondaryAddress?.number ?? null,
-    district: secondaryAddress?.neighborhood ?? null,
-    city: secondaryAddress?.city ?? null,
-    uf: secondaryAddress?.state ?? null,
-    cep: secondaryAddress?.zipCode ?? null,
+    street: billingAddress?.street ?? null,
+    number: billingAddress?.number ?? null,
+    district: billingAddress?.neighborhood ?? null,
+    city: billingAddress?.city ?? null,
+    uf: billingAddress?.state ?? null,
+    cep: billingAddress?.zipCode ?? null,
 
-    // Localização da piscina, sempre vinda do endereço principal.
-    poolStreet: mainAddress?.street ?? null,
-    poolNumber: mainAddress?.number ?? null,
-    poolDistrict: mainAddress?.neighborhood ?? null,
-    poolCity: mainAddress?.city ?? null,
-    poolUf: mainAddress?.state ?? null,
-    poolCep: mainAddress?.zipCode ?? null,
-    poolLat: mainAddress?.latitude ?? null,
-    poolLng: mainAddress?.longitude ?? null,
+    poolStreet: poolAddress?.street ?? null,
+    poolNumber: poolAddress?.number ?? null,
+    poolDistrict: poolAddress?.neighborhood ?? null,
+    poolCity: poolAddress?.city ?? null,
+    poolUf: poolAddress?.state ?? null,
+    poolCep: poolAddress?.zipCode ?? null,
+    poolLat: poolAddress?.latitude ?? null,
+    poolLng: poolAddress?.longitude ?? null,
 
     notes: null,
     createdAt: new Date().toISOString(),
@@ -329,6 +381,7 @@ function buildPoolAddress(data: any): AddressPayload {
 
     latitude: toNumberOrNull(data.poolLat),
     longitude: toNumberOrNull(data.poolLng),
+    isMain: true,
   };
 }
 
@@ -346,7 +399,9 @@ function buildBillingAddress(data: any): AddressPayload | null {
   }
 
   return {
-    street: (clean(data.street) as string | null) || "Endereço de cobrança não informado",
+    street:
+      (clean(data.street) as string | null) ||
+      "Endereço de cobrança não informado",
     number: clean(data.number) as string | null,
     complement: null,
     neighborhood: clean(data.district) as string | null,
@@ -357,25 +412,6 @@ function buildBillingAddress(data: any): AddressPayload | null {
     longitude: null,
     isMain: false,
   };
-}
-
-function normalizeAddressForCompare(address: AddressPayload | null) {
-  if (!address) return "";
-
-  return [
-    address.street,
-    address.number,
-    address.neighborhood,
-    address.city,
-    address.state,
-    address.zipCode,
-  ]
-    .map((value) => String(value || "").trim().toLowerCase())
-    .join("|");
-}
-
-function areSameAddress(a: AddressPayload | null, b: AddressPayload | null) {
-  return normalizeAddressForCompare(a) === normalizeAddressForCompare(b);
 }
 
 export async function listClients(opts?: {
@@ -402,11 +438,29 @@ export async function listClients(opts?: {
 
   const customers = extractCustomers(data);
 
-  return customers.map((item) => mapApiCustomerToClient(item, companyId));
+  const hydratedCustomers = await Promise.all(
+    customers.map(async (customer) => {
+      try {
+        return await mappaFetch<ApiCustomer>(
+          `/api/companies/${companyId}/customers/${customer.id}`,
+        );
+      } catch {
+        return customer;
+      }
+    }),
+  );
+
+  return hydratedCustomers.map((item) =>
+    mapApiCustomerToClient(item, companyId),
+  );
 }
 
 export async function getClientById(customerId: string) {
   const companyId = await getCompanyId();
+
+  if (!customerId) {
+    throw new Error("ID do cliente não informado.");
+  }
 
   const data = await mappaFetch<ApiCustomer>(
     `/api/companies/${companyId}/customers/${customerId}`,
@@ -440,7 +494,6 @@ export async function createClient(data: any) {
     phone: onlyDigits(data.phone),
     document: onlyDigits(data.cpf || data.cnpj),
 
-    // Endereço principal sempre é o endereço da piscina.
     address: {
       street: poolAddress.street,
       number: poolAddress.number,
@@ -462,12 +515,7 @@ export async function createClient(data: any) {
     },
   );
 
-  const shouldAddBillingAddress =
-    billingAddress &&
-    !areSameAddress(poolAddress, billingAddress) &&
-    createdCustomer?.id;
-
-  if (shouldAddBillingAddress) {
+  if (billingAddress && createdCustomer?.id) {
     await mappaFetch(
       `/api/companies/${companyId}/customers/${createdCustomer.id}/addresses`,
       {
@@ -493,12 +541,60 @@ export async function createClient(data: any) {
   return createdCustomer;
 }
 
-export async function updateClient() {
-  throw new Error("Atualização de cliente ainda não implementada na API.");
+export async function addClientAddress(customerId: string, address: any) {
+  const companyId = await getCompanyId();
+
+  if (!customerId) {
+    throw new Error("ID do cliente não informado.");
+  }
+
+  const payload = {
+    street:
+      (clean(address.street) as string | null) || "Endereço não informado",
+    number: clean(address.number) as string | null,
+    complement: clean(address.complement) as string | null,
+    neighborhood: clean(address.neighborhood || address.district) as
+      | string
+      | null,
+    city: (clean(address.city) as string | null) || "Cidade não informada",
+    state: (clean(address.state || address.uf) as string | null) || "SP",
+    zipCode: onlyDigits(address.zipCode || address.cep),
+    latitude: toNumberOrNull(address.latitude),
+    longitude: toNumberOrNull(address.longitude),
+    isMain: Boolean(address.isMain),
+  };
+
+  const createdAddress = await mappaFetch(
+    `/api/companies/${companyId}/customers/${customerId}/addresses`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+
+  revalidatePath("/clients");
+
+  return createdAddress;
 }
 
-export async function deleteClient() {
-  throw new Error("Exclusão de cliente ainda não implementada na API.");
+export async function deleteClient(customerId: string) {
+  const companyId = await getCompanyId();
+
+  if (!customerId) {
+    throw new Error("ID do cliente não informado.");
+  }
+
+  await mappaFetch(`/api/companies/${companyId}/customers/${customerId}`, {
+    method: "DELETE",
+  });
+
+  revalidatePath("/clients");
+
+  return true;
+}
+
+export async function updateClient() {
+  throw new Error("Atualização de cliente ainda não implementada na API.");
 }
 
 export async function saveClientCoords() {
