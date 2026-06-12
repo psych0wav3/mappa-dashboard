@@ -1,13 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { z } from "zod";
-import { useForm, type SubmitHandler } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useTransition } from "react";
 import { toast } from "sonner";
+import { AlertTriangle, Trash2, UserCheck, UserX } from "lucide-react";
 
-import { createTechnician } from "@/app/(private)/technicians/actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,131 +13,87 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { MaskedInput } from "@/components/ui/MaskedInput";
 
-const schema = z.object({
-  name: z.string().min(2, "Informe o nome completo"),
-  email: z.string().email("Email inválido"),
-  password: z.string().optional(),
-  phone: z.string().optional(),
-  active: z.boolean().optional(),
-});
-
-type Values = z.infer<typeof schema>;
-
-function buildDefaults(defaultValues?: Partial<{
+type TechDefaults = Partial<{
+  id: string;
   firstName: string;
   lastName: string;
   name: string;
   email: string;
   phone: string | null;
+  cpf: string | null;
   active: boolean;
-}>): Values {
-  const fullName =
-    defaultValues?.name ??
-    `${defaultValues?.firstName ?? ""} ${defaultValues?.lastName ?? ""}`.trim();
+}>;
 
-  return {
-    name: fullName,
-    email: defaultValues?.email ?? "",
-    password: "123456",
-    phone: defaultValues?.phone ?? "",
-    active: defaultValues?.active ?? true,
-  };
+function getFullName(defaultValues?: TechDefaults) {
+  return (
+    defaultValues?.name ??
+    `${defaultValues?.firstName ?? ""} ${defaultValues?.lastName ?? ""}`.trim()
+  );
 }
 
 export default function TechnicianForm({
   id,
   defaultValues,
   trigger = "Novo Técnico",
+  onDeactivate,
+  onReactivate,
+  onDelete,
 }: {
   id?: string;
-  defaultValues?: Partial<{
-    firstName: string;
-    lastName: string;
-    name: string;
-    email: string;
-    phone: string | null;
-    active: boolean;
-  }>;
+  defaultValues?: TechDefaults;
   trigger?: React.ReactNode;
+  onDeactivate?: () => void;
+  onReactivate?: () => void;
+  onDelete?: () => Promise<void> | void;
 }) {
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = useTransition();
 
   const isEditing = Boolean(id);
+  const isActive = defaultValues?.active !== false;
 
-  const defaults = React.useMemo(
-    () => buildDefaults(defaultValues),
-    [defaultValues],
-  );
+  const name = getFullName(defaultValues);
+  const email = defaultValues?.email ?? "";
+  const phone = defaultValues?.phone ?? "";
+  const cpf = defaultValues?.cpf ?? "";
 
-  const form = useForm<Values>({
-    resolver: zodResolver(schema),
-    defaultValues: defaults,
-  });
+  function handleDeactivate() {
+    if (!onDeactivate) return;
 
-  React.useEffect(() => {
-    form.reset(defaults);
-  }, [id, defaults, form]);
+    onDeactivate();
+    setOpen(false);
+  }
 
-  const onSubmit: SubmitHandler<Values> = (values) =>
+  function handleReactivate() {
+    if (!onReactivate) return;
+
+    onReactivate();
+    setOpen(false);
+  }
+
+  function handleDelete() {
+    if (!onDelete) return;
+
+    const confirmed = window.confirm(
+      "Tem certeza que deseja excluir este técnico definitivamente? Essa ação não poderá ser desfeita.",
+    );
+
+    if (!confirmed) return;
+
     startTransition(async () => {
       try {
-        if (isEditing) {
-          toast.error("Edição de técnico ainda não está disponível na API.");
-          return;
-        }
-
-        if (!values.password || values.password.trim().length < 6) {
-          form.setError("password", {
-            message: "Informe uma senha com pelo menos 6 caracteres",
-          });
-          return;
-        }
-
-        await createTechnician({
-          name: values.name,
-          email: values.email,
-          password: values.password,
-          phone: values.phone,
-        });
-
-        toast.success("Técnico criado");
-        form.reset(buildDefaults({}));
+        await onDelete();
         setOpen(false);
-      } catch (e: any) {
-        toast.error(e?.message || "Erro ao salvar técnico");
+      } catch (error: any) {
+        toast.error(error?.message || "Erro ao excluir técnico.");
       }
     });
-
-  const handleCancel = () => {
-    form.reset(isEditing ? defaults : buildDefaults({}));
-    setOpen(false);
-  };
-
-  const inputDisabled = isEditing;
+  }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-
-        if (next) {
-          form.reset(isEditing ? defaults : buildDefaults({}));
-        }
-      }}
-    >
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {typeof trigger === "string" ? (
           <Button className="btn-brand text-white">{trigger}</Button>
@@ -156,116 +109,105 @@ export default function TechnicianForm({
           </DialogTitle>
         </DialogHeader>
 
-        {isEditing && (
-          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            A edição, inativação e exclusão de técnicos ainda dependem de rotas
-            no backend. Por enquanto, os dados ficam apenas para visualização.
-          </div>
-        )}
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1 sm:col-span-2">
+              <label className="block text-sm font-medium text-slate-700">
+                Nome completo
+              </label>
 
-        <Form<Values> {...form}>
-          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
-            <FormField
-              name="name"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nome completo</FormLabel>
-                  <FormControl>
-                    <Input {...field} disabled={inputDisabled} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              name="email"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="email"
-                      {...field}
-                      disabled={inputDisabled}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {!isEditing && (
-              <FormField
-                name="password"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Senha inicial</FormLabel>
-                    <FormControl>
-                      <Input type="text" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-
-            <FormField
-              name="phone"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Telefone</FormLabel>
-                  <FormControl>
-                    <MaskedInput
-                      mask="(99) 99999-9999"
-                      {...field}
-                      disabled={inputDisabled}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {!isEditing && (
-              <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3 text-xs leading-5 text-neutral-700">
-                O cadastro será enviado para a API do Aqua Mappa como
-                funcionário da empresa.
-              </div>
-            )}
-
-            <div className="flex items-center justify-between gap-2 pt-2">
-              {isEditing ? (
-                <div className="text-xs text-neutral-500">
-                  Edição, inativação e exclusão serão liberadas quando a API
-                  tiver essas rotas.
-                </div>
-              ) : (
-                <span />
-              )}
-
-              <div className="flex items-center gap-2">
-                <Button type="button" variant="outline" onClick={handleCancel}>
-                  {isEditing ? "Fechar" : "Cancelar"}
-                </Button>
-
-                {!isEditing && (
-                  <Button
-                    type="submit"
-                    disabled={pending}
-                    className="btn-brand text-white"
-                  >
-                    {pending ? "Criando..." : "Criar"}
-                  </Button>
-                )}
-              </div>
+              <Input value={name || "—"} readOnly />
             </div>
-          </form>
-        </Form>
+
+            <div className="space-y-1 sm:col-span-2">
+              <label className="block text-sm font-medium text-slate-700">
+                Email
+              </label>
+
+              <Input value={email || "—"} readOnly />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-slate-700">
+                Telefone
+              </label>
+
+              <Input value={phone || "—"} readOnly />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-slate-700">
+                CPF
+              </label>
+
+              <Input value={cpf || "—"} readOnly />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-slate-700">
+                Status
+              </label>
+
+              <Input value={isActive ? "Ativo" : "Inativo"} readOnly />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-slate-700">
+                Cargo
+              </label>
+
+              <Input value="Técnico" readOnly />
+            </div>
+          </div>
+
+          <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              {isActive ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                  onClick={handleDeactivate}
+                >
+                  <UserX className="mr-2 h-4 w-4" />
+                  Inativar técnico
+                </Button>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                    onClick={handleReactivate}
+                  >
+                    <UserCheck className="mr-2 h-4 w-4" />
+                    Reativar
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-red-300 text-red-700 hover:bg-red-50"
+                    onClick={handleDelete}
+                    disabled={pending}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    {pending ? "Excluindo..." : "Excluir definitivamente"}
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              disabled={pending}
+            >
+              Fechar
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

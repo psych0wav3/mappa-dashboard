@@ -12,9 +12,13 @@ const API_ADMIN_PASSWORD = process.env.API_ADMIN_PASSWORD;
 
 type ApiEmployee = {
   id: string;
+  userId?: string | null;
   name?: string | null;
   email: string;
   phone?: string | null;
+  cpf?: string | null;
+  document?: string | null;
+  documentNumber?: string | null;
   status?: "ACTIVE" | "INACTIVE" | string;
 };
 
@@ -35,6 +39,9 @@ type ApiError = {
     message?: string;
     code?: string;
   }>;
+  detail?: string;
+  title?: string;
+  message?: string;
 };
 
 async function getApiToken() {
@@ -74,14 +81,27 @@ async function getApiToken() {
 function parseApiError(status: number, text: string) {
   try {
     const json = JSON.parse(text) as ApiError;
-    const message = json.errors?.[0]?.message;
 
-    if (message) {
-      return `Erro ${status}: ${message}`;
+    const message =
+      json.errors?.[0]?.message ||
+      json.detail ||
+      json.title ||
+      json.message ||
+      text;
+
+    if (status === 409) {
+      return (
+        message ||
+        "Não foi possível excluir. Funcionário possui ordens de serviço vinculadas."
+      );
     }
 
-    return `Erro ${status}: ${text}`;
+    return `Erro ${status}: ${message}`;
   } catch {
+    if (status === 409) {
+      return "Não foi possível excluir. Funcionário possui ordens de serviço vinculadas.";
+    }
+
     return `Erro ${status}: ${text}`;
   }
 }
@@ -99,12 +119,12 @@ function normalizeEmployee(employee: ApiEmployee): Tech {
   const { firstName, lastName } = splitName(employee.name);
 
   return {
-    id: employee.id,
+    id: employee.userId || employee.id,
     firstName,
     lastName,
     email: employee.email,
     phone: employee.phone ?? null,
-    cpf: null,
+    cpf: employee.cpf ?? employee.document ?? employee.documentNumber ?? null,
     active: employee.status !== "INACTIVE",
     role: "TECH",
   };
@@ -193,10 +213,31 @@ export async function listTechnicians(): Promise<Tech[]> {
   return employees.map(normalizeEmployee);
 }
 
-export async function updateTechnician() {
-  throw new Error("Edição de técnico ainda não está conectada à API.");
-}
+export async function deleteTechnician(employeeUserId: string) {
+  if (!employeeUserId) {
+    throw new Error("ID do técnico não informado.");
+  }
 
-export async function deleteTechnician() {
-  throw new Error("Exclusão de técnico ainda não está conectada à API.");
+  const token = await getApiToken();
+
+  const response = await fetch(
+    `${API_URL}/api/companies/${COMPANY_ID}/employees/${employeeUserId}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      cache: "no-store",
+    },
+  );
+
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(parseApiError(response.status, text));
+  }
+
+  revalidatePath("/technicians");
+
+  return true;
 }

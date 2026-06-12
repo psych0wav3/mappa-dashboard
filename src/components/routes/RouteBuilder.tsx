@@ -334,10 +334,6 @@ export default function RouteBuilder() {
             <h2 className="text-sm font-semibold text-slate-800">
               Planejamento semanal
             </h2>
-            <p className="text-xs text-slate-500">
-              Dias na vertical e horários na horizontal. Cada card aparece na
-              janela do horário previsto.
-            </p>
           </div>
 
           <div className="grid grid-cols-3 gap-2 sm:w-[360px]">
