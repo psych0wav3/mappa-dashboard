@@ -94,6 +94,7 @@ export default function AppSidebar({
     } catch {}
 
     setReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -266,17 +267,29 @@ function SidebarContent({
       { href: "/routes/builder", label: "Criar rota" },
       { href: "/routes/dashboard", label: "Controle das rotas" },
     ],
-    []
+    [],
   );
 
   const workorderItems = useMemo(
     () => [
       { href: "/workorders/new", label: "Nova OS" },
-      { href: "/workorders?status=APPROVED", label: "OS Aprovadas" },
+      { href: "/workorders/approved", label: "OS Aprovadas" },
       { href: "/workorders", label: "Todas as OS" },
     ],
-    []
+    [],
   );
+
+  function isWorkorderItemActive(href: string) {
+    if (href === "/workorders") {
+      return pathname === "/workorders";
+    }
+
+    return pathname === href || pathname.startsWith(href + "/");
+  }
+
+  function isRouteItemActive(href: string) {
+    return pathname === href || pathname.startsWith(href + "/");
+  }
 
   const renderLink = (href: string, label: string, icon: LucideIcon) => {
     const active = pathname === href || pathname.startsWith(href + "/");
@@ -373,7 +386,7 @@ function SidebarContent({
       <nav className="flex-1 p-2 space-y-1">
         {links.map((link) => renderLink(link.href, link.label, link.icon))}
 
-                <div className="mt-2">
+        <div className="mt-2">
           <button
             type="button"
             onClick={() => {
@@ -389,7 +402,7 @@ function SidebarContent({
                 ? "justify-center px-2 gap-0"
                 : "justify-between px-3 gap-3"
             } py-2 rounded-md transition-colors ${
-              pathname.startsWith("/workorders")
+              isWorkordersSection
                 ? "bg-white/20 text-white"
                 : "text-white hover:bg-white/10"
             }`}
@@ -437,10 +450,7 @@ function SidebarContent({
             {collapsed ? (
               <div className="flex flex-col items-center gap-2 py-1">
                 {workorderItems.map((item) => {
-                  const active =
-                    pathname === item.href ||
-                    pathname.startsWith(item.href + "/");
-
+                  const active = isWorkorderItemActive(item.href);
                   const initial = item.label.trim().charAt(0).toUpperCase();
 
                   return (
@@ -463,9 +473,7 @@ function SidebarContent({
             ) : (
               <div className="space-y-1" role="menu">
                 {workorderItems.map((item) => {
-                  const active =
-                    pathname === item.href ||
-                    pathname.startsWith(item.href + "/");
+                  const active = isWorkorderItemActive(item.href);
 
                   return (
                     <SidebarLink
@@ -500,7 +508,7 @@ function SidebarContent({
                 ? "justify-center px-2 gap-0"
                 : "justify-between px-3 gap-3"
             } py-2 rounded-md transition-colors ${
-              pathname.startsWith("/routes")
+              isRoutesSection
                 ? "bg-white/20 text-white"
                 : "text-white hover:bg-white/10"
             }`}
@@ -548,10 +556,7 @@ function SidebarContent({
             {collapsed ? (
               <div className="flex flex-col items-center gap-2 py-1">
                 {routeItems.map((item) => {
-                  const active =
-                    pathname === item.href ||
-                    pathname.startsWith(item.href + "/");
-
+                  const active = isRouteItemActive(item.href);
                   const initial = item.label.trim().charAt(0).toUpperCase();
 
                   return (
@@ -574,9 +579,7 @@ function SidebarContent({
             ) : (
               <div className="space-y-1" role="menu">
                 {routeItems.map((item) => {
-                  const active =
-                    pathname === item.href ||
-                    pathname.startsWith(item.href + "/");
+                  const active = isRouteItemActive(item.href);
 
                   return (
                     <SidebarLink
@@ -611,7 +614,7 @@ function SidebarContent({
                 ? "justify-center px-2 gap-0"
                 : "justify-between px-3 gap-3"
             } py-2 rounded-md transition-colors ${
-              pathname.startsWith("/settings") || pathname.startsWith("/account")
+              isSettingsSection
                 ? "bg-white/20 text-white"
                 : "text-white hover:bg-white/10"
             }`}

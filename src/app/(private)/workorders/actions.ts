@@ -17,11 +17,7 @@ const API_ADMIN_EMAIL = process.env.API_ADMIN_EMAIL;
 const API_ADMIN_PASSWORD = process.env.API_ADMIN_PASSWORD;
 
 type ApiError = {
-  errors?: Array<{
-    statusCode?: number;
-    message?: string;
-    code?: string;
-  }>;
+  errors?: any;
   detail?: string;
   title?: string;
   message?: string;
@@ -54,6 +50,7 @@ type ApiCustomer = {
 
 type ApiEmployee = {
   id: string;
+  userId?: string | null;
   name?: string | null;
   email?: string | null;
   phone?: string | null;
@@ -64,25 +61,14 @@ type ApiServiceOrder = {
   id: string;
   companyId?: string | null;
   customerId?: string | null;
+  customerName?: string | null;
   customerAddressId?: string | null;
-
-  employeeUserId?: string | null;
-  employeeName?: string | null;
-
+  address?: string | null;
   title?: string | null;
   description?: string | null;
-
   scheduledDate?: string | null;
-  scheduledTime?: string | null;
-
   totalAmount?: number | null;
   status?: string | null;
-
-  customerName?: string | null;
-  address?: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
-
   openedByUserId?: string | null;
   finishedByUserId?: string | null;
   finishedAt?: string | null;
@@ -90,91 +76,86 @@ type ApiServiceOrder = {
   createdAt?: string | null;
 };
 
-export type Weekday =
-  | "MONDAY"
-  | "TUESDAY"
-  | "WEDNESDAY"
-  | "THURSDAY"
-  | "FRIDAY"
-  | "SATURDAY"
-  | "SUNDAY";
-
-export type WorkOrderListItem = {
-  id: string;
-  customerId: string | null;
-  customerAddressId: string | null;
-
-  employeeUserId: string | null;
-  employeeName: string | null;
-
-  customerName: string;
-  title: string;
-  description: string | null;
-
-  scheduledDate: string | null;
-  scheduledTime: string | null;
-
-  totalAmount: number | null;
-  status: string;
-  address: string | null;
-  createdAt: string | null;
-};
-
-export type CustomerOption = {
+export type WorkOrderCustomerOption = {
   id: string;
   name: string;
-  email: string | null;
-  phone: string | null;
-  customerAddressId: string | null;
-  address: string | null;
+  email?: string | null;
+  phone?: string | null;
+  document?: string | null;
+  addressId: string;
+  customerAddressId: string;
+  addressLabel: string;
+  hasValidAddress: boolean;
 };
 
-export type TechnicianOption = {
+export type WorkOrderTechnicianOption = {
   id: string;
   name: string;
-  email: string | null;
-  phone: string | null;
+  email?: string | null;
+  phone?: string | null;
 };
 
-export type WorkOrderAdditionalItem = {
-  kind: "PRODUCT" | "SERVICE";
-  name: string;
-  quantity: number;
-  unitPrice: number;
-  total: number;
+export type TechnicianOption = WorkOrderTechnicianOption;
+export type CustomerOption = WorkOrderCustomerOption;
+
+export type AdditionalWorkOrderItem = {
+  id?: string;
+  type?: "PRODUCT" | "SERVICE" | string;
+  name?: string;
+  quantity?: number;
+  unitPrice?: number;
 };
 
 export type CreateAdminWorkOrderInput = {
   customerId: string;
   customerAddressId: string;
 
-  employeeUserId: string;
+  employeeUserId?: string;
   employeeName?: string;
-
-  serviceKind: "POOL_CLEANING" | "ADDITIONAL_SERVICE";
-  serviceType: string;
-
-  frequency?:
-    | "ONCE"
-    | "WEEKLY_ONCE"
-    | "WEEKLY_TWICE"
-    | "WEEKLY_THREE_TIMES"
-    | "WEEKLY_FOUR_TIMES"
-    | "DAILY"
-    | "BIWEEKLY"
-    | "MONTHLY";
-
-  frequencyWeekdays?: Weekday[];
+  serviceKind?: "POOL_CLEANING" | "ADDITIONAL_SERVICE" | "ADDITIONAL" | string;
+  serviceType?: string;
+  frequency?: string;
+  frequencyWeekdays?: string[];
+  scheduledTime?: string;
+  additionalItems?: AdditionalWorkOrderItem[];
 
   title: string;
-  description?: string;
-
+  description: string;
   scheduledDate: string;
-  scheduledTime: string;
+  totalAmount: number;
+};
 
+export type CreateEmployeeWorkOrderInput = {
+  customerId: string;
+  customerAddressId: string;
+  title: string;
+  description: string;
+  scheduledDate: string;
   totalAmount?: number;
+};
 
-  additionalItems?: WorkOrderAdditionalItem[];
+export type PriceWorkOrderInput = {
+  serviceOrderId: string;
+  totalAmount: number;
+};
+
+export type CustomerApprovalInput = {
+  serviceOrderId: string;
+  approved: boolean;
+};
+
+export type WorkOrderListItem = {
+  id: string;
+  customerId: string;
+  customerName: string;
+  customerAddressId?: string | null;
+  address: string;
+  title: string;
+  description: string;
+  scheduledDate: string;
+  totalAmount: number;
+  status: string;
+  createdAt?: string | null;
 };
 
 async function getTokenFromCookie() {
@@ -185,7 +166,7 @@ async function getTokenFromCookie() {
 async function getTokenFromApiLogin() {
   if (!API_ADMIN_EMAIL || !API_ADMIN_PASSWORD) {
     throw new Error(
-      "Usuário não autenticado. Configure API_ADMIN_EMAIL e API_ADMIN_PASSWORD no .env.local.",
+      "Configure API_ADMIN_EMAIL e API_ADMIN_PASSWORD no .env.local.",
     );
   }
 
@@ -216,32 +197,82 @@ async function getTokenFromApiLogin() {
   return json.accessToken as string;
 }
 
-async function getTokenOrThrow() {
-  const cookieToken = await getTokenFromCookie();
-
-  if (cookieToken) {
-    return cookieToken;
-  }
-
-  return getTokenFromApiLogin();
-}
-
 async function getCompanyId() {
   const cookieStore = await cookies();
-
   return cookieStore.get("mappa_company_id")?.value || FALLBACK_COMPANY_ID;
 }
 
+function formatValidationErrors(errors: any) {
+  if (!errors) return "";
+
+  if (Array.isArray(errors)) {
+    return errors
+      .map((item) => item?.message || item?.errorMessage || JSON.stringify(item))
+      .filter(Boolean)
+      .join(" | ");
+  }
+
+  if (typeof errors === "object") {
+    return Object.entries(errors)
+      .map(([field, messages]) => {
+        if (Array.isArray(messages)) {
+          return `${field}: ${messages.join(", ")}`;
+        }
+
+        if (typeof messages === "string") {
+          return `${field}: ${messages}`;
+        }
+
+        return `${field}: ${JSON.stringify(messages)}`;
+      })
+      .join(" | ");
+  }
+
+  return String(errors);
+}
+
 function parseApiError(status: number, text: string) {
+  if (status === 401) {
+    return "Sessão expirada ou usuário sem autorização. Faça login novamente.";
+  }
+
+  if (status === 403) {
+    return "Acesso negado. Esta ação exige permissão de administrador da empresa.";
+  }
+
+  const lowerText = String(text || "").toLowerCase();
+
+  if (
+    lowerText.includes("dateonly") ||
+    lowerText.includes("scheduleddate") ||
+    lowerText.includes("cannot be used as a parameter value")
+  ) {
+    return "Erro no backend com campo de data DateOnly. O front está enviando a data como yyyy-MM-dd, mas o backend ainda precisa converter ScheduledDate antes de gravar no banco.";
+  }
+
   try {
     const error = JSON.parse(text) as ApiError;
 
+    const validationDetails = formatValidationErrors(error?.errors);
+
     const message =
-      error?.errors?.[0]?.message ||
+      validationDetails ||
       error?.detail ||
       error?.title ||
       error?.message ||
       JSON.stringify(error);
+
+    if (status === 400) {
+      return `Erro 400: ${message || "Um ou mais campos enviados para a API são inválidos."}`;
+    }
+
+    if (status === 404) {
+      return message || "Registro não encontrado.";
+    }
+
+    if (status === 409) {
+      return message || "Não foi possível concluir por conflito de dados.";
+    }
 
     return `Erro ${status}: ${message}`;
   } catch {
@@ -250,7 +281,7 @@ function parseApiError(status: number, text: string) {
 }
 
 async function mappaFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  async function requestWithToken(token: string) {
+  async function doFetch(token: string) {
     return fetch(`${API_URL}${path}`, {
       ...options,
       cache: "no-store",
@@ -262,15 +293,18 @@ async function mappaFetch<T>(path: string, options?: RequestInit): Promise<T> {
     });
   }
 
-  let token = await getTokenOrThrow();
+  let token = await getTokenFromCookie();
 
-  let response = await requestWithToken(token);
+  if (!token) {
+    token = await getTokenFromApiLogin();
+  }
+
+  let response = await doFetch(token);
   let text = await response.text();
 
   if (response.status === 401) {
     token = await getTokenFromApiLogin();
-
-    response = await requestWithToken(token);
+    response = await doFetch(token);
     text = await response.text();
   }
 
@@ -286,29 +320,39 @@ async function mappaFetch<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 function extractItems<T>(payload: any): T[] {
-  if (Array.isArray(payload)) {
-    return payload;
-  }
-
-  if (Array.isArray(payload?.items)) {
-    return payload.items;
-  }
-
-  if (Array.isArray(payload?.data)) {
-    return payload.data;
-  }
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.customers)) return payload.customers;
+  if (Array.isArray(payload?.employees)) return payload.employees;
+  if (Array.isArray(payload?.serviceOrders)) return payload.serviceOrders;
+  if (Array.isArray(payload?.orders)) return payload.orders;
 
   return [];
 }
 
+function addressLabel(address?: ApiAddress | null) {
+  if (!address) return "Endereço não informado";
+
+  const line = [
+    address.street,
+    address.number,
+    address.neighborhood,
+    address.city && `${address.city}${address.state ? `/${address.state}` : ""}`,
+    address.zipCode,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  return line || "Endereço não informado";
+}
+
 function getMainAddress(customer: ApiCustomer) {
-  if (customer.mainAddress) {
-    return customer.mainAddress;
-  }
+  if (customer.mainAddress) return customer.mainAddress;
 
   if (Array.isArray(customer.addresses)) {
     return (
-      customer.addresses.find((address) => address.isMain) ||
+      customer.addresses.find((address) => address.isMain === true) ||
       customer.addresses[0] ||
       null
     );
@@ -317,57 +361,21 @@ function getMainAddress(customer: ApiCustomer) {
   return null;
 }
 
-function formatAddress(address?: ApiAddress | null) {
-  if (!address) return null;
-
-  const line1 = [address.street, address.number].filter(Boolean).join(", ");
-  const line2 = [address.neighborhood, address.city, address.state]
-    .filter(Boolean)
-    .join(" - ");
-
-  return [line1, line2].filter(Boolean).join(" | ") || null;
+async function getCustomerDetails(companyId: string, customerId: string) {
+  return mappaFetch<ApiCustomer>(
+    `/api/companies/${companyId}/customers/${customerId}`,
+  );
 }
 
-function normalizeServiceOrder(item: ApiServiceOrder): WorkOrderListItem {
-  return {
-    id: item.id,
+function serviceKindLabel(value?: string) {
+  if (value === "POOL_CLEANING") return "Limpeza de piscina";
+  if (value === "ADDITIONAL_SERVICE") return "Produto ou serviço adicional";
+  if (value === "ADDITIONAL") return "Produto ou serviço adicional";
 
-    customerId: item.customerId ?? null,
-    customerAddressId: item.customerAddressId ?? null,
-
-    employeeUserId: item.employeeUserId ?? null,
-    employeeName: item.employeeName ?? null,
-
-    customerName: item.customerName ?? "Cliente",
-    title: item.title ?? "Ordem de serviço",
-    description: item.description ?? null,
-
-    scheduledDate: item.scheduledDate ?? null,
-    scheduledTime: item.scheduledTime ?? null,
-
-    totalAmount: item.totalAmount ?? null,
-    status: item.status ?? "UNKNOWN",
-    address: item.address ?? null,
-    createdAt: item.createdAt ?? null,
-  };
+  return value || "Não informado";
 }
 
-function frequencyLabel(frequency?: CreateAdminWorkOrderInput["frequency"]) {
-  const map: Record<string, string> = {
-    ONCE: "Avulsa",
-    WEEKLY_ONCE: "Semanal, 1x por semana",
-    WEEKLY_TWICE: "2x por semana",
-    WEEKLY_THREE_TIMES: "3x por semana",
-    WEEKLY_FOUR_TIMES: "4x por semana",
-    DAILY: "Diária, todos os dias",
-    BIWEEKLY: "Quinzenal, a cada 15 dias",
-    MONTHLY: "Mensal, uma vez por mês",
-  };
-
-  return frequency ? map[frequency] ?? frequency : "Avulsa";
-}
-
-function weekdayLabel(day: string) {
+function weekdayLabel(value: string) {
   const map: Record<string, string> = {
     MONDAY: "Segunda",
     TUESDAY: "Terça",
@@ -376,96 +384,200 @@ function weekdayLabel(day: string) {
     FRIDAY: "Sexta",
     SATURDAY: "Sábado",
     SUNDAY: "Domingo",
+
+    seg: "Segunda",
+    ter: "Terça",
+    qua: "Quarta",
+    qui: "Quinta",
+    sex: "Sexta",
+    sab: "Sábado",
+    dom: "Domingo",
   };
 
-  return map[day] ?? day;
+  return map[value] || value;
 }
 
-function weekdaysLabel(days?: string[]) {
-  if (!days?.length) return "Não se aplica";
-
+function formatWeekdays(days?: string[]) {
+  if (!days || days.length === 0) return "Não se aplica";
   return days.map(weekdayLabel).join(", ");
 }
 
-function serviceKindLabel(kind: CreateAdminWorkOrderInput["serviceKind"]) {
-  return kind === "POOL_CLEANING"
-    ? "Limpeza de piscina"
-    : "Produto ou serviço adicional";
+function frequencyLabel(value?: string) {
+  const map: Record<string, string> = {
+    ONCE: "Avulsa",
+    WEEKLY_ONCE: "Semanal",
+    WEEKLY_TWICE: "2x por semana",
+    WEEKLY_THREE_TIMES: "3x por semana",
+    WEEKLY_FOUR_TIMES: "4x por semana",
+    DAILY: "Diária",
+    BIWEEKLY: "Quinzenal",
+    MONTHLY: "Mensal",
+  };
+
+  return map[value || ""] || value || "Não informado";
 }
 
-function additionalItemKindLabel(kind: WorkOrderAdditionalItem["kind"]) {
-  return kind === "PRODUCT" ? "Produto" : "Serviço";
-}
-
-function buildAdditionalItemsDescription(items?: WorkOrderAdditionalItem[]) {
-  if (!items?.length) {
-    return "";
-  }
-
-  const lines = items.map((item, index) => {
-    const quantity = Number(item.quantity || 0);
-    const unitPrice = Number(item.unitPrice || 0);
-    const total = Number(item.total || quantity * unitPrice || 0);
-
-    return `${index + 1}. ${additionalItemKindLabel(item.kind)}: ${
-      item.name
-    } | Qtd: ${quantity} | Unitário: R$ ${unitPrice.toFixed(
-      2,
-    )} | Total: R$ ${total.toFixed(2)}`;
+function formatMoney(value: number) {
+  return Number(value || 0).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
   });
-
-  return ["Itens da OS:", ...lines].join("\n");
 }
 
 function buildDescription(data: CreateAdminWorkOrderInput) {
-  const pieces = [
-    `Tipo da OS: ${serviceKindLabel(data.serviceKind)}.`,
-    `Serviço/tipo principal: ${data.serviceType}.`,
+  const lines: string[] = [];
 
-    data.serviceKind === "POOL_CLEANING"
-      ? `Frequência solicitada: ${frequencyLabel(data.frequency)}.`
-      : "",
+  if (data.description?.trim()) {
+    lines.push(data.description.trim());
+    lines.push("");
+  }
 
-    data.serviceKind === "POOL_CLEANING"
-      ? `Dias da semana: ${weekdaysLabel(data.frequencyWeekdays)}.`
-      : "",
+  lines.push("----- Dados complementares da OS -----");
 
-    data.serviceKind === "ADDITIONAL_SERVICE"
-      ? buildAdditionalItemsDescription(data.additionalItems)
-      : "",
+  if (data.serviceKind) {
+    lines.push(`Tipo da OS: ${serviceKindLabel(data.serviceKind)}`);
+  }
 
-    `Data agendada: ${data.scheduledDate}.`,
-    `Horário previsto: ${data.scheduledTime}.`,
+  if (data.serviceType) {
+    lines.push(`Tipo/serviço selecionado: ${data.serviceType}`);
+  }
 
-    data.employeeName ? `Técnico responsável: ${data.employeeName}.` : "",
+  if (data.employeeName || data.employeeUserId) {
+    lines.push(`Técnico responsável: ${data.employeeName || "Não informado"}`);
+    lines.push(`Técnico ID: ${data.employeeUserId || "Não informado"}`);
+  }
 
-    data.description?.trim()
-      ? `Observações: ${data.description.trim()}`
-      : "",
-  ];
+  if (data.scheduledTime) {
+    lines.push(`Horário previsto: ${data.scheduledTime}`);
+  }
 
-  return pieces.filter(Boolean).join("\n");
+  if (data.frequency) {
+    lines.push(`Frequência: ${frequencyLabel(data.frequency)}`);
+    lines.push(`Dias da semana: ${formatWeekdays(data.frequencyWeekdays)}`);
+  }
+
+  if (data.additionalItems?.length) {
+    lines.push("");
+    lines.push("Itens:");
+
+    for (const item of data.additionalItems) {
+      const quantity = Number(item.quantity || 0);
+      const unitPrice = Number(item.unitPrice || 0);
+      const total = quantity * unitPrice;
+
+      lines.push(
+        `- ${item.type || "ITEM"} | ${item.name || "Sem nome"} | Qtd: ${quantity} | Unitário: ${formatMoney(
+          unitPrice,
+        )} | Total: ${formatMoney(total)}`,
+      );
+    }
+  }
+
+  lines.push("");
+  lines.push(
+    "Observação técnica: técnico, horário, frequência e itens estão salvos na descrição até o backend liberar esses campos estruturados.",
+  );
+
+  return lines.join("\n");
 }
 
+function normalizeServiceOrder(order: ApiServiceOrder): WorkOrderListItem {
+  return {
+    id: order.id,
+    customerId: order.customerId || "",
+    customerName: order.customerName || "Cliente não informado",
+    customerAddressId: order.customerAddressId ?? null,
+    address: order.address || "Endereço não informado",
+    title: order.title || "Ordem de serviço",
+    description: order.description || "",
+    scheduledDate: order.scheduledDate || "",
+    totalAmount: Number(order.totalAmount || 0),
+    status: order.status || "WAITING_EXECUTION",
+    createdAt: order.createdAt ?? null,
+  };
+}
+
+function toApiDate(value: string) {
+  if (!value) return "";
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+    const [day, month, year] = value.split("/");
+    return `${year}-${month}-${day}`;
+  }
+
+  return value.slice(0, 10);
+}
+
+function toApiStatus(value?: string) {
+  if (!value) return "";
+
+  const map: Record<string, string> = {
+    WAITING_EXECUTION: "WaitingExecution",
+    WaitingExecution: "WaitingExecution",
+
+    IN_ROUTE: "InRoute",
+    InRoute: "InRoute",
+
+    PENDING_COMPANY_PRICING: "PendingCompanyPricing",
+    PendingCompanyPricing: "PendingCompanyPricing",
+
+    PENDING_CUSTOMER_APPROVAL: "PendingCustomerApproval",
+    PendingCustomerApproval: "PendingCustomerApproval",
+
+    DONE: "Finished",
+    FINISHED: "Finished",
+    Finished: "Finished",
+
+    CANCELED: "Canceled",
+    CANCELLED: "Canceled",
+    Canceled: "Canceled",
+
+    REJECTED: "Rejected",
+    Rejected: "Rejected",
+
+    // Importante:
+    // APPROVED não existe na API.
+    // No nosso front, "aprovada para rota" = WaitingExecution.
+    APPROVED: "WaitingExecution",
+    Approved: "WaitingExecution",
+  };
+
+  return map[value] || value;
+}
+
+function cleanApiNumber(value: number) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? number : 0;
+}
+
+/**
+ * GET /api/companies/{companyId}/service-orders
+ */
 export async function listWorkOrders(opts?: {
   status?: string;
   customerId?: string;
   scheduledDate?: string;
-}) {
+}): Promise<WorkOrderListItem[]> {
   const companyId = await getCompanyId();
 
   const params = new URLSearchParams();
 
-  if (opts?.status) {
-    params.set("status", opts.status);
-  }
+const apiStatus = toApiStatus(opts?.status);
+
+if (apiStatus) {
+  params.set("status", apiStatus);
+}
 
   if (opts?.customerId) {
     params.set("customerId", opts.customerId);
   }
 
   if (opts?.scheduledDate) {
-    params.set("scheduledDate", opts.scheduledDate);
+    params.set("scheduledDate", toApiDate(opts.scheduledDate));
   }
 
   const query = params.toString();
@@ -477,7 +589,29 @@ export async function listWorkOrders(opts?: {
   return extractItems<ApiServiceOrder>(data).map(normalizeServiceOrder);
 }
 
-export async function listCustomerOptions(): Promise<CustomerOption[]> {
+/**
+ * GET /api/companies/{companyId}/service-orders/{serviceOrderId}
+ */
+export async function getWorkOrderById(serviceOrderId: string) {
+  const companyId = await getCompanyId();
+
+  if (!serviceOrderId) {
+    throw new Error("ID da ordem de serviço não informado.");
+  }
+
+  const data = await mappaFetch<ApiServiceOrder>(
+    `/api/companies/${companyId}/service-orders/${serviceOrderId}`,
+  );
+
+  return normalizeServiceOrder(data);
+}
+
+/**
+ * Clientes para criação de OS.
+ */
+export async function listWorkOrderCustomers(): Promise<
+  WorkOrderCustomerOption[]
+> {
   const companyId = await getCompanyId();
 
   const data = await mappaFetch<any>(
@@ -486,35 +620,46 @@ export async function listCustomerOptions(): Promise<CustomerOption[]> {
 
   const customers = extractItems<ApiCustomer>(data);
 
-  const details = await Promise.all(
+  const hydrated = await Promise.all(
     customers.map(async (customer) => {
       try {
-        return await mappaFetch<ApiCustomer>(
-          `/api/companies/${companyId}/customers/${customer.id}`,
-        );
+        return await getCustomerDetails(companyId, customer.id);
       } catch {
         return customer;
       }
     }),
   );
 
-  return details
+  return hydrated
     .map((customer) => {
       const mainAddress = getMainAddress(customer);
+      const finalAddressId = mainAddress?.id || "";
 
       return {
         id: customer.id,
-        name: customer.name ?? "Cliente",
+        name: customer.name || "Cliente sem nome",
         email: customer.email ?? null,
         phone: customer.phone ?? null,
-        customerAddressId: mainAddress?.id ?? null,
-        address: formatAddress(mainAddress),
+        document: customer.document ?? null,
+        addressId: finalAddressId,
+        customerAddressId: finalAddressId,
+        addressLabel: addressLabel(mainAddress),
+        hasValidAddress: Boolean(finalAddressId),
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 }
 
-export async function listTechnicianOptions(): Promise<TechnicianOption[]> {
+export async function listCustomerOptions() {
+  return listWorkOrderCustomers();
+}
+
+/**
+ * Técnicos para criação de OS.
+ */
+export async function listWorkOrderTechnicians(): Promise<
+  WorkOrderTechnicianOption[]
+> {
   const companyId = await getCompanyId();
 
   const data = await mappaFetch<any>(
@@ -526,85 +671,179 @@ export async function listTechnicianOptions(): Promise<TechnicianOption[]> {
   return employees
     .filter((employee) => employee.status !== "INACTIVE")
     .map((employee) => ({
-      id: employee.id,
-      name: employee.name ?? "Técnico",
+      id: employee.userId || employee.id,
+      name: employee.name || employee.email || "Técnico sem nome",
       email: employee.email ?? null,
       phone: employee.phone ?? null,
     }))
     .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 }
 
-export async function createAdminWorkOrder(data: CreateAdminWorkOrderInput) {
+export async function listTechnicianOptions() {
+  return listWorkOrderTechnicians();
+}
+
+/**
+ * POST /api/companies/{companyId}/service-orders/admin
+ */
+export async function createAdminWorkOrder(input: CreateAdminWorkOrderInput) {
   const companyId = await getCompanyId();
 
-  if (!data.customerId) {
-    throw new Error("Selecione o cliente.");
+  if (!input.customerId) {
+    throw new Error("Selecione o cliente/piscina.");
   }
 
-  if (!data.customerAddressId) {
-    throw new Error("O cliente selecionado não possui endereço principal.");
+  if (!input.customerAddressId) {
+    throw new Error(
+      "O cliente selecionado não possui ID de endereço principal. Abra o cadastro do cliente e confirme se a API está retornando mainAddress.id ou addresses[].id.",
+    );
   }
 
-  if (!data.employeeUserId) {
-    throw new Error("Selecione o técnico responsável.");
-  }
-
-  if (!data.title.trim()) {
+  if (!input.title.trim()) {
     throw new Error("Informe o título da ordem de serviço.");
   }
 
-  if (!data.scheduledDate) {
+  if (!input.scheduledDate) {
     throw new Error("Informe a data agendada.");
   }
 
-  if (!data.scheduledTime) {
+  if (!input.scheduledTime) {
     throw new Error("Informe o horário previsto.");
   }
 
-  if (
-    data.serviceKind === "POOL_CLEANING" &&
-    data.frequency !== "ONCE" &&
-    data.frequency !== "DAILY" &&
-    (!data.frequencyWeekdays || data.frequencyWeekdays.length === 0)
-  ) {
-    throw new Error("Selecione os dias da semana da limpeza.");
+  if (!input.employeeUserId) {
+    throw new Error("Selecione o técnico responsável.");
   }
 
   if (
-    data.serviceKind === "ADDITIONAL_SERVICE" &&
-    (!data.additionalItems || data.additionalItems.length === 0)
+    (input.serviceKind === "ADDITIONAL_SERVICE" ||
+      input.serviceKind === "ADDITIONAL") &&
+    (!input.additionalItems || input.additionalItems.length === 0)
   ) {
     throw new Error("Adicione pelo menos um produto ou serviço à OS.");
   }
 
-  const totalAmount = Number(data.totalAmount ?? 0);
+  const payload = {
+    customerId: input.customerId,
+    customerAddressId: input.customerAddressId,
+    title: input.title.trim(),
+    description: buildDescription(input),
+    scheduledDate: toApiDate(input.scheduledDate),
+    totalAmount: cleanApiNumber(input.totalAmount),
+  };
 
   const created = await mappaFetch<ApiServiceOrder>(
     `/api/companies/${companyId}/service-orders/admin`,
     {
       method: "POST",
-      body: JSON.stringify({
-        customerId: data.customerId,
-        customerAddressId: data.customerAddressId,
-
-        title: data.title.trim(),
-        description: buildDescription(data),
-        scheduledDate: data.scheduledDate,
-        totalAmount,
-
-        employeeUserId: data.employeeUserId,
-        scheduledTime: data.scheduledTime,
-        serviceKind: data.serviceKind,
-        serviceType: data.serviceType,
-        frequency: data.frequency ?? "ONCE",
-        frequencyWeekdays: data.frequencyWeekdays ?? [],
-        additionalItems: data.additionalItems ?? [],
-      }),
+      body: JSON.stringify(payload),
     },
   );
 
   revalidatePath("/workorders");
+  revalidatePath("/workorders/approved");
+  revalidatePath("/workorders/new");
   revalidatePath("/routes/builder");
 
   return created;
+}
+
+/**
+ * POST /api/companies/{companyId}/service-orders/employee
+ * Para uso futuro no app/tela do técnico.
+ */
+export async function createEmployeeWorkOrder(input: CreateEmployeeWorkOrderInput) {
+  const companyId = await getCompanyId();
+
+  if (!input.customerId) {
+    throw new Error("Selecione o cliente.");
+  }
+
+  if (!input.customerAddressId) {
+    throw new Error("Cliente sem endereço principal cadastrado.");
+  }
+
+  if (!input.title.trim()) {
+    throw new Error("Informe o título da ordem de serviço.");
+  }
+
+  const payload = {
+    customerId: input.customerId,
+    customerAddressId: input.customerAddressId,
+    title: input.title.trim(),
+    description: input.description?.trim() || "",
+    scheduledDate: toApiDate(input.scheduledDate),
+    totalAmount: cleanApiNumber(input.totalAmount || 0),
+  };
+
+  const created = await mappaFetch<ApiServiceOrder>(
+    `/api/companies/${companyId}/service-orders/employee`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+
+  revalidatePath("/workorders");
+  revalidatePath("/workorders/approved");
+
+  return created;
+}
+
+/**
+ * PATCH /api/companies/{companyId}/service-orders/{serviceOrderId}/pricing
+ */
+export async function priceWorkOrder(input: PriceWorkOrderInput) {
+  const companyId = await getCompanyId();
+
+  if (!input.serviceOrderId) {
+    throw new Error("ID da ordem de serviço não informado.");
+  }
+
+  const payload = {
+    totalAmount: cleanApiNumber(input.totalAmount),
+  };
+
+  const updated = await mappaFetch<ApiServiceOrder>(
+    `/api/companies/${companyId}/service-orders/${input.serviceOrderId}/pricing`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
+
+  revalidatePath("/workorders");
+  revalidatePath("/workorders/approved");
+  revalidatePath("/routes/builder");
+
+  return updated;
+}
+
+/**
+ * PATCH /api/companies/{companyId}/service-orders/{serviceOrderId}/customer-approval
+ */
+export async function customerApprovalWorkOrder(input: CustomerApprovalInput) {
+  const companyId = await getCompanyId();
+
+  if (!input.serviceOrderId) {
+    throw new Error("ID da ordem de serviço não informado.");
+  }
+
+  const payload = {
+    approved: Boolean(input.approved),
+  };
+
+  const updated = await mappaFetch<ApiServiceOrder>(
+    `/api/companies/${companyId}/service-orders/${input.serviceOrderId}/customer-approval`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
+
+  revalidatePath("/workorders");
+  revalidatePath("/workorders/approved");
+  revalidatePath("/routes/builder");
+
+  return updated;
 }
