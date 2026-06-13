@@ -107,8 +107,8 @@ export default function Navbar() {
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">
                   Ligue agora
                 </div>
-                <a href="tel:+551199999-9999" className="text-sm font-semibold text-slate-900 hover:underline">
-                  (11) 99999-9999
+                <a href="tel:+5511960120258" className="text-sm font-semibold text-slate-900 hover:underline">
+                  (11) 96012-0258
                 </a>
               </div>
             </div>

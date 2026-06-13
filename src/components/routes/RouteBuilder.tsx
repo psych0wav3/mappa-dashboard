@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,12 @@ import RouteFiltersBar from "@/components/routes/RouteFiltersBar";
 import WeeklyTechnicianBoard from "@/components/routes/WeeklyTechnicianBoard";
 import AvailableWorkOrdersCard from "@/components/routes/AvailableWorkOrdersCard";
 import FullWidthRouteMap from "@/components/routes/FullWidthRouteMap";
+
+import {
+  createWeeklyRoutesFromPlanner,
+  type AvailableRouteWorkOrder,
+  type RouteTechnicianOption,
+} from "@/app/(private)/routes/actions";
 
 import {
   type AvailableWorkOrder,
@@ -18,136 +25,74 @@ import {
   weekdaysLabel,
 } from "@/components/routes/routeBuilderMockTypes";
 
-const MOCK_TECHNICIANS: RouteTechnician[] = [
-  { id: "tech-1", name: "Ellen Richter" },
-  { id: "tech-2", name: "Lucas Técnico" },
-  { id: "tech-3", name: "Magno Piscinas" },
-  { id: "tech-4", name: "João Manutenção" },
-  { id: "tech-5", name: "Adevaldo Piscineiro" },
-];
+function toIsoDate(date: Date) {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
 
-const MOCK_WORK_ORDERS: AvailableWorkOrder[] = [
-  {
-    id: "os-1",
-    customerId: "customer-1",
-    customerName: "Thai Pousada",
-    title: "Limpeza de piscina",
-    serviceKind: "POOL_CLEANING",
-    frequencyLabel: "Semanal",
-    weekdays: ["THURSDAY"],
-    scheduledTime: "09:00",
-    address: "Rua das Amendoeiras, 55 - Itamambuca - Ubatuba/SP",
-    status: "APPROVED",
-    lat: -23.40465,
-    lng: -44.95022,
-  },
-  {
-    id: "os-2",
-    customerId: "customer-2",
-    customerName: "Casa Praia Norte",
-    title: "Limpeza de piscina",
-    serviceKind: "POOL_CLEANING",
-    frequencyLabel: "2x",
-    weekdays: ["MONDAY", "THURSDAY"],
-    scheduledTime: "10:30",
-    address: "Rua Quinze, 120 - Itamambuca - Ubatuba/SP",
-    status: "APPROVED",
-    lat: -23.40291,
-    lng: -44.94859,
-  },
-  {
-    id: "os-3",
-    customerId: "customer-3",
-    customerName: "Condomínio Jardim das Águas",
-    title: "Limpeza de piscina",
-    serviceKind: "POOL_CLEANING",
-    frequencyLabel: "3x",
-    weekdays: ["MONDAY", "WEDNESDAY", "FRIDAY"],
-    scheduledTime: "13:00",
-    address: "Rua Manoel Soares da Silva, 800 - Itamambuca - Ubatuba/SP",
-    status: "APPROVED",
-    lat: -23.40128,
-    lng: -44.95391,
-  },
-  {
-    id: "os-4",
-    customerId: "customer-4",
-    customerName: "Casa da Serra",
-    title: "Troca de areia + Cloro",
-    serviceKind: "ADDITIONAL_SERVICE",
-    frequencyLabel: "Avulsa",
-    weekdays: [],
-    scheduledTime: "15:00",
-    address: "Estrada do Casanga, 210 - Ubatuba/SP",
-    status: "APPROVED",
-    lat: -23.40851,
-    lng: -44.94685,
-  },
-  {
-    id: "os-5",
-    customerId: "customer-5",
-    customerName: "Residencial Mar Azul",
-    title: "Limpeza de piscina",
-    serviceKind: "POOL_CLEANING",
-    frequencyLabel: "Quinzenal",
-    weekdays: ["SATURDAY"],
-    scheduledTime: "08:30",
-    address: "Rua dos Coqueiros, 44 - Ubatuba/SP",
-    status: "APPROVED",
-    lat: -23.40031,
-    lng: -44.94525,
-  },
-  {
-    id: "os-6",
-    customerId: "customer-6",
-    customerName: "Casa Itamambuca",
-    title: "Limpeza de piscina",
-    serviceKind: "POOL_CLEANING",
-    frequencyLabel: "Diária",
-    weekdays: [
-      "MONDAY",
-      "TUESDAY",
-      "WEDNESDAY",
-      "THURSDAY",
-      "FRIDAY",
-      "SATURDAY",
-      "SUNDAY",
-    ],
-    scheduledTime: "07:30",
-    address: "Rua Um, 33 - Itamambuca - Ubatuba/SP",
-    status: "APPROVED",
-    lat: -23.4061,
-    lng: -44.9511,
-  },
-  {
-    id: "os-7",
-    customerId: "customer-7",
-    customerName: "Pousada Maré Alta",
-    title: "Limpeza de piscina",
-    serviceKind: "POOL_CLEANING",
-    frequencyLabel: "4x",
-    weekdays: ["MONDAY", "WEDNESDAY", "FRIDAY", "SATURDAY"],
-    scheduledTime: "11:00",
-    address: "Rua Dez, 220 - Ubatuba/SP",
-    status: "APPROVED",
-    lat: -23.4073,
-    lng: -44.9479,
-  },
-  {
-    id: "os-8",
-    customerId: "customer-8",
-    customerName: "Casa do Bosque",
-    title: "Aplicação de produto",
-    serviceKind: "ADDITIONAL_SERVICE",
-    frequencyLabel: "Avulsa",
-    weekdays: [],
-    scheduledTime: "16:00",
-    address: "Rua do Bosque, 12 - Ubatuba/SP",
-    status: "APPROVED",
-    lat: -23.3999,
-    lng: -44.9498,
-  },
-];
+  const offset = copy.getTimezoneOffset();
+  const local = new Date(copy.getTime() - offset * 60 * 1000);
+
+  return local.toISOString().slice(0, 10);
+}
+
+function startOfWeekMonday(date: Date) {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+
+  const day = copy.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+
+  copy.setDate(copy.getDate() + diff);
+
+  return copy;
+}
+
+function formatWeekLabel(weekStartIso: string) {
+  const start = new Date(`${weekStartIso}T00:00:00`);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+
+  const startText = start.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+  });
+
+  const endText = end.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+  });
+
+  return `${startText} a ${endText}`;
+}
+
+function normalizeTechnicians(
+  technicians: RouteTechnicianOption[],
+): RouteTechnician[] {
+  return technicians.map((technician) => ({
+    id: technician.id,
+    name: technician.name,
+  }));
+}
+
+function normalizeOrders(
+  orders: AvailableRouteWorkOrder[],
+): AvailableWorkOrder[] {
+  return orders.map((order) => ({
+    id: order.id,
+    customerId: order.customerId,
+    customerName: order.customerName,
+    title: order.title,
+    serviceKind: order.serviceKind,
+    frequencyLabel: order.frequencyLabel,
+    weekdays: order.weekdays,
+    scheduledTime: order.scheduledTime,
+    scheduledDate: order.scheduledDate,
+    address: order.address,
+    status: order.status,
+    lat: order.lat,
+    lng: order.lng,
+  }));
+}
 
 function defaultWeekdaysForOrder(order: AvailableWorkOrder): RouteWeekday[] {
   if (order.weekdays.length > 0) {
@@ -157,17 +102,44 @@ function defaultWeekdaysForOrder(order: AvailableWorkOrder): RouteWeekday[] {
   return ["MONDAY"];
 }
 
-export default function RouteBuilder() {
+export default function RouteBuilder({
+  technicians,
+  initialAvailableOrders,
+}: {
+  technicians: RouteTechnicianOption[];
+  initialAvailableOrders: AvailableRouteWorkOrder[];
+}) {
+  const router = useRouter();
+
+  const [pending, startTransition] = React.useTransition();
+
+  const routeTechnicians = React.useMemo(
+    () => normalizeTechnicians(technicians),
+    [technicians],
+  );
+
+  const workOrders = React.useMemo(
+    () => normalizeOrders(initialAvailableOrders),
+    [initialAvailableOrders],
+  );
+
   const [technicianId, setTechnicianId] = React.useState("");
-  const [weekLabel, setWeekLabel] = React.useState("Semana atual");
+  const [weekStartDate, setWeekStartDate] = React.useState(() =>
+    toIsoDate(startOfWeekMonday(new Date())),
+  );
   const [search, setSearch] = React.useState("");
   const [plannedOrders, setPlannedOrders] = React.useState<
     PlannedRouteOrder[]
   >([]);
 
+  const weekLabel = React.useMemo(
+    () => formatWeekLabel(weekStartDate),
+    [weekStartDate],
+  );
+
   const selectedTechnician = React.useMemo(
-    () => MOCK_TECHNICIANS.find((item) => item.id === technicianId) || null,
-    [technicianId],
+    () => routeTechnicians.find((item) => item.id === technicianId) || null,
+    [routeTechnicians, technicianId],
   );
 
   const plannedServiceOrderIds = React.useMemo(
@@ -178,7 +150,7 @@ export default function RouteBuilder() {
   const availableOrders = React.useMemo(() => {
     const term = search.trim().toLowerCase();
 
-    return MOCK_WORK_ORDERS.filter((order) => {
+    return workOrders.filter((order) => {
       if (plannedServiceOrderIds.has(order.id)) {
         return false;
       }
@@ -198,7 +170,7 @@ export default function RouteBuilder() {
         .toLowerCase()
         .includes(term);
     });
-  }, [plannedServiceOrderIds, search]);
+  }, [workOrders, plannedServiceOrderIds, search]);
 
   const poolCount = React.useMemo(
     () => new Set(plannedOrders.map((item) => item.customerId)).size,
@@ -250,12 +222,15 @@ export default function RouteBuilder() {
   function moveOrderWithinWeek(plannedId: string, direction: "up" | "down") {
     setPlannedOrders((current) => {
       const index = current.findIndex((item) => item.plannedId === plannedId);
+
       if (index === -1) return current;
 
       const nextIndex = direction === "up" ? index - 1 : index + 1;
+
       if (nextIndex < 0 || nextIndex >= current.length) return current;
 
       const copy = [...current];
+
       const currentItem = copy[index];
       const nextItem = copy[nextIndex];
 
@@ -270,15 +245,25 @@ export default function RouteBuilder() {
   }
 
   function handlePreviousWeek() {
-    setWeekLabel("Semana anterior");
+    setWeekStartDate((current) => {
+      const date = new Date(`${current}T00:00:00`);
+      date.setDate(date.getDate() - 7);
+
+      return toIsoDate(date);
+    });
   }
 
   function handleCurrentWeek() {
-    setWeekLabel("Semana atual");
+    setWeekStartDate(toIsoDate(startOfWeekMonday(new Date())));
   }
 
   function handleNextWeek() {
-    setWeekLabel("Próxima semana");
+    setWeekStartDate((current) => {
+      const date = new Date(`${current}T00:00:00`);
+      date.setDate(date.getDate() + 7);
+
+      return toIsoDate(date);
+    });
   }
 
   function handleSaveRoute() {
@@ -292,13 +277,56 @@ export default function RouteBuilder() {
       return;
     }
 
-    toast.success("Tela pronta. Integração com API pendente.");
+    startTransition(async () => {
+      try {
+        const response = await createWeeklyRoutesFromPlanner({
+          employeeUserId: selectedTechnician.id,
+          weekStartDate,
+          items: plannedOrders.map((order) => ({
+            serviceOrderId: order.id,
+            customerName: order.customerName,
+            weekdays: order.weekdays,
+            scheduledTime: order.scheduledTime,
+            order: order.order,
+          })),
+        });
+
+        if (!response.ok) {
+          toast.error(
+            response.error ||
+              "Não foi possível criar a rota. Verifique o status das OS selecionadas.",
+          );
+          return;
+        }
+
+        if (response.count <= 0) {
+          toast.error("Nenhuma rota foi criada. Verifique as OS selecionadas.");
+          return;
+        }
+
+        toast.success(
+          response.count === 1
+            ? "Rota criada com sucesso."
+            : `${response.count} rotas criadas com sucesso.`,
+        );
+
+        setPlannedOrders([]);
+
+        router.push("/routes/dashboard");
+        router.refresh();
+      } catch (error: any) {
+        toast.error(
+          error?.message ||
+            "Não foi possível criar a rota. Verifique o status das OS selecionadas.",
+        );
+      }
+    });
   }
 
   return (
     <div className="space-y-6">
       <RouteFiltersBar
-        technicians={MOCK_TECHNICIANS}
+        technicians={routeTechnicians}
         technicianId={technicianId}
         onTechnicianChange={setTechnicianId}
         weekLabel={weekLabel}
@@ -315,45 +343,58 @@ export default function RouteBuilder() {
             <h2 className="text-sm font-semibold text-slate-800">
               OS aprovadas disponíveis
             </h2>
+
             <p className="text-xs text-slate-500">
-              Selecione as OS que entrarão no planejamento semanal do técnico.
+              Selecione somente OS com status Aguardando execução.
             </p>
           </div>
 
-          <span className="w-fit rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
-            {availableOrders.length} disponíveis
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
+            {availableOrders.length} disponível
+            {availableOrders.length === 1 ? "" : "is"}
           </span>
         </div>
 
-        <AvailableWorkOrdersCard orders={availableOrders} onAddOrder={addOrder} />
+        <AvailableWorkOrdersCard
+          orders={availableOrders}
+          onAddOrder={addOrder}
+        />
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 className="text-sm font-semibold text-slate-800">
               Planejamento semanal
             </h2>
+
+            <p className="text-xs text-slate-500">
+              Dias na vertical e horários na horizontal. Cada card aparece na
+              janela do horário previsto.
+            </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 sm:w-[360px]">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <div className="text-xs text-slate-500">Técnico</div>
-              <div className="mt-1 truncate text-sm font-semibold text-slate-800">
-                {selectedTechnician?.name ?? "Não selecionado"}
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="text-slate-500">Técnico</div>
+
+              <div className="mt-1 max-w-[120px] truncate font-semibold text-slate-800">
+                {selectedTechnician?.name || "Não selecionado"}
               </div>
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <div className="text-xs text-slate-500">OS</div>
-              <div className="mt-1 text-sm font-semibold text-slate-800">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="text-slate-500">OS</div>
+
+              <div className="mt-1 font-semibold text-slate-800">
                 {plannedOrders.length}
               </div>
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <div className="text-xs text-slate-500">Piscinas</div>
-              <div className="mt-1 text-sm font-semibold text-slate-800">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="text-slate-500">Piscinas</div>
+
+              <div className="mt-1 font-semibold text-slate-800">
                 {poolCount}
               </div>
             </div>
@@ -366,6 +407,13 @@ export default function RouteBuilder() {
           onUpdateOrder={updateOrder}
           onMoveOrder={moveOrderWithinWeek}
         />
+
+        {plannedOrders.length === 0 && (
+          <div className="rounded-b-xl border-x border-b border-slate-200 bg-slate-50 px-3 py-2 text-center text-xs text-slate-500">
+            Nenhuma OS adicionada ainda. Adicione uma OS aprovada para visualizar
+            o planejamento por dia e horário.
+          </div>
+        )}
       </section>
 
       <FullWidthRouteMap orders={plannedOrders} weekLabel={weekLabel} />
@@ -373,10 +421,11 @@ export default function RouteBuilder() {
       <div className="flex justify-end">
         <Button
           type="button"
-          className="h-11 min-w-[180px] btn-brand text-white"
+          className="h-10 min-w-[160px] btn-brand text-white"
           onClick={handleSaveRoute}
+          disabled={pending}
         >
-          Criar rota
+          {pending ? "Criando..." : "Criar rota"}
         </Button>
       </div>
     </div>

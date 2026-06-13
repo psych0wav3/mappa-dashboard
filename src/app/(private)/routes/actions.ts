@@ -1,6 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
@@ -16,11 +17,7 @@ const API_ADMIN_EMAIL = process.env.API_ADMIN_EMAIL;
 const API_ADMIN_PASSWORD = process.env.API_ADMIN_PASSWORD;
 
 type ApiError = {
-  errors?: Array<{
-    statusCode?: number;
-    message?: string;
-    code?: string;
-  }>;
+  errors?: any;
   detail?: string;
   title?: string;
   message?: string;
@@ -28,37 +25,26 @@ type ApiError = {
 
 type ApiEmployee = {
   id: string;
-  name?: string | null;
-  email?: string | null;
-  phone?: string | null;
-  status?: string | null;
-};
-
-type ApiAddress = {
-  id?: string | null;
-  street?: string | null;
-  number?: string | null;
-  complement?: string | null;
-  neighborhood?: string | null;
-  city?: string | null;
-  state?: string | null;
-  zipCode?: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
-  isMain?: boolean | null;
-};
-
-type ApiCustomer = {
-  id: string;
   userId?: string | null;
-  companyId?: string | null;
   name?: string | null;
   email?: string | null;
   phone?: string | null;
-  document?: string | null;
   status?: string | null;
-  mainAddress?: ApiAddress | null;
-  addresses?: ApiAddress[] | null;
+};
+
+type ApiServiceOrder = {
+  id: string;
+  companyId?: string | null;
+  customerId?: string | null;
+  customerName?: string | null;
+  customerAddressId?: string | null;
+  address?: string | null;
+  title?: string | null;
+  description?: string | null;
+  scheduledDate?: string | null;
+  totalAmount?: number | null;
+  status?: string | null;
+  createdAt?: string | null;
 };
 
 type ApiRouteListItem = {
@@ -69,6 +55,7 @@ type ApiRouteListItem = {
   employeeName?: string | null;
   status?: string | null;
   serviceOrderCount?: number | null;
+  createdAt?: string | null;
 };
 
 type ApiRouteResponse = {
@@ -98,49 +85,73 @@ type ApiRouteDetailsResponse = ApiRouteResponse & {
   }>;
 };
 
-type ApiServiceOrderResponse = {
+export type RouteTechnicianOption = {
   id: string;
-  companyId?: string | null;
-  customerId?: string | null;
-  customerAddressId?: string | null;
-  title?: string | null;
-  description?: string | null;
-  scheduledDate?: string | null;
-  totalAmount?: number | null;
-  status?: string | null;
+  name: string;
 };
 
-type ClientLite = {
+export type RouteWeekday =
+  | "MONDAY"
+  | "TUESDAY"
+  | "WEDNESDAY"
+  | "THURSDAY"
+  | "FRIDAY"
+  | "SATURDAY"
+  | "SUNDAY";
+
+export type AvailableRouteWorkOrder = {
   id: string;
-  firstName: string;
-  lastName: string;
-
-  customerAddressId?: string | null;
-
-  street: string | null;
-  number: string | null;
-  district?: string | null;
-  city: string | null;
-  uf: string | null;
-
-  poolStreet?: string | null;
-  poolNumber?: string | null;
-  poolDistrict?: string | null;
-  poolCity?: string | null;
-  poolUf?: string | null;
-
-  lat: number | null;
-  lng: number | null;
+  customerId: string;
+  customerName: string;
+  title: string;
+  serviceKind: "POOL_CLEANING" | "ADDITIONAL_SERVICE";
+  frequencyLabel: string;
+  weekdays: RouteWeekday[];
+  scheduledTime: string;
+  scheduledDate: string;
+  address: string;
+  status: "WAITING_EXECUTION" | "READY_FOR_ROUTE";
+  lat: number;
+  lng: number;
 };
 
-type RouteItemInput = {
-  clientId: string;
-  customerAddressId?: string | null;
-  clientName?: string;
-  windowStart: number;
-  windowEnd: number;
-  order: number;
-  notes?: string;
+export type CreateWeeklyRoutesInput = {
+  employeeUserId: string;
+  weekStartDate: string;
+  items: Array<{
+    serviceOrderId: string;
+    customerName: string;
+    weekdays: RouteWeekday[];
+    scheduledTime: string;
+    order: number;
+  }>;
+};
+
+export type CreateWeeklyRoutesResult = {
+  ok: boolean;
+  count: number;
+  routes: ApiRouteDetailsResponse[];
+  error?: string;
+};
+
+export type RouteDashboardItem = {
+  id: string;
+  title: string;
+  routeDate: string;
+  employeeUserId: string;
+  employeeName: string;
+  status: string;
+  serviceOrderCount: number;
+  createdAt?: string | null;
+  serviceOrders: Array<{
+    id: string;
+    serviceOrderId: string;
+    title: string;
+    customerName: string;
+    address: string;
+    executionOrder: number;
+    status: string;
+  }>;
 };
 
 async function getTokenFromCookie() {
@@ -182,6 +193,11 @@ async function getTokenFromApiLogin() {
   return json.accessToken as string;
 }
 
+async function getCompanyId() {
+  const cookieStore = await cookies();
+  return cookieStore.get("mappa_company_id")?.value || FALLBACK_COMPANY_ID;
+}
+
 async function getTokenOrThrow() {
   const cookieToken = await getTokenFromCookie();
 
@@ -192,18 +208,73 @@ async function getTokenOrThrow() {
   return getTokenFromApiLogin();
 }
 
-async function getCompanyId() {
-  const cookieStore = await cookies();
+function formatValidationErrors(errors: any) {
+  if (!errors) return "";
 
-  return cookieStore.get("mappa_company_id")?.value || FALLBACK_COMPANY_ID;
+  if (Array.isArray(errors)) {
+    return errors
+      .map((item) => item?.message || item?.errorMessage || JSON.stringify(item))
+      .filter(Boolean)
+      .join(" | ");
+  }
+
+  if (typeof errors === "object") {
+    return Object.entries(errors)
+      .map(([field, messages]) => {
+        if (Array.isArray(messages)) {
+          return `${field}: ${messages.join(", ")}`;
+        }
+
+        if (typeof messages === "string") {
+          return `${field}: ${messages}`;
+        }
+
+        return `${field}: ${JSON.stringify(messages)}`;
+      })
+      .join(" | ");
+  }
+
+  return String(errors);
 }
 
 function parseApiError(status: number, text: string) {
+  if (status === 401) {
+    return "Sessão expirada ou usuário sem autorização. Faça login novamente.";
+  }
+
+  if (status === 403) {
+    return "Acesso negado. Esta ação exige permissão de administrador da empresa.";
+  }
+
+  const lowerText = String(text || "").toLowerCase();
+
+  if (status === 409 || lowerText.includes("status inválido")) {
+    return "Ordem com status inválido. Apenas OS com status Aguardando execução podem entrar em rota.";
+  }
+
+  if (
+    lowerText.includes("execution_order_positive") ||
+    lowerText.includes("ck_execution_order_positive")
+  ) {
+    return "A ordem de execução precisa começar em 1. Corrija o executionOrder enviado para a rota.";
+  }
+
+  if (
+    lowerText.includes("dateonly") ||
+    lowerText.includes("routedate") ||
+    lowerText.includes("scheduleddate") ||
+    lowerText.includes("cannot be used as a parameter value")
+  ) {
+    return "Erro no backend com campo de data DateOnly. O front está enviando a data como yyyy-MM-dd, mas o backend ainda precisa converter a data antes de gravar no banco.";
+  }
+
   try {
     const error = JSON.parse(text) as ApiError;
 
+    const validationDetails = formatValidationErrors(error?.errors);
+
     const message =
-      error?.errors?.[0]?.message ||
+      validationDetails ||
       error?.detail ||
       error?.title ||
       error?.message ||
@@ -216,19 +287,28 @@ function parseApiError(status: number, text: string) {
 }
 
 async function mappaFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = await getTokenOrThrow();
+  async function doFetch(token: string) {
+    return fetch(`${API_URL}${path}`, {
+      ...options,
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        ...(options?.headers || {}),
+      },
+    });
+  }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    cache: "no-store",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...(options?.headers || {}),
-    },
-  });
+  let token = await getTokenOrThrow();
 
-  const text = await response.text();
+  let response = await doFetch(token);
+  let text = await response.text();
+
+  if (response.status === 401) {
+    token = await getTokenFromApiLogin();
+    response = await doFetch(token);
+    text = await response.text();
+  }
 
   if (!response.ok) {
     throw new Error(parseApiError(response.status, text));
@@ -239,6 +319,43 @@ async function mappaFetch<T>(path: string, options?: RequestInit): Promise<T> {
   }
 
   return JSON.parse(text) as T;
+}
+
+function extractItems<T>(payload: any): T[] {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.routes)) return payload.routes;
+  if (Array.isArray(payload?.serviceOrders)) return payload.serviceOrders;
+  if (Array.isArray(payload?.employees)) return payload.employees;
+
+  return [];
+}
+
+function toApiDate(value: string) {
+  if (!value) return "";
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+    const [day, month, year] = value.split("/");
+    return `${year}-${month}-${day}`;
+  }
+
+  if (/^\d{2}-\d{2}-\d{4}$/.test(value)) {
+    const [day, month, year] = value.split("-");
+    return `${year}-${month}-${day}`;
+  }
+
+  return value.slice(0, 10);
+}
+
+function normalizeStatus(status?: string | null) {
+  return String(status || "")
+    .replace(/[_\s-]/g, "")
+    .toLowerCase();
 }
 
 function splitName(name?: string | null) {
@@ -253,104 +370,156 @@ function splitName(name?: string | null) {
   };
 }
 
-function extractItems<T>(payload: any): T[] {
-  if (Array.isArray(payload)) {
-    return payload;
-  }
-
-  if (Array.isArray(payload?.items)) {
-    return payload.items;
-  }
-
-  if (Array.isArray(payload?.data)) {
-    return payload.data;
-  }
-
-  return [];
+function employeeDisplayName(employee: ApiEmployee) {
+  return employee.name || employee.email || "Técnico sem nome";
 }
 
-function getMainAddress(customer: ApiCustomer) {
-  if (customer.mainAddress) {
-    return customer.mainAddress;
-  }
+function extractLine(description: string | null | undefined, label: string) {
+  const target = label.toLowerCase();
 
-  if (Array.isArray(customer.addresses)) {
-    return (
-      customer.addresses.find((address) => address.isMain) ||
-      customer.addresses[0] ||
-      null
-    );
-  }
+  const line = String(description || "")
+    .split("\n")
+    .map((item) => item.trim())
+    .find((item) => item.toLowerCase().startsWith(target));
 
-  return null;
+  if (!line) return "";
+
+  return line.slice(label.length).trim();
 }
 
-function normalizeCustomer(customer: ApiCustomer): ClientLite {
-  const { firstName, lastName } = splitName(customer.name);
-  const mainAddress = getMainAddress(customer);
+function parseServiceKind(description?: string | null, title?: string | null) {
+  const line = extractLine(description, "Tipo da OS:");
+
+  if (line.toLowerCase().includes("produto")) {
+    return "ADDITIONAL_SERVICE" as const;
+  }
+
+  if (String(title || "").toLowerCase().includes("troca")) {
+    return "ADDITIONAL_SERVICE" as const;
+  }
+
+  if (String(title || "").toLowerCase().includes("cloro")) {
+    return "ADDITIONAL_SERVICE" as const;
+  }
+
+  return "POOL_CLEANING" as const;
+}
+
+function parseFrequencyLabel(description?: string | null) {
+  const line = extractLine(description, "Frequência:");
+
+  if (!line) return "Avulsa";
+
+  return line;
+}
+
+function parseScheduledTime(description?: string | null) {
+  const line = extractLine(description, "Horário previsto:");
+
+  if (!line) return "09:00";
+
+  if (/^\d{2}:\d{2}$/.test(line)) {
+    return line;
+  }
+
+  return line.slice(0, 5) || "09:00";
+}
+
+function parseWeekdays(description?: string | null): RouteWeekday[] {
+  const line = extractLine(description, "Dias da semana:");
+
+  if (!line || line.toLowerCase().includes("não se aplica")) {
+    return [];
+  }
+
+  const value = line.toLowerCase();
+
+  const days: RouteWeekday[] = [];
+
+  if (value.includes("segunda")) days.push("MONDAY");
+  if (value.includes("terça") || value.includes("terca")) days.push("TUESDAY");
+  if (value.includes("quarta")) days.push("WEDNESDAY");
+  if (value.includes("quinta")) days.push("THURSDAY");
+  if (value.includes("sexta")) days.push("FRIDAY");
+  if (value.includes("sábado") || value.includes("sabado")) {
+    days.push("SATURDAY");
+  }
+  if (value.includes("domingo")) days.push("SUNDAY");
+
+  return days;
+}
+
+function normalizeWorkOrderForRoute(
+  order: ApiServiceOrder,
+): AvailableRouteWorkOrder {
+  const serviceKind = parseServiceKind(order.description, order.title);
+  const weekdays = parseWeekdays(order.description);
+  const status = normalizeStatus(order.status);
 
   return {
-    id: customer.id,
-    firstName,
-    lastName,
-
-    customerAddressId: mainAddress?.id ?? null,
-
-    street: mainAddress?.street ?? null,
-    number: mainAddress?.number ?? null,
-    district: mainAddress?.neighborhood ?? null,
-    city: mainAddress?.city ?? null,
-    uf: mainAddress?.state ?? null,
-
-    poolStreet: mainAddress?.street ?? null,
-    poolNumber: mainAddress?.number ?? null,
-    poolDistrict: mainAddress?.neighborhood ?? null,
-    poolCity: mainAddress?.city ?? null,
-    poolUf: mainAddress?.state ?? null,
-
-    lat: mainAddress?.latitude ?? null,
-    lng: mainAddress?.longitude ?? null,
+    id: order.id,
+    customerId: order.customerId || "",
+    customerName: order.customerName || "Cliente não informado",
+    title: order.title || "Ordem de serviço",
+    serviceKind,
+    frequencyLabel: parseFrequencyLabel(order.description),
+    weekdays,
+    scheduledTime: parseScheduledTime(order.description),
+    scheduledDate: toApiDate(order.scheduledDate || ""),
+    address: order.address || "Endereço não informado",
+    status:
+      status === "waitingexecution" ? "WAITING_EXECUTION" : "READY_FOR_ROUTE",
+    lat: 0,
+    lng: 0,
   };
 }
 
-function normalizeRouteServiceOrders(route: ApiRouteDetailsResponse) {
-  return (route.serviceOrders || [])
+function weekdayToDate(weekStartDate: string, weekday: RouteWeekday) {
+  const offsets: Record<RouteWeekday, number> = {
+    MONDAY: 0,
+    TUESDAY: 1,
+    WEDNESDAY: 2,
+    THURSDAY: 3,
+    FRIDAY: 4,
+    SATURDAY: 5,
+    SUNDAY: 6,
+  };
+
+  const date = new Date(`${weekStartDate}T00:00:00`);
+  date.setDate(date.getDate() + offsets[weekday]);
+
+  return date.toISOString().slice(0, 10);
+}
+
+function normalizeRouteDetails(
+  route: ApiRouteDetailsResponse,
+): RouteDashboardItem {
+  const serviceOrders = (route.serviceOrders || [])
     .map((item, index) => ({
-      id: item.customerId || item.serviceOrderId || item.id || `${index}`,
-      serviceOrderId: item.serviceOrderId || item.id || null,
-      label: item.customerName || item.title || "Cliente",
-      windowStart: 9,
-      windowEnd: 10,
-      order: item.executionOrder ?? index + 1,
-      lat: item.latitude ?? null,
-      lng: item.longitude ?? null,
+      id: item.id || item.serviceOrderId || `${route.id}-${index}`,
+      serviceOrderId: item.serviceOrderId || item.id || "",
+      title: item.title || "Ordem de serviço",
+      customerName: item.customerName || "Cliente não informado",
+      address: item.address || "Endereço não informado",
+      executionOrder: item.executionOrder ?? index + 1,
+      status: item.status || "InRoute",
     }))
-    .sort((a, b) => a.order - b.order)
-    .map((item, index) => ({
-      ...item,
-      order: index + 1,
-    }));
+    .sort((a, b) => a.executionOrder - b.executionOrder);
+
+  return {
+    id: route.id,
+    title: route.title || "Rota",
+    routeDate: toApiDate(route.routeDate || ""),
+    employeeUserId: route.employeeUserId || "",
+    employeeName: route.employeeName || "Técnico não informado",
+    status: route.status || "Planned",
+    serviceOrderCount: serviceOrders.length,
+    createdAt: route.createdAt ?? null,
+    serviceOrders,
+  };
 }
 
-function buildServiceOrderTitle(item: RouteItemInput) {
-  return `Limpeza de piscina - ${item.clientName || "cliente"}`;
-}
-
-function buildServiceOrderDescription(item: RouteItemInput, dateISO: string) {
-  const start = String(item.windowStart).padStart(2, "0");
-  const end = String(item.windowEnd).padStart(2, "0");
-
-  return [
-    `Limpeza de piscina agendada pela tela de rotas.`,
-    `Data: ${dateISO}.`,
-    `Janela sugerida: ${start}:00 às ${end}:00.`,
-    item.notes ? `Observações: ${item.notes}` : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-}
-
-export async function listTechniciansLite() {
+export async function listRouteTechnicians(): Promise<RouteTechnicianOption[]> {
   const companyId = await getCompanyId();
 
   const data = await mappaFetch<any>(
@@ -361,59 +530,52 @@ export async function listTechniciansLite() {
 
   return employees
     .filter((employee) => employee.status !== "INACTIVE")
-    .map((employee) => {
-      const { firstName, lastName } = splitName(employee.name);
-
-      return {
-        id: employee.id,
-        firstName,
-        lastName,
-      };
-    })
-    .sort((a, b) => a.firstName.localeCompare(b.firstName, "pt-BR"));
+    .map((employee) => ({
+      id: employee.userId || employee.id,
+      name: employeeDisplayName(employee),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 }
 
-export async function listClientsLite(): Promise<ClientLite[]> {
+export async function listTechniciansLite() {
+  const technicians = await listRouteTechnicians();
+
+  return technicians.map((technician) => {
+    const { firstName, lastName } = splitName(technician.name);
+
+    return {
+      id: technician.id,
+      firstName,
+      lastName,
+    };
+  });
+}
+
+/**
+ * Lista somente OS que podem entrar em rota.
+ * A API exige status WaitingExecution.
+ */
+export async function listApprovedServiceOrdersForRoute(): Promise<
+  AvailableRouteWorkOrder[]
+> {
   const companyId = await getCompanyId();
 
   const data = await mappaFetch<any>(
-    `/api/companies/${companyId}/customers?status=ACTIVE`,
+    `/api/companies/${companyId}/service-orders?status=WaitingExecution`,
   );
 
-  const customers = extractItems<ApiCustomer>(data);
+  return extractItems<ApiServiceOrder>(data)
+    .filter((order) => normalizeStatus(order.status) === "waitingexecution")
+    .map(normalizeWorkOrderForRoute)
+    .sort((a, b) => {
+      const dateCompare = String(a.scheduledDate || "").localeCompare(
+        String(b.scheduledDate || ""),
+      );
 
-  const detailedCustomers = await Promise.all(
-    customers.map(async (customer) => {
-      try {
-        return await mappaFetch<ApiCustomer>(
-          `/api/companies/${companyId}/customers/${customer.id}`,
-        );
-      } catch {
-        return customer;
-      }
-    }),
-  );
+      if (dateCompare !== 0) return dateCompare;
 
-  return detailedCustomers
-    .map(normalizeCustomer)
-    .sort((a, b) => a.firstName.localeCompare(b.firstName, "pt-BR"));
-}
-
-async function listRoutesByDateAndEmployee(params: {
-  companyId: string;
-  routeDate: string;
-  employeeUserId: string;
-}) {
-  const query = new URLSearchParams();
-
-  query.set("routeDate", params.routeDate);
-  query.set("employeeUserId", params.employeeUserId);
-
-  const data = await mappaFetch<any>(
-    `/api/companies/${params.companyId}/routes?${query.toString()}`,
-  );
-
-  return extractItems<ApiRouteListItem>(data);
+      return a.customerName.localeCompare(b.customerName, "pt-BR");
+    });
 }
 
 async function getRouteDetails(companyId: string, routeId: string) {
@@ -428,45 +590,19 @@ async function createRoute(params: {
   routeDate: string;
   employeeUserId: string;
 }) {
+  const body = {
+    title: params.title,
+    routeDate: toApiDate(params.routeDate),
+    employeeUserId: params.employeeUserId,
+  };
+
+  console.log("[POST /routes] body:", body);
+
   return mappaFetch<ApiRouteResponse>(
     `/api/companies/${params.companyId}/routes`,
     {
       method: "POST",
-      body: JSON.stringify({
-        title: params.title,
-        routeDate: params.routeDate,
-        employeeUserId: params.employeeUserId,
-      }),
-    },
-  );
-}
-
-async function createAdminServiceOrder(params: {
-  companyId: string;
-  item: RouteItemInput;
-  scheduledDate: string;
-}) {
-  if (!params.item.customerAddressId) {
-    throw new Error(
-      `Cliente ${params.item.clientName || params.item.clientId} não possui endereço principal da piscina.`,
-    );
-  }
-
-  return mappaFetch<ApiServiceOrderResponse>(
-    `/api/companies/${params.companyId}/service-orders/admin`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        customerId: params.item.clientId,
-        customerAddressId: params.item.customerAddressId,
-        title: buildServiceOrderTitle(params.item),
-        description: buildServiceOrderDescription(
-          params.item,
-          params.scheduledDate,
-        ),
-        scheduledDate: params.scheduledDate,
-        totalAmount: 0,
-      }),
+      body: JSON.stringify(body),
     },
   );
 }
@@ -479,189 +615,182 @@ async function addServiceOrdersToRoute(params: {
     executionOrder: number;
   }>;
 }) {
+  const body = {
+    serviceOrders: params.serviceOrders,
+  };
+
+  console.log("[POST /routes/{routeId}/service-orders] body:", body);
+
   return mappaFetch<ApiRouteDetailsResponse>(
     `/api/companies/${params.companyId}/routes/${params.routeId}/service-orders`,
     {
       method: "POST",
-      body: JSON.stringify({
-        serviceOrders: params.serviceOrders,
-      }),
+      body: JSON.stringify(body),
     },
   );
 }
 
-export async function getRouteForDate(params: {
-  employeeUserId: string;
-  routeDate: string;
-}) {
-  const companyId = await getCompanyId();
+export async function createWeeklyRoutesFromPlanner(
+  input: CreateWeeklyRoutesInput,
+): Promise<CreateWeeklyRoutesResult> {
+  try {
+    const companyId = await getCompanyId();
 
-  if (!params.employeeUserId) {
-    throw new Error("Técnico obrigatório.");
+    if (!input.employeeUserId) {
+      return {
+        ok: false,
+        count: 0,
+        routes: [],
+        error: "Selecione o técnico responsável.",
+      };
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.weekStartDate)) {
+      return {
+        ok: false,
+        count: 0,
+        routes: [],
+        error: "Semana inválida.",
+      };
+    }
+
+    if (!input.items?.length) {
+      return {
+        ok: false,
+        count: 0,
+        routes: [],
+        error: "Adicione pelo menos uma OS ao planejamento.",
+      };
+    }
+
+    const grouped = new Map<
+      string,
+      Array<{
+        serviceOrderId: string;
+        executionOrder: number;
+      }>
+    >();
+
+    for (const item of input.items) {
+      const weekdays: RouteWeekday[] = item.weekdays.length
+        ? item.weekdays
+        : ["MONDAY"];
+
+      for (const weekday of weekdays) {
+        const routeDate = weekdayToDate(input.weekStartDate, weekday);
+
+        const current = grouped.get(routeDate) || [];
+
+        current.push({
+          serviceOrderId: item.serviceOrderId,
+          executionOrder: current.length + 1,
+        });
+
+        grouped.set(routeDate, current);
+      }
+    }
+
+    const createdRoutes: ApiRouteDetailsResponse[] = [];
+
+    for (const [routeDate, serviceOrders] of grouped.entries()) {
+      const route = await createRoute({
+        companyId,
+        title: `Rota ${toApiDate(routeDate)}`,
+        routeDate,
+        employeeUserId: input.employeeUserId,
+      });
+
+      const updated = await addServiceOrdersToRoute({
+        companyId,
+        routeId: route.id,
+        serviceOrders,
+      });
+
+      createdRoutes.push(updated);
+    }
+
+    revalidatePath("/routes/builder");
+    revalidatePath("/routes/dashboard");
+    revalidatePath("/workorders");
+    revalidatePath("/workorders/approved");
+
+    return {
+      ok: true,
+      count: createdRoutes.length,
+      routes: createdRoutes,
+    };
+  } catch (error: any) {
+    console.error("[createWeeklyRoutesFromPlanner]", error);
+
+    return {
+      ok: false,
+      count: 0,
+      routes: [],
+      error:
+        error?.message ||
+        "Não foi possível criar a rota. Verifique o status das OS selecionadas.",
+    };
   }
+}
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(params.routeDate)) {
-    throw new Error("Data inválida.");
-  }
+export async function listRoutesForDashboard(params?: {
+  routeDate?: string;
+  status?: string;
+}): Promise<RouteDashboardItem[]> {
+  try {
+    const companyId = await getCompanyId();
 
-  const routes = await listRoutesByDateAndEmployee({
-    companyId,
-    routeDate: params.routeDate,
-    employeeUserId: params.employeeUserId,
-  });
+    const query = new URLSearchParams();
 
-  const route = routes[0];
+    if (params?.routeDate) {
+      query.set("routeDate", toApiDate(params.routeDate));
+    }
 
-  if (!route?.id) {
+    if (params?.status) {
+      query.set("status", params.status);
+    }
+
+    const data = await mappaFetch<any>(
+      `/api/companies/${companyId}/routes${
+        query.toString() ? `?${query}` : ""
+      }`,
+    );
+
+    const routes = extractItems<ApiRouteListItem>(data);
+
+    const detailed = await Promise.all(
+      routes.map(async (route) => {
+        try {
+          return await getRouteDetails(companyId, route.id);
+        } catch {
+          return {
+            id: route.id,
+            title: route.title,
+            routeDate: route.routeDate,
+            employeeUserId: route.employeeUserId,
+            employeeName: route.employeeName,
+            status: route.status,
+            serviceOrders: [],
+            createdAt: route.createdAt,
+          } satisfies ApiRouteDetailsResponse;
+        }
+      }),
+    );
+
+    return detailed
+      .map(normalizeRouteDetails)
+      .sort((a, b) => {
+        const dateCompare = String(b.routeDate || "").localeCompare(
+          String(a.routeDate || ""),
+        );
+
+        if (dateCompare !== 0) return dateCompare;
+
+        return a.employeeName.localeCompare(b.employeeName, "pt-BR");
+      });
+  } catch (error) {
+    console.error("[listRoutesForDashboard]", error);
+
     return [];
   }
-
-  const details = await getRouteDetails(companyId, route.id);
-
-  return normalizeRouteServiceOrders(details);
-}
-
-export async function saveRouteForDate(params: {
-  employeeUserId: string;
-  routeDate: string;
-  items: RouteItemInput[];
-}) {
-  const companyId = await getCompanyId();
-
-  if (!params.employeeUserId) {
-    throw new Error("Selecione o técnico.");
-  }
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(params.routeDate)) {
-    throw new Error("Informe a data da rota.");
-  }
-
-  if (!params.items?.length) {
-    throw new Error("Adicione clientes à rota.");
-  }
-
-  for (const item of params.items) {
-    if (item.windowStart >= item.windowEnd) {
-      throw new Error(
-        `Janela inválida para ${item.clientName || item.clientId}.`,
-      );
-    }
-  }
-
-  const existingRoutes = await listRoutesByDateAndEmployee({
-    companyId,
-    routeDate: params.routeDate,
-    employeeUserId: params.employeeUserId,
-  });
-
-  const existingRoute = existingRoutes[0];
-
-  let routeId = existingRoute?.id || null;
-  let existingDetails: ApiRouteDetailsResponse | null = null;
-
-  if (routeId) {
-    existingDetails = await getRouteDetails(companyId, routeId);
-  }
-
-  const existingCustomerIds = new Set(
-    (existingDetails?.serviceOrders || [])
-      .map((order) => order.customerId)
-      .filter(Boolean) as string[],
-  );
-
-  const newItems = params.items.filter(
-    (item) => !existingCustomerIds.has(item.clientId),
-  );
-
-  if (!routeId && newItems.length === 0) {
-    throw new Error("Nenhum item novo para salvar.");
-  }
-
-  const createdOrders = await Promise.all(
-    newItems.map((item) =>
-      createAdminServiceOrder({
-        companyId,
-        item,
-        scheduledDate: params.routeDate,
-      }),
-    ),
-  );
-
-  if (!routeId) {
-    const route = await createRoute({
-      companyId,
-      title: `Rota ${params.routeDate}`,
-      routeDate: params.routeDate,
-      employeeUserId: params.employeeUserId,
-    });
-
-    routeId = route.id;
-  }
-
-  if (createdOrders.length > 0) {
-    await addServiceOrdersToRoute({
-      companyId,
-      routeId,
-      serviceOrders: createdOrders.map((order, index) => ({
-        serviceOrderId: order.id,
-        executionOrder: newItems[index]?.order ?? index + 1,
-      })),
-    });
-  }
-
-  const details = await getRouteDetails(companyId, routeId);
-
-  return {
-    ok: true,
-    routeId,
-    items: normalizeRouteServiceOrders(details),
-  };
-}
-
-/**
- * Mantidos apenas para não quebrar telas antigas enquanto migramos tudo para a API.
- * A API atual não possui recorrência semanal ainda.
- */
-export async function saveWeeklyRoute() {
-  throw new Error(
-    "Planejamento semanal recorrente ainda depende dos ajustes de recorrência no backend.",
-  );
-}
-
-export async function saveWeeklyRouteBulk() {
-  throw new Error(
-    "Atribuição semanal em massa ainda depende dos ajustes de recorrência no backend.",
-  );
-}
-
-export async function getWeeklyRoute() {
-  return [];
-}
-
-export async function saveAdHocRoute(params: {
-  technicianId: string;
-  dateISO: string;
-  items: Array<{
-    clientId: string;
-    customerAddressId?: string | null;
-    clientName?: string;
-    startHour: number;
-    endHour: number;
-    order: number;
-    notes?: string;
-  }>;
-}) {
-  return saveRouteForDate({
-    employeeUserId: params.technicianId,
-    routeDate: params.dateISO,
-    items: params.items.map((item) => ({
-      clientId: item.clientId,
-      customerAddressId: item.customerAddressId,
-      clientName: item.clientName,
-      windowStart: item.startHour,
-      windowEnd: item.endHour,
-      order: item.order,
-      notes: item.notes,
-    })),
-  });
 }

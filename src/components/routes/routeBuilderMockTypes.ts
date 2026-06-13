@@ -21,6 +21,7 @@ export type AvailableWorkOrder = {
   frequencyLabel: string;
   weekdays: RouteWeekday[];
   scheduledTime: string;
+  scheduledDate?: string;
   address: string;
   status: "APPROVED" | "WAITING_EXECUTION" | "READY_FOR_ROUTE";
   lat: number;
@@ -32,6 +33,8 @@ export type PlannedRouteOrder = AvailableWorkOrder & {
   technicianId: string;
   order: number;
 };
+
+export type SelectedRouteOrder = PlannedRouteOrder;
 
 export const WEEKDAY_LABELS: Record<RouteWeekday, string> = {
   MONDAY: "Segunda",

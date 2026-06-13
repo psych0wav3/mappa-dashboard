@@ -360,7 +360,7 @@ export default function RegisterPageClient() {
                       <Label htmlFor={field.name}>Telefone</Label>
                       <Input
                         id={field.name}
-                        placeholder="(11) 99999-9999"
+                        placeholder="(11) 96012-0258"
                         value={field.state.value}
                         onChange={(e) => field.handleChange(e.target.value)}
                         onBlur={field.handleBlur}
