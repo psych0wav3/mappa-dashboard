@@ -1,5 +1,3 @@
-import "server-only";
-
 import { cookies } from "next/headers";
 
 const API_URL =
@@ -80,28 +78,14 @@ export function parseApiError(status: number, text: string) {
 
   const lowerText = String(text || "").toLowerCase();
 
-  if (status === 409 || lowerText.includes("status inválido")) {
-    return "Ordem com status inválido. Apenas OS com status Aguardando execução podem entrar em rota.";
-  }
-
-  if (
-    lowerText.includes("execution_order_positive") ||
-    lowerText.includes("ck_execution_order_positive")
-  ) {
-    return "A ordem de execução precisa começar em 1. Corrija o executionOrder enviado para a rota.";
-  }
-
   if (
     lowerText.includes("dateonly") ||
-    lowerText.includes("routedate") ||
-    lowerText.includes("scheduleddate") ||
     lowerText.includes("cannot be used as a parameter value")
   ) {
-    return "Erro no backend com campo de data DateOnly. O front está enviando a data como yyyy-MM-dd, mas o backend ainda precisa converter a data antes de gravar no banco.";
+    return "Erro no backend com campo DateOnly. O front enviou a data, mas o backend ainda precisa converter antes de gravar.";
   }
 
   if (
-    lowerText.includes("checklist_templates") ||
     lowerText.includes("relation") ||
     lowerText.includes("does not exist")
   ) {
@@ -159,12 +143,12 @@ export function extractItems<T>(payload: any): T[] {
   if (Array.isArray(payload)) return payload;
   if (Array.isArray(payload?.items)) return payload.items;
   if (Array.isArray(payload?.data)) return payload.data;
-  if (Array.isArray(payload?.routes)) return payload.routes;
-  if (Array.isArray(payload?.serviceOrders)) return payload.serviceOrders;
-  if (Array.isArray(payload?.employees)) return payload.employees;
-  if (Array.isArray(payload?.customers)) return payload.customers;
-  if (Array.isArray(payload?.orders)) return payload.orders;
   if (Array.isArray(payload?.templates)) return payload.templates;
+  if (Array.isArray(payload?.measurementFields)) return payload.measurementFields;
+  if (Array.isArray(payload?.fields)) return payload.fields;
+  if (Array.isArray(payload?.checklistTemplates)) {
+    return payload.checklistTemplates;
+  }
 
   return [];
 }

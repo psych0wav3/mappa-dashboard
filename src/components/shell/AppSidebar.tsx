@@ -2,12 +2,13 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { SidebarLink } from "./SidebarLink";
+import LabelSlot from "./LabelSlot";
+import SidebarDropdown from "./SidebarDropdown";
 import {
   LayoutDashboard,
   Settings as SettingsIcon,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   Route as RouteIcon,
   Rocket,
   Wrench,
@@ -16,6 +17,8 @@ import {
   User as UserIcon,
   Cog,
   ClipboardList,
+  ListChecks,
+  Droplets,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState, useLayoutEffect } from "react";
@@ -23,28 +26,6 @@ import { useEffect, useMemo, useState, useLayoutEffect } from "react";
 const LS_KEY = "sidebar:collapsed";
 const WIDTH_EXPANDED = 280;
 const WIDTH_COLLAPSED = 80;
-
-function LabelSlot({
-  children,
-  ready,
-}: {
-  children: React.ReactNode;
-  ready: boolean;
-}) {
-  return (
-    <span
-      className="text-[0.95rem] font-medium whitespace-nowrap overflow-hidden"
-      style={{
-        display: "inline-block",
-        maxWidth: "calc(var(--sidebar-w) - 80px)",
-        transition: ready ? "max-width 300ms ease, opacity 300ms ease" : "none",
-        opacity: "calc((var(--sidebar-w) - 80px) / 200)",
-      }}
-    >
-      {children}
-    </span>
-  );
-}
 
 export default function AppSidebar({
   open,
@@ -208,6 +189,41 @@ function SidebarContent({
     { href: "/clients", label: "Clientes", icon: UserRound },
   ] as const;
 
+  const routeItems = useMemo(
+    () => [
+      { href: "/routes/builder", label: "Criar rota" },
+      { href: "/routes/dashboard", label: "Controle das rotas" },
+    ],
+    [],
+  );
+
+  const workorderItems = useMemo(
+    () => [
+      { href: "/workorders/new", label: "Nova OS" },
+      { href: "/workorders/approved", label: "OS Aprovadas" },
+      { href: "/workorders", label: "Todas as OS" },
+    ],
+    [],
+  );
+
+  const settingsItems = useMemo(
+    () => [
+      { href: "/account", label: "Meu perfil", icon: UserIcon },
+      { href: "/settings", label: "Preferências", icon: Cog },
+      {
+        href: "/settings/checklist-templates",
+        label: "Checklists de Serviço",
+        icon: ListChecks,
+      },
+      {
+        href: "/settings/measurement-fields",
+        label: "Campos de Medição",
+        icon: Droplets,
+      },
+    ],
+    [],
+  );
+
   const [planLabel, setPlanLabel] = useState<string | null>(null);
 
   useEffect(() => {
@@ -262,35 +278,6 @@ function SidebarContent({
     if (isSettingsSection) setSettingsOpen(true);
   }, [isSettingsSection]);
 
-  const routeItems = useMemo(
-    () => [
-      { href: "/routes/builder", label: "Criar rota" },
-      { href: "/routes/dashboard", label: "Controle das rotas" },
-    ],
-    [],
-  );
-
-  const workorderItems = useMemo(
-    () => [
-      { href: "/workorders/new", label: "Nova OS" },
-      { href: "/workorders/approved", label: "OS Aprovadas" },
-      { href: "/workorders", label: "Todas as OS" },
-    ],
-    [],
-  );
-
-  function isWorkorderItemActive(href: string) {
-    if (href === "/workorders") {
-      return pathname === "/workorders";
-    }
-
-    return pathname === href || pathname.startsWith(href + "/");
-  }
-
-  function isRouteItemActive(href: string) {
-    return pathname === href || pathname.startsWith(href + "/");
-  }
-
   const renderLink = (href: string, label: string, icon: LucideIcon) => {
     const active = pathname === href || pathname.startsWith(href + "/");
 
@@ -339,9 +326,12 @@ function SidebarContent({
       localStorage.removeItem("mappa_access_token");
       localStorage.removeItem("mappa_user");
       localStorage.removeItem("mappa_company_id");
+      localStorage.removeItem("mappa_roles");
 
       document.cookie =
         "mappa_access_token=; path=/; max-age=0; SameSite=Lax";
+      document.cookie =
+        "mappa_company_id=; path=/; max-age=0; SameSite=Lax";
 
       router.push("/login");
       router.refresh();
@@ -386,312 +376,71 @@ function SidebarContent({
       <nav className="flex-1 p-2 space-y-1">
         {links.map((link) => renderLink(link.href, link.label, link.icon))}
 
-        <div className="mt-2">
+        <SidebarDropdown
+          id="workorders-submenu"
+          label="Ordens de Serviço"
+          icon={ClipboardList}
+          collapsed={collapsed}
+          ready={ready}
+          open={workordersOpen}
+          setOpen={setWorkordersOpen}
+          active={isWorkordersSection}
+          defaultHref="/workorders"
+          items={workorderItems}
+          pathname={pathname}
+          onNavigate={onNavigate}
+        />
+
+        <SidebarDropdown
+          id="routes-submenu"
+          label="Rotas"
+          icon={RouteIcon}
+          collapsed={collapsed}
+          ready={ready}
+          open={routesOpen}
+          setOpen={setRoutesOpen}
+          active={isRoutesSection}
+          defaultHref="/routes/dashboard"
+          items={routeItems}
+          pathname={pathname}
+          onNavigate={onNavigate}
+        />
+
+        <SidebarDropdown
+          id="settings-submenu"
+          label="Configurações"
+          icon={SettingsIcon}
+          collapsed={collapsed}
+          ready={ready}
+          open={settingsOpen}
+          setOpen={setSettingsOpen}
+          active={isSettingsSection}
+          defaultHref="/settings"
+          items={settingsItems}
+          pathname={pathname}
+          onNavigate={onNavigate}
+          maxHeight={500}
+        />
+
+        {!collapsed && (
           <button
-            type="button"
-            onClick={() => {
-              if (collapsed) {
-                router.push("/workorders");
-                onNavigate?.();
-              } else {
-                setWorkordersOpen((value) => !value);
-              }
-            }}
-            className={`w-full flex items-center ${
-              collapsed
-                ? "justify-center px-2 gap-0"
-                : "justify-between px-3 gap-3"
-            } py-2 rounded-md transition-colors ${
-              isWorkordersSection
-                ? "bg-white/20 text-white"
-                : "text-white hover:bg-white/10"
-            }`}
-            aria-expanded={workordersOpen}
-            aria-controls="workorders-submenu"
+            onClick={handleSignOut}
+            className="ml-3 mt-2 flex w-[calc(100%-0.75rem)] items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-white/90 hover:bg-white/10"
           >
-            <div
-              className={`flex items-center ${collapsed ? "gap-0" : "gap-3"}`}
-            >
-              <ClipboardList size={18} aria-hidden className="shrink-0" />
-              <LabelSlot ready={ready}>Ordens de Serviço</LabelSlot>
-            </div>
-
-            <div
-              style={{
-                width: "calc(var(--sidebar-w) - 80px)",
-                overflow: "hidden",
-                transition: ready ? "width 300ms ease" : "none",
-              }}
-            >
-              <ChevronDown
-                size={16}
-                className={`transition-transform ${
-                  workordersOpen ? "rotate-180" : ""
-                }`}
-                aria-hidden="true"
-              />
-            </div>
+            <LogOut size={18} className="shrink-0" />
+            Sair
           </button>
+        )}
 
-          <div
-            id="workorders-submenu"
-            role="menu"
-            className="mt-1"
-            style={{
-              maxHeight: workordersOpen ? 800 : 0,
-              overflow: "hidden",
-              transition: ready
-                ? "max-height 300ms ease, opacity 300ms ease"
-                : "none",
-              opacity: "calc((var(--sidebar-w) - 80px) / 200)",
-              pointerEvents: workordersOpen && !collapsed ? "auto" : "none",
-            }}
-          >
-            {collapsed ? (
-              <div className="flex flex-col items-center gap-2 py-1">
-                {workorderItems.map((item) => {
-                  const active = isWorkorderItemActive(item.href);
-                  const initial = item.label.trim().charAt(0).toUpperCase();
-
-                  return (
-                    <a
-                      key={item.href}
-                      href={item.href}
-                      className={[
-                        "grid h-7 w-7 place-items-center rounded-md text-xs font-semibold",
-                        active
-                          ? "bg-white/30 text-white"
-                          : "bg-white/20 text-white",
-                      ].join(" ")}
-                      aria-current={active ? "page" : undefined}
-                    >
-                      {initial}
-                    </a>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="space-y-1" role="menu">
-                {workorderItems.map((item) => {
-                  const active = isWorkorderItemActive(item.href);
-
-                  return (
-                    <SidebarLink
-                      key={item.href}
-                      href={item.href}
-                      active={active}
-                      collapsed={false}
-                      className="ml-8 text-sm"
-                    >
-                      {item.label}
-                    </SidebarLink>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="mt-2">
+        {collapsed && (
           <button
-            type="button"
-            onClick={() => {
-              if (collapsed) {
-                router.push("/routes/dashboard");
-                onNavigate?.();
-              } else {
-                setRoutesOpen((value) => !value);
-              }
-            }}
-            className={`w-full flex items-center ${
-              collapsed
-                ? "justify-center px-2 gap-0"
-                : "justify-between px-3 gap-3"
-            } py-2 rounded-md transition-colors ${
-              isRoutesSection
-                ? "bg-white/20 text-white"
-                : "text-white hover:bg-white/10"
-            }`}
-            aria-expanded={routesOpen}
-            aria-controls="routes-submenu"
+            onClick={handleSignOut}
+            className="mt-2 grid h-9 w-full place-items-center rounded-lg text-white/90 hover:bg-white/10"
+            title="Sair"
           >
-            <div
-              className={`flex items-center ${collapsed ? "gap-0" : "gap-3"}`}
-            >
-              <RouteIcon size={18} aria-hidden className="shrink-0" />
-              <LabelSlot ready={ready}>Rotas</LabelSlot>
-            </div>
-
-            <div
-              style={{
-                width: "calc(var(--sidebar-w) - 80px)",
-                overflow: "hidden",
-                transition: ready ? "width 300ms ease" : "none",
-              }}
-            >
-              <ChevronDown
-                size={16}
-                className={`transition-transform ${
-                  routesOpen ? "rotate-180" : ""
-                }`}
-                aria-hidden="true"
-              />
-            </div>
+            <LogOut size={18} className="shrink-0" />
           </button>
-
-          <div
-            id="routes-submenu"
-            role="menu"
-            className="mt-1"
-            style={{
-              maxHeight: routesOpen ? 800 : 0,
-              overflow: "hidden",
-              transition: ready
-                ? "max-height 300ms ease, opacity 300ms ease"
-                : "none",
-              opacity: "calc((var(--sidebar-w) - 80px) / 200)",
-              pointerEvents: routesOpen && !collapsed ? "auto" : "none",
-            }}
-          >
-            {collapsed ? (
-              <div className="flex flex-col items-center gap-2 py-1">
-                {routeItems.map((item) => {
-                  const active = isRouteItemActive(item.href);
-                  const initial = item.label.trim().charAt(0).toUpperCase();
-
-                  return (
-                    <a
-                      key={item.href}
-                      href={item.href}
-                      className={[
-                        "grid h-7 w-7 place-items-center rounded-md text-xs font-semibold",
-                        active
-                          ? "bg-white/30 text-white"
-                          : "bg-white/20 text-white",
-                      ].join(" ")}
-                      aria-current={active ? "page" : undefined}
-                    >
-                      {initial}
-                    </a>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="space-y-1" role="menu">
-                {routeItems.map((item) => {
-                  const active = isRouteItemActive(item.href);
-
-                  return (
-                    <SidebarLink
-                      key={item.href}
-                      href={item.href}
-                      active={active}
-                      collapsed={false}
-                      className="ml-8 text-sm"
-                    >
-                      {item.label}
-                    </SidebarLink>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="mt-2">
-          <button
-            type="button"
-            onClick={() => {
-              if (collapsed) {
-                onNavigate?.();
-                router.push("/settings");
-              } else {
-                setSettingsOpen((value) => !value);
-              }
-            }}
-            className={`w-full flex items-center ${
-              collapsed
-                ? "justify-center px-2 gap-0"
-                : "justify-between px-3 gap-3"
-            } py-2 rounded-md transition-colors ${
-              isSettingsSection
-                ? "bg-white/20 text-white"
-                : "text-white hover:bg-white/10"
-            }`}
-            aria-expanded={settingsOpen}
-            aria-controls="settings-submenu"
-          >
-            <div
-              className={`flex items-center ${collapsed ? "gap-0" : "gap-3"}`}
-            >
-              <SettingsIcon size={18} aria-hidden className="shrink-0" />
-              <LabelSlot ready={ready}>Configurações</LabelSlot>
-            </div>
-
-            <div
-              style={{
-                width: "calc(var(--sidebar-w) - 80px)",
-                overflow: "hidden",
-                transition: ready ? "width 300ms ease" : "none",
-              }}
-            >
-              <ChevronDown
-                size={16}
-                className={`transition-transform ${
-                  settingsOpen ? "rotate-180" : ""
-                }`}
-                aria-hidden="true"
-              />
-            </div>
-          </button>
-
-          <div
-            id="settings-submenu"
-            role="menu"
-            className="mt-1"
-            style={{
-              maxHeight: settingsOpen ? 300 : 0,
-              overflow: "hidden",
-              transition: ready
-                ? "max-height 300ms ease, opacity 300ms ease"
-                : "none",
-              opacity: "calc((var(--sidebar-w) - 80px) / 200)",
-              pointerEvents: settingsOpen && !collapsed ? "auto" : "none",
-            }}
-          >
-            {!collapsed && (
-              <div className="space-y-1">
-                <SidebarLink
-                  href="/account"
-                  active={pathname.startsWith("/account")}
-                  collapsed={false}
-                  className="ml-8 text-sm"
-                  icon={UserIcon}
-                >
-                  Meu perfil
-                </SidebarLink>
-
-                <SidebarLink
-                  href="/settings"
-                  active={pathname.startsWith("/settings")}
-                  collapsed={false}
-                  className="ml-8 text-sm"
-                  icon={Cog}
-                >
-                  Preferências
-                </SidebarLink>
-
-                <button
-                  onClick={handleSignOut}
-                  className="ml-8 flex w-[calc(100%-2rem)] items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-white/90 hover:bg-white/10"
-                >
-                  <LogOut size={18} className="shrink-0" />
-                  Sair
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+        )}
       </nav>
 
       <div
