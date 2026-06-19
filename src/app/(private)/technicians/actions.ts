@@ -1,14 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 
 const API_URL = process.env.API_URL ?? "http://localhost:5264";
-
-const COMPANY_ID =
-  process.env.COMPANY_ID ?? "00000000-0000-0000-0000-000000000001";
-
-const API_ADMIN_EMAIL = process.env.API_ADMIN_EMAIL;
-const API_ADMIN_PASSWORD = process.env.API_ADMIN_PASSWORD;
 
 type ApiEmployee = {
   id: string;
@@ -44,38 +39,24 @@ type ApiError = {
   message?: string;
 };
 
-async function getApiToken() {
-  if (!API_ADMIN_EMAIL || !API_ADMIN_PASSWORD) {
-    throw new Error(
-      "Configure API_ADMIN_EMAIL e API_ADMIN_PASSWORD no .env.local.",
-    );
+async function getAuthFromCookies() {
+  const cookieStore = await cookies();
+
+  const token = cookieStore.get("mappa_access_token")?.value;
+  const companyId = cookieStore.get("mappa_company_id")?.value;
+
+  if (!token) {
+    throw new Error("Token não encontrado. Faça login novamente.");
   }
 
-  const response = await fetch(`${API_URL}/api/auth/login`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      email: API_ADMIN_EMAIL,
-      password: API_ADMIN_PASSWORD,
-    }),
-    cache: "no-store",
-  });
-
-  const text = await response.text();
-
-  if (!response.ok) {
-    throw new Error(`Erro ao fazer login na API: ${response.status} ${text}`);
+  if (!companyId) {
+    throw new Error("Empresa não encontrada. Faça login novamente.");
   }
 
-  const json = JSON.parse(text);
-
-  if (!json.accessToken) {
-    throw new Error("A API não retornou accessToken.");
-  }
-
-  return json.accessToken as string;
+  return {
+    token,
+    companyId,
+  };
 }
 
 function parseApiError(status: number, text: string) {
@@ -89,6 +70,14 @@ function parseApiError(status: number, text: string) {
       json.message ||
       text;
 
+    if (status === 401) {
+      return "Sessão expirada ou não autorizada. Faça login novamente.";
+    }
+
+    if (status === 403) {
+      return "Você não tem permissão para executar esta ação.";
+    }
+
     if (status === 409) {
       return (
         message ||
@@ -98,6 +87,14 @@ function parseApiError(status: number, text: string) {
 
     return `Erro ${status}: ${message}`;
   } catch {
+    if (status === 401) {
+      return "Sessão expirada ou não autorizada. Faça login novamente.";
+    }
+
+    if (status === 403) {
+      return "Você não tem permissão para executar esta ação.";
+    }
+
     if (status === 409) {
       return "Não foi possível excluir. Funcionário possui ordens de serviço vinculadas.";
     }
@@ -130,75 +127,53 @@ function normalizeEmployee(employee: ApiEmployee): Tech {
   };
 }
 
-function extractEmployees(payload: any): ApiEmployee[] {
+function extractEmployees(payload: unknown): ApiEmployee[] {
   if (Array.isArray(payload)) {
-    return payload;
+    return payload as ApiEmployee[];
   }
 
-  if (Array.isArray(payload?.items)) {
-    return payload.items;
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "items" in payload &&
+    Array.isArray((payload as { items?: unknown }).items)
+  ) {
+    return (payload as { items: ApiEmployee[] }).items;
   }
 
-  if (Array.isArray(payload?.employees)) {
-    return payload.employees;
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "employees" in payload &&
+    Array.isArray((payload as { employees?: unknown }).employees)
+  ) {
+    return (payload as { employees: ApiEmployee[] }).employees;
   }
 
-  if (Array.isArray(payload?.data)) {
-    return payload.data;
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "data" in payload &&
+    Array.isArray((payload as { data?: unknown }).data)
+  ) {
+    return (payload as { data: ApiEmployee[] }).data;
   }
 
   return [];
 }
 
-export async function createTechnician(data: {
-  name: string;
-  email: string;
-  password: string;
-  phone?: string;
-}) {
-  const token = await getApiToken();
-
-  const response = await fetch(
-    `${API_URL}/api/companies/${COMPANY_ID}/employees`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        name: data.name.trim(),
-        email: data.email.trim(),
-        password: data.password.trim(),
-        phone: data.phone?.trim() || "",
-      }),
-      cache: "no-store",
-    },
-  );
-
-  const text = await response.text();
-
-  if (!response.ok) {
-    throw new Error(parseApiError(response.status, text));
-  }
-
-  revalidatePath("/technicians");
-
-  return text ? JSON.parse(text) : true;
-}
-
 export async function listTechnicians(): Promise<Tech[]> {
-  const token = await getApiToken();
+  const { token, companyId } = await getAuthFromCookies();
 
   const response = await fetch(
-    `${API_URL}/api/companies/${COMPANY_ID}/employees`,
+    `${API_URL}/api/companies/${companyId}/employees`,
     {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
       },
       cache: "no-store",
-    },
+    }
   );
 
   const text = await response.text();
@@ -213,22 +188,59 @@ export async function listTechnicians(): Promise<Tech[]> {
   return employees.map(normalizeEmployee);
 }
 
+export async function createTechnician(data: {
+  name: string;
+  email: string;
+  password: string;
+  phone?: string;
+}) {
+  const { token, companyId } = await getAuthFromCookies();
+
+  const response = await fetch(
+    `${API_URL}/api/companies/${companyId}/employees`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        name: data.name.trim(),
+        email: data.email.trim(),
+        password: data.password.trim(),
+        phone: data.phone?.trim() || "",
+      }),
+      cache: "no-store",
+    }
+  );
+
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(parseApiError(response.status, text));
+  }
+
+  revalidatePath("/technicians");
+
+  return text ? JSON.parse(text) : true;
+}
+
 export async function deleteTechnician(employeeUserId: string) {
   if (!employeeUserId) {
     throw new Error("ID do técnico não informado.");
   }
 
-  const token = await getApiToken();
+  const { token, companyId } = await getAuthFromCookies();
 
   const response = await fetch(
-    `${API_URL}/api/companies/${COMPANY_ID}/employees/${employeeUserId}`,
+    `${API_URL}/api/companies/${companyId}/employees/${employeeUserId}`,
     {
       method: "DELETE",
       headers: {
         Authorization: `Bearer ${token}`,
       },
       cache: "no-store",
-    },
+    }
   );
 
   const text = await response.text();

@@ -3,18 +3,7 @@
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  process.env.API_URL ||
-  "http://localhost:5264";
-
-const FALLBACK_COMPANY_ID =
-  process.env.NEXT_PUBLIC_COMPANY_ID ||
-  process.env.COMPANY_ID ||
-  "00000000-0000-0000-0000-000000000001";
-
-const API_ADMIN_EMAIL = process.env.API_ADMIN_EMAIL;
-const API_ADMIN_PASSWORD = process.env.API_ADMIN_PASSWORD;
+const API_URL = process.env.API_URL ?? "http://localhost:5264";
 
 type ClientStatus = "ACTIVE" | "INACTIVE";
 
@@ -69,48 +58,33 @@ type AddressPayload = {
   isMain?: boolean;
 };
 
-async function getTokenFromCookie() {
+async function getAuthFromCookies() {
   const cookieStore = await cookies();
-  return cookieStore.get("mappa_access_token")?.value || null;
-}
 
-async function getTokenFromApiLogin() {
-  if (!API_ADMIN_EMAIL || !API_ADMIN_PASSWORD) {
-    throw new Error(
-      "Usuário não autenticado. Configure API_ADMIN_EMAIL e API_ADMIN_PASSWORD no .env.local.",
-    );
+  const token = cookieStore.get("mappa_access_token")?.value;
+  const companyId = cookieStore.get("mappa_company_id")?.value;
+
+  if (!token) {
+    throw new Error("Token não encontrado. Faça login novamente.");
   }
 
-  const response = await fetch(`${API_URL}/api/auth/login`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      email: API_ADMIN_EMAIL,
-      password: API_ADMIN_PASSWORD,
-    }),
-    cache: "no-store",
-  });
-
-  const text = await response.text();
-
-  if (!response.ok) {
-    throw new Error(`Erro ao autenticar na API: ${response.status} ${text}`);
+  if (!companyId) {
+    throw new Error("Empresa não encontrada. Faça login novamente.");
   }
 
-  const json = JSON.parse(text);
-
-  if (!json.accessToken) {
-    throw new Error("A API não retornou accessToken.");
-  }
-
-  return json.accessToken as string;
+  return {
+    token,
+    companyId,
+  };
 }
 
 function parseApiError(status: number, text: string) {
   if (status === 401) {
     return "Sessão expirada ou usuário sem autorização. Faça login novamente.";
+  }
+
+  if (status === 403) {
+    return "Você não tem permissão para executar esta ação.";
   }
 
   const lowerText = text.toLowerCase();
@@ -133,9 +107,12 @@ function parseApiError(status: number, text: string) {
       error?.message ||
       JSON.stringify(error);
 
+    const lowerMessage = String(message).toLowerCase();
+
     if (
-      String(message).toLowerCase().includes("uq_users_email") ||
-      String(message).toLowerCase().includes("duplicate key")
+      lowerMessage.includes("uq_users_email") ||
+      lowerMessage.includes("duplicate key") ||
+      lowerMessage.includes("users_email")
     ) {
       return "Já existe um usuário cadastrado com este e-mail. Use outro e-mail ou localize o cliente existente na lista.";
     }
@@ -170,33 +147,19 @@ function parseApiError(status: number, text: string) {
 }
 
 async function mappaFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  async function doFetch(token: string) {
-    return fetch(`${API_URL}${path}`, {
-      ...options,
-      cache: "no-store",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        ...(options?.headers || {}),
-      },
-    });
-  }
+  const { token } = await getAuthFromCookies();
 
-  let token = await getTokenFromCookie();
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      ...(options?.headers || {}),
+    },
+  });
 
-  if (!token) {
-    token = await getTokenFromApiLogin();
-  }
-
-  let response = await doFetch(token);
-  let text = await response.text();
-
-  if (response.status === 401) {
-    token = await getTokenFromApiLogin();
-
-    response = await doFetch(token);
-    text = await response.text();
-  }
+  const text = await response.text();
 
   if (!response.ok) {
     throw new Error(parseApiError(response.status, text));
@@ -210,9 +173,8 @@ async function mappaFetch<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 async function getCompanyId() {
-  const cookieStore = await cookies();
-
-  return cookieStore.get("mappa_company_id")?.value || FALLBACK_COMPANY_ID;
+  const { companyId } = await getAuthFromCookies();
+  return companyId;
 }
 
 function clean(value: unknown) {
@@ -253,21 +215,36 @@ function splitName(name?: string | null) {
   };
 }
 
-function extractCustomers(payload: any): ApiCustomer[] {
+function extractCustomers(payload: unknown): ApiCustomer[] {
   if (Array.isArray(payload)) {
-    return payload;
+    return payload as ApiCustomer[];
   }
 
-  if (Array.isArray(payload?.items)) {
-    return payload.items;
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "items" in payload &&
+    Array.isArray((payload as { items?: unknown }).items)
+  ) {
+    return (payload as { items: ApiCustomer[] }).items;
   }
 
-  if (Array.isArray(payload?.customers)) {
-    return payload.customers;
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "customers" in payload &&
+    Array.isArray((payload as { customers?: unknown }).customers)
+  ) {
+    return (payload as { customers: ApiCustomer[] }).customers;
   }
 
-  if (Array.isArray(payload?.data)) {
-    return payload.data;
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "data" in payload &&
+    Array.isArray((payload as { data?: unknown }).data)
+  ) {
+    return (payload as { data: ApiCustomer[] }).data;
   }
 
   return [];
@@ -294,15 +271,14 @@ function getBillingAddress(item: ApiCustomer, mainAddress?: ApiAddress | null) {
     return null;
   }
 
-  const billing =
+  return (
     item.addresses.find((address) => address.isMain === false) ||
     item.addresses.find((address) => {
       if (!mainAddress?.id) return false;
       return address.id !== mainAddress.id;
     }) ||
-    null;
-
-  return billing;
+    null
+  );
 }
 
 function mapApiCustomerToClient(item: ApiCustomer, companyId: string) {
@@ -432,8 +408,8 @@ export async function listClients(opts?: {
 
   const query = params.toString();
 
-  const data = await mappaFetch<any>(
-    `/api/companies/${companyId}/customers${query ? `?${query}` : ""}`,
+  const data = await mappaFetch<unknown>(
+    `/api/companies/${companyId}/customers${query ? `?${query}` : ""}`
   );
 
   const customers = extractCustomers(data);
@@ -442,16 +418,16 @@ export async function listClients(opts?: {
     customers.map(async (customer) => {
       try {
         return await mappaFetch<ApiCustomer>(
-          `/api/companies/${companyId}/customers/${customer.id}`,
+          `/api/companies/${companyId}/customers/${customer.id}`
         );
       } catch {
         return customer;
       }
-    }),
+    })
   );
 
   return hydratedCustomers.map((item) =>
-    mapApiCustomerToClient(item, companyId),
+    mapApiCustomerToClient(item, companyId)
   );
 }
 
@@ -463,7 +439,7 @@ export async function getClientById(customerId: string) {
   }
 
   const data = await mappaFetch<ApiCustomer>(
-    `/api/companies/${companyId}/customers/${customerId}`,
+    `/api/companies/${companyId}/customers/${customerId}`
   );
 
   return mapApiCustomerToClient(data, companyId);
@@ -512,7 +488,7 @@ export async function createClient(data: any) {
     {
       method: "POST",
       body: JSON.stringify(payload),
-    },
+    }
   );
 
   if (billingAddress && createdCustomer?.id) {
@@ -532,7 +508,7 @@ export async function createClient(data: any) {
           longitude: billingAddress.longitude,
           isMain: false,
         }),
-      },
+      }
     );
   }
 
@@ -569,7 +545,7 @@ export async function addClientAddress(customerId: string, address: any) {
     {
       method: "POST",
       body: JSON.stringify(payload),
-    },
+    }
   );
 
   revalidatePath("/clients");

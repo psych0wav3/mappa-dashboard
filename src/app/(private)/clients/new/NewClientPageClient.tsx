@@ -59,6 +59,8 @@ const schema = z.object({
 
 type Values = z.infer<typeof schema>;
 
+type SectionKey = "client" | "billing" | "pool";
+
 const onlyDigits = (s: string) => s.replace(/\D+/g, "");
 
 async function fetchViaCep(cepDigits: string) {
@@ -117,27 +119,97 @@ function buildDefaults(): Values {
   };
 }
 
+function hasText(value?: string | null) {
+  return Boolean(String(value ?? "").trim());
+}
+
+function hasDigits(value?: string | null) {
+  return onlyDigits(String(value ?? "")).length > 0;
+}
+
+function isEmailValid(value?: string | null) {
+  return z.string().email().safeParse(value).success;
+}
+
 export default function NewClientPageClient() {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const [openSection, setOpenSection] = React.useState<SectionKey>("client");
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: buildDefaults(),
   });
 
-  const hasCompany = form.watch("hasCompany");
+  const watchedValues = form.watch();
+  const hasCompany = watchedValues.hasCompany;
+
+  const canSubmit = React.useMemo(() => {
+    const hasClientData =
+      hasText(watchedValues.firstName) &&
+      hasText(watchedValues.lastName) &&
+      isEmailValid(watchedValues.email) &&
+      hasDigits(watchedValues.phone) &&
+      hasDigits(watchedValues.cpf);
+
+    const hasCompanyData = watchedValues.hasCompany
+      ? hasText(watchedValues.companyName) && hasDigits(watchedValues.cnpj)
+      : true;
+
+    const hasBillingAddress =
+      hasDigits(watchedValues.cep) &&
+      hasText(watchedValues.street) &&
+      hasText(watchedValues.number) &&
+      hasText(watchedValues.district) &&
+      hasText(watchedValues.city) &&
+      hasText(watchedValues.uf);
+
+    const hasPoolAddress =
+      hasDigits(watchedValues.poolCep) &&
+      hasText(watchedValues.poolStreet) &&
+      hasText(watchedValues.poolNumber) &&
+      hasText(watchedValues.poolDistrict) &&
+      hasText(watchedValues.poolCity) &&
+      hasText(watchedValues.poolUf);
+
+    return (
+      hasClientData &&
+      hasCompanyData &&
+      hasBillingAddress &&
+      hasPoolAddress
+    );
+  }, [watchedValues]);
 
   const copyBillingToPool = () => {
     const v = form.getValues();
 
-    form.setValue("poolCep", v.cep || "");
-    form.setValue("poolStreet", v.street || "");
-    form.setValue("poolNumber", v.number || "");
-    form.setValue("poolDistrict", v.district || "");
-    form.setValue("poolCity", v.city || "");
-    form.setValue("poolUf", v.uf || "");
+    form.setValue("poolCep", v.cep || "", {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    form.setValue("poolStreet", v.street || "", {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    form.setValue("poolNumber", v.number || "", {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    form.setValue("poolDistrict", v.district || "", {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    form.setValue("poolCity", v.city || "", {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    form.setValue("poolUf", v.uf || "", {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+
+    setOpenSection("pool");
 
     toast.message("Localização da piscina copiada do endereço de cobrança");
   };
@@ -160,15 +232,39 @@ export default function NewClientPageClient() {
       }
 
       if (cepField === "cep") {
-        form.setValue("street", addr.street);
-        form.setValue("district", addr.district);
-        form.setValue("city", addr.city);
-        form.setValue("uf", addr.uf);
+        form.setValue("street", addr.street, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+        form.setValue("district", addr.district, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+        form.setValue("city", addr.city, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+        form.setValue("uf", addr.uf, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
       } else {
-        form.setValue("poolStreet", addr.street);
-        form.setValue("poolDistrict", addr.district);
-        form.setValue("poolCity", addr.city);
-        form.setValue("poolUf", addr.uf);
+        form.setValue("poolStreet", addr.street, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+        form.setValue("poolDistrict", addr.district, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+        form.setValue("poolCity", addr.city, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+        form.setValue("poolUf", addr.uf, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
       }
 
       toast.success("Endereço preenchido pelo CEP");
@@ -181,6 +277,11 @@ export default function NewClientPageClient() {
     startTransition(async () => {
       try {
         setErrorMessage(null);
+
+        if (!canSubmit) {
+          toast.error("Preencha todos os dados obrigatórios antes de salvar.");
+          return;
+        }
 
         if (!values.hasCompany) {
           values.companyName = "";
@@ -216,7 +317,8 @@ export default function NewClientPageClient() {
         <CollapsibleSection
           title="Dados do cliente"
           description="Nome, contato, documento e dados de empresa."
-          defaultOpen
+          open={openSection === "client"}
+          onOpen={() => setOpenSection("client")}
         >
           <section className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -298,7 +400,12 @@ export default function NewClientPageClient() {
                 type="checkbox"
                 className="h-4 w-4 rounded border-neutral-300"
                 checked={!!hasCompany}
-                onChange={(e) => form.setValue("hasCompany", e.target.checked)}
+                onChange={(e) =>
+                  form.setValue("hasCompany", e.target.checked, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }
               />
               <span className="text-sm text-neutral-700">
                 Cadastrar empresa
@@ -342,7 +449,8 @@ export default function NewClientPageClient() {
         <CollapsibleSection
           title="Endereço de cobrança e informações úteis"
           description="Endereço principal do cliente e observações internas."
-          defaultOpen
+          open={openSection === "billing"}
+          onOpen={() => setOpenSection("billing")}
         >
           <section className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
@@ -471,7 +579,8 @@ export default function NewClientPageClient() {
         <CollapsibleSection
           title="Localização da piscina"
           description="Endereço onde o serviço será realizado."
-          defaultOpen
+          open={openSection === "pool"}
+          onOpen={() => setOpenSection("pool")}
           action={
             <Button
               type="button"
@@ -610,8 +719,8 @@ export default function NewClientPageClient() {
 
             <Button
               type="submit"
-              disabled={pending}
-              className="btn-brand text-white"
+              disabled={pending || !canSubmit}
+              className="btn-brand text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {pending ? "Criando..." : "Criar cliente"}
             </Button>
@@ -625,24 +734,24 @@ export default function NewClientPageClient() {
 function CollapsibleSection({
   title,
   description,
-  defaultOpen = false,
+  open,
+  onOpen,
   action,
   children,
 }: {
   title: string;
   description?: string;
-  defaultOpen?: boolean;
+  open: boolean;
+  onOpen: () => void;
   action?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = React.useState(defaultOpen);
-
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
         <button
           type="button"
-          onClick={() => setOpen((current) => !current)}
+          onClick={onOpen}
           className="flex min-w-0 flex-1 items-center gap-3 text-left"
         >
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-sm font-semibold text-slate-700">
