@@ -4,17 +4,9 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
   process.env.API_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
   "http://localhost:5264";
-
-const FALLBACK_COMPANY_ID =
-  process.env.NEXT_PUBLIC_COMPANY_ID ||
-  process.env.COMPANY_ID ||
-  "00000000-0000-0000-0000-000000000001";
-
-const API_ADMIN_EMAIL = process.env.API_ADMIN_EMAIL;
-const API_ADMIN_PASSWORD = process.env.API_ADMIN_PASSWORD;
 
 type ApiError = {
   errors?: any;
@@ -57,23 +49,44 @@ type ApiEmployee = {
   status?: string | null;
 };
 
+type ApiChecklistTemplateItem = {
+  id: string;
+  label?: string | null;
+  itemType?: string | null;
+  isRequired?: boolean | null;
+  displayOrder?: number | null;
+  isActive?: boolean | null;
+};
+
+type ApiChecklistTemplate = {
+  id: string;
+  name?: string | null;
+  description?: string | null;
+  isActive?: boolean | null;
+  createdAt?: string | null;
+  items?: ApiChecklistTemplateItem[] | null;
+};
+
 type ApiServiceOrder = {
   id: string;
   companyId?: string | null;
   customerId?: string | null;
   customerName?: string | null;
   customerAddressId?: string | null;
-  address?: string | null;
+  address?: string | ApiAddress | null;
   title?: string | null;
   description?: string | null;
   scheduledDate?: string | null;
   totalAmount?: number | null;
   status?: string | null;
   openedByUserId?: string | null;
+  openedByUserName?: string | null;
   finishedByUserId?: string | null;
+  finishedByUserName?: string | null;
   finishedAt?: string | null;
   customerApprovedAt?: string | null;
   createdAt?: string | null;
+  visits?: unknown[];
 };
 
 export type WorkOrderCustomerOption = {
@@ -95,6 +108,14 @@ export type WorkOrderTechnicianOption = {
   phone?: string | null;
 };
 
+export type WorkOrderChecklistTemplateOption = {
+  id: string;
+  name: string;
+  description?: string | null;
+  isActive: boolean;
+  itemsCount: number;
+};
+
 export type TechnicianOption = WorkOrderTechnicianOption;
 export type CustomerOption = WorkOrderCustomerOption;
 
@@ -109,6 +130,7 @@ export type AdditionalWorkOrderItem = {
 export type CreateAdminWorkOrderInput = {
   customerId: string;
   customerAddressId: string;
+  checklistTemplateId?: string;
 
   employeeUserId?: string;
   employeeName?: string;
@@ -128,6 +150,7 @@ export type CreateAdminWorkOrderInput = {
 export type CreateEmployeeWorkOrderInput = {
   customerId: string;
   customerAddressId: string;
+  checklistTemplateId?: string;
   title: string;
   description: string;
   scheduledDate: string;
@@ -146,60 +169,66 @@ export type CustomerApprovalInput = {
 
 export type WorkOrderListItem = {
   id: string;
+  code?: string;
   customerId: string;
+  clientId?: string;
+  technicianId?: string | null;
   customerName: string;
   customerAddressId?: string | null;
   address: string;
   title: string;
   description: string;
-  scheduledDate: string;
+  scheduledDate: any;
   totalAmount: number;
+  amountCents?: number;
   status: string;
   createdAt?: string | null;
+  deletedAt?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  frequencyLabel?: string | null;
+  weekdaysLabel?: string | null;
+  openedByUserId?: string | null;
+  openedByUserName?: string | null;
+  finishedByUserId?: string | null;
+  finishedByUserName?: string | null;
+  finishedAt?: string | null;
+  customerApprovedAt?: string | null;
+  visits?: unknown[];
+  client?: {
+    firstName?: string | null;
+    lastName?: string | null;
+  } | null;
+  technician?: {
+    firstName?: string | null;
+    lastName?: string | null;
+  } | null;
 };
 
-async function getTokenFromCookie() {
+async function getAuthFromCookies() {
   const cookieStore = await cookies();
-  return cookieStore.get("mappa_access_token")?.value || null;
-}
 
-async function getTokenFromApiLogin() {
-  if (!API_ADMIN_EMAIL || !API_ADMIN_PASSWORD) {
-    throw new Error(
-      "Configure API_ADMIN_EMAIL e API_ADMIN_PASSWORD no .env.local.",
-    );
+  const token = cookieStore.get("mappa_access_token")?.value;
+  const companyId = cookieStore.get("mappa_company_id")?.value;
+
+  if (!token) {
+    throw new Error("Token não encontrado. Faça login novamente.");
   }
 
-  const response = await fetch(`${API_URL}/api/auth/login`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      email: API_ADMIN_EMAIL,
-      password: API_ADMIN_PASSWORD,
-    }),
-    cache: "no-store",
-  });
-
-  const text = await response.text();
-
-  if (!response.ok) {
-    throw new Error(`Erro ao autenticar na API: ${response.status} ${text}`);
+  if (!companyId) {
+    throw new Error("Empresa não encontrada. Faça login novamente.");
   }
 
-  const json = JSON.parse(text);
-
-  if (!json.accessToken) {
-    throw new Error("A API não retornou accessToken.");
-  }
-
-  return json.accessToken as string;
+  return {
+    token,
+    companyId,
+  };
 }
 
 async function getCompanyId() {
-  const cookieStore = await cookies();
-  return cookieStore.get("mappa_company_id")?.value || FALLBACK_COMPANY_ID;
+  const { companyId } = await getAuthFromCookies();
+
+  return companyId;
 }
 
 function formatValidationErrors(errors: any) {
@@ -243,6 +272,14 @@ function parseApiError(status: number, text: string) {
   const lowerText = String(text || "").toLowerCase();
 
   if (
+    lowerText.includes("checklist_templates") ||
+    lowerText.includes("relation") ||
+    lowerText.includes("does not exist")
+  ) {
+    return "Erro no backend/banco: a tabela de checklist templates não existe no banco atual. Recrie o volume do Postgres local ou rode o script SQL atualizado.";
+  }
+
+  if (
     lowerText.includes("dateonly") ||
     lowerText.includes("scheduleddate") ||
     lowerText.includes("cannot be used as a parameter value")
@@ -263,7 +300,9 @@ function parseApiError(status: number, text: string) {
       JSON.stringify(error);
 
     if (status === 400) {
-      return `Erro 400: ${message || "Um ou mais campos enviados para a API são inválidos."}`;
+      return `Erro 400: ${
+        message || "Um ou mais campos enviados para a API são inválidos."
+      }`;
     }
 
     if (status === 404) {
@@ -274,6 +313,10 @@ function parseApiError(status: number, text: string) {
       return message || "Não foi possível concluir por conflito de dados.";
     }
 
+    if (status === 500) {
+      return `Erro 500: ${message}`;
+    }
+
     return `Erro ${status}: ${message}`;
   } catch {
     return `Erro ${status}: ${text || "Falha na API."}`;
@@ -281,32 +324,19 @@ function parseApiError(status: number, text: string) {
 }
 
 async function mappaFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  async function doFetch(token: string) {
-    return fetch(`${API_URL}${path}`, {
-      ...options,
-      cache: "no-store",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        ...(options?.headers || {}),
-      },
-    });
-  }
+  const { token } = await getAuthFromCookies();
 
-  let token = await getTokenFromCookie();
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      ...(options?.headers || {}),
+    },
+  });
 
-  if (!token) {
-    token = await getTokenFromApiLogin();
-  }
-
-  let response = await doFetch(token);
-  let text = await response.text();
-
-  if (response.status === 401) {
-    token = await getTokenFromApiLogin();
-    response = await doFetch(token);
-    text = await response.text();
-  }
+  const text = await response.text();
 
   if (!response.ok) {
     throw new Error(parseApiError(response.status, text));
@@ -327,6 +357,7 @@ function extractItems<T>(payload: any): T[] {
   if (Array.isArray(payload?.employees)) return payload.employees;
   if (Array.isArray(payload?.serviceOrders)) return payload.serviceOrders;
   if (Array.isArray(payload?.orders)) return payload.orders;
+  if (Array.isArray(payload?.templates)) return payload.templates;
 
   return [];
 }
@@ -345,6 +376,16 @@ function addressLabel(address?: ApiAddress | null) {
     .join(", ");
 
   return line || "Endereço não informado";
+}
+
+function serviceOrderAddressLabel(address?: string | ApiAddress | null) {
+  if (!address) return "Endereço não informado";
+
+  if (typeof address === "string") {
+    return address || "Endereço não informado";
+  }
+
+  return addressLabel(address);
 }
 
 function getMainAddress(customer: ApiCustomer) {
@@ -399,6 +440,7 @@ function weekdayLabel(value: string) {
 
 function formatWeekdays(days?: string[]) {
   if (!days || days.length === 0) return "Não se aplica";
+
   return days.map(weekdayLabel).join(", ");
 }
 
@@ -422,6 +464,54 @@ function formatMoney(value: number) {
     style: "currency",
     currency: "BRL",
   });
+}
+
+function getLineValue(description: string | null | undefined, label: string) {
+  const normalizedLabel = label.toLowerCase();
+
+  const line = String(description || "")
+    .split("\n")
+    .map((item) => item.trim())
+    .find((item) => item.toLowerCase().startsWith(normalizedLabel));
+
+  if (!line) return null;
+
+  return line.slice(label.length).trim() || null;
+}
+
+function extractWorkOrderMetadata(description?: string | null) {
+  const technicianName = getLineValue(description, "Técnico responsável:");
+  const technicianId = getLineValue(description, "Técnico ID:");
+  const scheduledTime = getLineValue(description, "Horário previsto:");
+  const frequency = getLineValue(description, "Frequência:");
+  const weekdays = getLineValue(description, "Dias da semana:");
+
+  return {
+    technicianName:
+      technicianName && technicianName !== "Não informado"
+        ? technicianName
+        : null,
+    technicianId:
+      technicianId && technicianId !== "Não informado" ? technicianId : null,
+    scheduledTime:
+      scheduledTime && scheduledTime !== "Horário não informado"
+        ? scheduledTime
+        : null,
+    frequency: frequency || null,
+    weekdays: weekdays || null,
+  };
+}
+
+function splitTechnicianName(name?: string | null) {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  return {
+    firstName: parts[0] || "",
+    lastName: parts.slice(1).join(" "),
+  };
 }
 
 function buildDescription(data: CreateAdminWorkOrderInput) {
@@ -482,18 +572,65 @@ function buildDescription(data: CreateAdminWorkOrderInput) {
 }
 
 function normalizeServiceOrder(order: ApiServiceOrder): WorkOrderListItem {
+  const totalAmount = Number(order.totalAmount || 0);
+  const metadata = extractWorkOrderMetadata(order.description);
+  const technicianName = splitTechnicianName(metadata.technicianName);
+
   return {
     id: order.id,
+    code: order.id,
     customerId: order.customerId || "",
+    clientId: order.customerId || "",
+    technicianId: metadata.technicianId,
     customerName: order.customerName || "Cliente não informado",
     customerAddressId: order.customerAddressId ?? null,
-    address: order.address || "Endereço não informado",
+    address: serviceOrderAddressLabel(order.address),
     title: order.title || "Ordem de serviço",
     description: order.description || "",
     scheduledDate: order.scheduledDate || "",
-    totalAmount: Number(order.totalAmount || 0),
+    totalAmount,
+    amountCents: Math.round(totalAmount * 100),
     status: order.status || "WAITING_EXECUTION",
     createdAt: order.createdAt ?? null,
+    deletedAt: null,
+
+    startTime: metadata.scheduledTime,
+    endTime: null,
+
+    frequencyLabel: metadata.frequency,
+    weekdaysLabel: metadata.weekdays,
+
+    openedByUserId: order.openedByUserId ?? null,
+    openedByUserName: order.openedByUserName ?? null,
+    finishedByUserId: order.finishedByUserId ?? null,
+    finishedByUserName: order.finishedByUserName ?? null,
+    finishedAt: order.finishedAt ?? null,
+    customerApprovedAt: order.customerApprovedAt ?? null,
+    visits: order.visits ?? [],
+
+    client: {
+      firstName: order.customerName || "Cliente",
+      lastName: "",
+    },
+
+    technician: metadata.technicianName
+      ? {
+          firstName: technicianName.firstName,
+          lastName: technicianName.lastName,
+        }
+      : null,
+  };
+}
+
+function normalizeChecklistTemplate(
+  template: ApiChecklistTemplate,
+): WorkOrderChecklistTemplateOption {
+  return {
+    id: template.id,
+    name: template.name || "Checklist sem nome",
+    description: template.description ?? null,
+    isActive: template.isActive !== false,
+    itemsCount: Array.isArray(template.items) ? template.items.length : 0,
   };
 }
 
@@ -539,9 +676,6 @@ function toApiStatus(value?: string) {
     REJECTED: "Rejected",
     Rejected: "Rejected",
 
-    // Importante:
-    // APPROVED não existe na API.
-    // No nosso front, "aprovada para rota" = WaitingExecution.
     APPROVED: "WaitingExecution",
     Approved: "WaitingExecution",
   };
@@ -551,6 +685,7 @@ function toApiStatus(value?: string) {
 
 function cleanApiNumber(value: number) {
   const number = Number(value || 0);
+
   return Number.isFinite(number) ? number : 0;
 }
 
@@ -566,11 +701,11 @@ export async function listWorkOrders(opts?: {
 
   const params = new URLSearchParams();
 
-const apiStatus = toApiStatus(opts?.status);
+  const apiStatus = toApiStatus(opts?.status);
 
-if (apiStatus) {
-  params.set("status", apiStatus);
-}
+  if (apiStatus) {
+    params.set("status", apiStatus);
+  }
 
   if (opts?.customerId) {
     params.set("customerId", opts.customerId);
@@ -582,7 +717,7 @@ if (apiStatus) {
 
   const query = params.toString();
 
-  const data = await mappaFetch<any>(
+  const data = await mappaFetch<unknown>(
     `/api/companies/${companyId}/service-orders${query ? `?${query}` : ""}`,
   );
 
@@ -607,6 +742,25 @@ export async function getWorkOrderById(serviceOrderId: string) {
 }
 
 /**
+ * GET /api/companies/{companyId}/checklist-templates?activeOnly=true
+ * Uso futuro em Configurações > Checklists.
+ */
+export async function listWorkOrderChecklistTemplates(): Promise<
+  WorkOrderChecklistTemplateOption[]
+> {
+  const companyId = await getCompanyId();
+
+  const data = await mappaFetch<unknown>(
+    `/api/companies/${companyId}/checklist-templates?activeOnly=true`,
+  );
+
+  return extractItems<ApiChecklistTemplate>(data)
+    .map(normalizeChecklistTemplate)
+    .filter((template) => template.isActive)
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}
+
+/**
  * Clientes para criação de OS.
  */
 export async function listWorkOrderCustomers(): Promise<
@@ -614,7 +768,7 @@ export async function listWorkOrderCustomers(): Promise<
 > {
   const companyId = await getCompanyId();
 
-  const data = await mappaFetch<any>(
+  const data = await mappaFetch<unknown>(
     `/api/companies/${companyId}/customers?status=ACTIVE`,
   );
 
@@ -662,7 +816,7 @@ export async function listWorkOrderTechnicians(): Promise<
 > {
   const companyId = await getCompanyId();
 
-  const data = await mappaFetch<any>(
+  const data = await mappaFetch<unknown>(
     `/api/companies/${companyId}/employees`,
   );
 
@@ -685,6 +839,9 @@ export async function listTechnicianOptions() {
 
 /**
  * POST /api/companies/{companyId}/service-orders/admin
+ *
+ * checklistTemplateId é opcional.
+ * Se omitido, a API usa o primeiro template ativo da empresa.
  */
 export async function createAdminWorkOrder(input: CreateAdminWorkOrderInput) {
   const companyId = await getCompanyId();
@@ -730,6 +887,9 @@ export async function createAdminWorkOrder(input: CreateAdminWorkOrderInput) {
     description: buildDescription(input),
     scheduledDate: toApiDate(input.scheduledDate),
     totalAmount: cleanApiNumber(input.totalAmount),
+    ...(input.checklistTemplateId
+      ? { checklistTemplateId: input.checklistTemplateId }
+      : {}),
   };
 
   const created = await mappaFetch<ApiServiceOrder>(
@@ -752,7 +912,9 @@ export async function createAdminWorkOrder(input: CreateAdminWorkOrderInput) {
  * POST /api/companies/{companyId}/service-orders/employee
  * Para uso futuro no app/tela do técnico.
  */
-export async function createEmployeeWorkOrder(input: CreateEmployeeWorkOrderInput) {
+export async function createEmployeeWorkOrder(
+  input: CreateEmployeeWorkOrderInput,
+) {
   const companyId = await getCompanyId();
 
   if (!input.customerId) {
@@ -774,6 +936,9 @@ export async function createEmployeeWorkOrder(input: CreateEmployeeWorkOrderInpu
     description: input.description?.trim() || "",
     scheduledDate: toApiDate(input.scheduledDate),
     totalAmount: cleanApiNumber(input.totalAmount || 0),
+    ...(input.checklistTemplateId
+      ? { checklistTemplateId: input.checklistTemplateId }
+      : {}),
   };
 
   const created = await mappaFetch<ApiServiceOrder>(
@@ -846,4 +1011,40 @@ export async function customerApprovalWorkOrder(input: CustomerApprovalInput) {
   revalidatePath("/routes/builder");
 
   return updated;
+}
+
+/**
+ * Compatibilidade com telas antigas.
+ * A API atual do Swagger não mostrou endpoint específico para cancelar OS.
+ */
+export async function cancelWorkOrder(serviceOrderId: string) {
+  if (!serviceOrderId) {
+    throw new Error("ID da ordem de serviço não informado.");
+  }
+
+  throw new Error("Cancelamento de OS ainda não implementado na API atual.");
+}
+
+/**
+ * Compatibilidade com telas antigas.
+ * A API atual do Swagger não mostrou endpoint específico para excluir OS.
+ */
+export async function deleteWorkOrder(serviceOrderId: string) {
+  if (!serviceOrderId) {
+    throw new Error("ID da ordem de serviço não informado.");
+  }
+
+  throw new Error("Exclusão de OS ainda não implementada na API atual.");
+}
+
+/**
+ * Compatibilidade com telas antigas.
+ * Para a API atual, aprovação do cliente usa customerApprovalWorkOrder.
+ */
+export async function sendWorkOrderForApproval(serviceOrderId: string) {
+  if (!serviceOrderId) {
+    throw new Error("ID da ordem de serviço não informado.");
+  }
+
+  throw new Error("Envio de OS para aprovação ainda não implementado na API atual.");
 }

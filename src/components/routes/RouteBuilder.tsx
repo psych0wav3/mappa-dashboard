@@ -25,6 +25,21 @@ import {
   weekdaysLabel,
 } from "@/components/routes/routeBuilderMockTypes";
 
+type BuilderWorkOrder = AvailableWorkOrder & {
+  scheduledDate?: string | null;
+  weekdaysLabel?: string | null;
+  totalAmount?: number | null;
+  technicianId?: string | null;
+  technicianName?: string | null;
+};
+
+type BuilderPlannedRouteOrder = PlannedRouteOrder & {
+  scheduledDate?: string | null;
+  weekdaysLabel?: string | null;
+  totalAmount?: number | null;
+  technicianName?: string | null;
+};
+
 function toIsoDate(date: Date) {
   const copy = new Date(date);
   copy.setHours(0, 0, 0, 0);
@@ -50,6 +65,7 @@ function startOfWeekMonday(date: Date) {
 function formatWeekLabel(weekStartIso: string) {
   const start = new Date(`${weekStartIso}T00:00:00`);
   const end = new Date(start);
+
   end.setDate(end.getDate() + 6);
 
   const startText = start.toLocaleDateString("pt-BR", {
@@ -65,6 +81,17 @@ function formatWeekLabel(weekStartIso: string) {
   return `${startText} a ${endText}`;
 }
 
+function formatDate(value?: string | null) {
+  if (!value) return "";
+
+  const date = String(value).slice(0, 10);
+  const [year, month, day] = date.split("-");
+
+  if (!year || !month || !day) return value;
+
+  return `${day}/${month}/${year}`;
+}
+
 function normalizeTechnicians(
   technicians: RouteTechnicianOption[],
 ): RouteTechnician[] {
@@ -76,7 +103,7 @@ function normalizeTechnicians(
 
 function normalizeOrders(
   orders: AvailableRouteWorkOrder[],
-): AvailableWorkOrder[] {
+): BuilderWorkOrder[] {
   return orders.map((order) => ({
     id: order.id,
     customerId: order.customerId,
@@ -87,19 +114,63 @@ function normalizeOrders(
     weekdays: order.weekdays,
     scheduledTime: order.scheduledTime,
     scheduledDate: order.scheduledDate,
+    weekdaysLabel: order.weekdaysLabel,
     address: order.address,
     status: order.status,
     lat: order.lat,
     lng: order.lng,
+    totalAmount: order.totalAmount,
+    technicianId: order.technicianId,
+    technicianName: order.technicianName,
   }));
 }
 
-function defaultWeekdaysForOrder(order: AvailableWorkOrder): RouteWeekday[] {
+function weekdayFromDate(dateIso?: string | null): RouteWeekday | null {
+  if (!dateIso) return null;
+
+  const date = new Date(`${String(dateIso).slice(0, 10)}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  const map: Record<number, RouteWeekday> = {
+    0: "SUNDAY",
+    1: "MONDAY",
+    2: "TUESDAY",
+    3: "WEDNESDAY",
+    4: "THURSDAY",
+    5: "FRIDAY",
+    6: "SATURDAY",
+  };
+
+  return map[date.getDay()] || null;
+}
+
+function weekStartFromDate(dateIso?: string | null) {
+  if (!dateIso) return null;
+
+  const date = new Date(`${String(dateIso).slice(0, 10)}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  return toIsoDate(startOfWeekMonday(date));
+}
+
+function defaultWeekdaysForOrder(order: BuilderWorkOrder): RouteWeekday[] {
   if (order.weekdays.length > 0) {
     return order.weekdays;
   }
 
+  const dayFromDate = weekdayFromDate(order.scheduledDate);
+
+  if (dayFromDate) {
+    return [dayFromDate];
+  }
+
   return ["MONDAY"];
+}
+
+function sameWeek(a: string, b: string) {
+  return a === b;
 }
 
 export default function RouteBuilder({
@@ -129,7 +200,7 @@ export default function RouteBuilder({
   );
   const [search, setSearch] = React.useState("");
   const [plannedOrders, setPlannedOrders] = React.useState<
-    PlannedRouteOrder[]
+    BuilderPlannedRouteOrder[]
   >([]);
 
   const weekLabel = React.useMemo(
@@ -163,7 +234,12 @@ export default function RouteBuilder({
         order.customerName,
         order.title,
         order.frequencyLabel,
+        order.weekdaysLabel,
+        order.scheduledTime,
+        order.scheduledDate,
+        formatDate(order.scheduledDate),
         order.address,
+        order.technicianName,
         weekdaysLabel(order.weekdays),
       ]
         .join(" ")
@@ -177,10 +253,36 @@ export default function RouteBuilder({
     [plannedOrders],
   );
 
-  function addOrder(order: AvailableWorkOrder) {
-    if (!technicianId) {
+  function addOrder(order: BuilderWorkOrder) {
+    const orderTechnicianId = order.technicianId || "";
+    const finalTechnicianId = technicianId || orderTechnicianId;
+
+    if (!finalTechnicianId) {
       toast.error("Selecione o técnico responsável antes de adicionar OS.");
       return;
+    }
+
+    const orderWeekStart = weekStartFromDate(order.scheduledDate);
+
+    if (orderWeekStart && plannedOrders.length === 0) {
+      setWeekStartDate(orderWeekStart);
+    }
+
+    if (
+      orderWeekStart &&
+      plannedOrders.length > 0 &&
+      !sameWeek(orderWeekStart, weekStartDate)
+    ) {
+      toast.error(
+        `Essa OS está agendada para ${formatDate(
+          order.scheduledDate,
+        )}, fora da semana selecionada. Troque a semana antes de adicionar.`,
+      );
+      return;
+    }
+
+    if (!technicianId && orderTechnicianId) {
+      setTechnicianId(orderTechnicianId);
     }
 
     setPlannedOrders((current) => [
@@ -188,7 +290,7 @@ export default function RouteBuilder({
       {
         ...order,
         plannedId: generateId(),
-        technicianId,
+        technicianId: finalTechnicianId,
         weekdays: defaultWeekdaysForOrder(order),
         order: current.length + 1,
       },
@@ -210,7 +312,9 @@ export default function RouteBuilder({
 
   function updateOrder(
     plannedId: string,
-    patch: Partial<Pick<PlannedRouteOrder, "scheduledTime" | "weekdays">>,
+    patch: Partial<
+      Pick<BuilderPlannedRouteOrder, "scheduledTime" | "weekdays">
+    >,
   ) {
     setPlannedOrders((current) =>
       current.map((item) =>
@@ -247,6 +351,7 @@ export default function RouteBuilder({
   function handlePreviousWeek() {
     setWeekStartDate((current) => {
       const date = new Date(`${current}T00:00:00`);
+
       date.setDate(date.getDate() - 7);
 
       return toIsoDate(date);
@@ -260,6 +365,7 @@ export default function RouteBuilder({
   function handleNextWeek() {
     setWeekStartDate((current) => {
       const date = new Date(`${current}T00:00:00`);
+
       date.setDate(date.getDate() + 7);
 
       return toIsoDate(date);

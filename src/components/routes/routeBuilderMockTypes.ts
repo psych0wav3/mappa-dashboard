@@ -20,12 +20,16 @@ export type AvailableWorkOrder = {
   serviceKind: "POOL_CLEANING" | "ADDITIONAL_SERVICE";
   frequencyLabel: string;
   weekdays: RouteWeekday[];
+  weekdaysLabel?: string | null;
   scheduledTime: string;
-  scheduledDate?: string;
+  scheduledDate?: string | null;
   address: string;
   status: "APPROVED" | "WAITING_EXECUTION" | "READY_FOR_ROUTE";
   lat: number;
   lng: number;
+  totalAmount?: number | null;
+  technicianId?: string | null;
+  technicianName?: string | null;
 };
 
 export type PlannedRouteOrder = AvailableWorkOrder & {
