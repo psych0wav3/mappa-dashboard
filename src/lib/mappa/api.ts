@@ -18,23 +18,14 @@ export async function getAuthFromCookies() {
   const token = cookieStore.get("mappa_access_token")?.value;
   const companyId = cookieStore.get("mappa_company_id")?.value;
 
-  if (!token) {
-    throw new Error("Token não encontrado. Faça login novamente.");
-  }
+  if (!token) throw new Error("Token não encontrado. Faça login novamente.");
+  if (!companyId) throw new Error("Empresa não encontrada. Faça login novamente.");
 
-  if (!companyId) {
-    throw new Error("Empresa não encontrada. Faça login novamente.");
-  }
-
-  return {
-    token,
-    companyId,
-  };
+  return { token, companyId };
 }
 
 export async function getCompanyId() {
   const { companyId } = await getAuthFromCookies();
-
   return companyId;
 }
 
@@ -51,14 +42,8 @@ function formatValidationErrors(errors: any) {
   if (typeof errors === "object") {
     return Object.entries(errors)
       .map(([field, messages]) => {
-        if (Array.isArray(messages)) {
-          return `${field}: ${messages.join(", ")}`;
-        }
-
-        if (typeof messages === "string") {
-          return `${field}: ${messages}`;
-        }
-
+        if (Array.isArray(messages)) return `${field}: ${messages.join(", ")}`;
+        if (typeof messages === "string") return `${field}: ${messages}`;
         return `${field}: ${JSON.stringify(messages)}`;
       })
       .join(" | ");
@@ -68,35 +53,22 @@ function formatValidationErrors(errors: any) {
 }
 
 export function parseApiError(status: number, text: string) {
-  if (status === 401) {
-    return "Sessão expirada ou usuário sem autorização. Faça login novamente.";
-  }
-
-  if (status === 403) {
-    return "Acesso negado. Esta ação exige permissão de administrador da empresa.";
-  }
+  if (status === 401) return "Sessão expirada ou usuário sem autorização. Faça login novamente.";
+  if (status === 403) return "Acesso negado. Esta ação exige permissão de administrador da empresa.";
 
   const lowerText = String(text || "").toLowerCase();
 
-  if (
-    lowerText.includes("dateonly") ||
-    lowerText.includes("cannot be used as a parameter value")
-  ) {
+  if (lowerText.includes("dateonly") || lowerText.includes("cannot be used as a parameter value")) {
     return "Erro no backend com campo DateOnly. O front enviou a data, mas o backend ainda precisa converter antes de gravar.";
   }
 
-  if (
-    lowerText.includes("relation") ||
-    lowerText.includes("does not exist")
-  ) {
+  if (lowerText.includes("relation") || lowerText.includes("does not exist")) {
     return "Erro no backend/banco: alguma tabela esperada não existe no banco atual. Recrie o volume do Postgres local ou rode o script SQL atualizado.";
   }
 
   try {
     const error = JSON.parse(text) as ApiError;
-
     const validationDetails = formatValidationErrors(error?.errors);
-
     const message =
       validationDetails ||
       error?.detail ||
@@ -110,10 +82,7 @@ export function parseApiError(status: number, text: string) {
   }
 }
 
-export async function mappaFetch<T>(
-  path: string,
-  options?: RequestInit,
-): Promise<T> {
+export async function mappaFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const { token } = await getAuthFromCookies();
 
   const response = await fetch(`${API_URL}${path}`, {
@@ -128,13 +97,8 @@ export async function mappaFetch<T>(
 
   const text = await response.text();
 
-  if (!response.ok) {
-    throw new Error(parseApiError(response.status, text));
-  }
-
-  if (response.status === 204 || !text) {
-    return null as T;
-  }
+  if (!response.ok) throw new Error(parseApiError(response.status, text));
+  if (response.status === 204 || !text) return null as T;
 
   return JSON.parse(text) as T;
 }
@@ -145,10 +109,16 @@ export function extractItems<T>(payload: any): T[] {
   if (Array.isArray(payload?.data)) return payload.data;
   if (Array.isArray(payload?.templates)) return payload.templates;
   if (Array.isArray(payload?.measurementFields)) return payload.measurementFields;
+  if (Array.isArray(payload?.measurementTemplates)) return payload.measurementTemplates;
+  if (Array.isArray(payload?.servicePlans)) return payload.servicePlans;
+  if (Array.isArray(payload?.plans)) return payload.plans;
+  if (Array.isArray(payload?.routes)) return payload.routes;
+  if (Array.isArray(payload?.serviceOrders)) return payload.serviceOrders;
+  if (Array.isArray(payload?.orders)) return payload.orders;
+  if (Array.isArray(payload?.customers)) return payload.customers;
+  if (Array.isArray(payload?.employees)) return payload.employees;
   if (Array.isArray(payload?.fields)) return payload.fields;
-  if (Array.isArray(payload?.checklistTemplates)) {
-    return payload.checklistTemplates;
-  }
+  if (Array.isArray(payload?.checklistTemplates)) return payload.checklistTemplates;
 
   return [];
 }

@@ -1,6 +1,3 @@
-"use client";
-
-import * as React from "react";
 import Link from "next/link";
 import {
   CheckCircle2,
@@ -12,67 +9,44 @@ import {
   Users,
   WalletCards,
 } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import {
+  emptyDashboardMetrics,
+  getDashboardMetrics,
+  type DashboardMetrics,
+} from "./actions";
 
-type DashboardMetrics = {
-  totalCustomers: number;
-  totalEmployees: number;
-  pendingCompanyPricingOrders: number;
-  pendingCustomerApprovalOrders: number;
-  waitingExecutionOrders: number;
-  inRouteOrders: number;
-  doneOrdersToday: number;
-  plannedRoutesToday: number;
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+
+type DashboardCard = {
+  title: string;
+  value: number;
+  description: string;
+  icon: typeof Users;
+  href: string;
 };
 
-const emptyMetrics: DashboardMetrics = {
-  totalCustomers: 0,
-  totalEmployees: 0,
-  pendingCompanyPricingOrders: 0,
-  pendingCustomerApprovalOrders: 0,
-  waitingExecutionOrders: 0,
-  inRouteOrders: 0,
-  doneOrdersToday: 0,
-  plannedRoutesToday: 0,
-};
+async function loadMetrics() {
+  try {
+    const metrics = await getDashboardMetrics();
 
-export default function DashboardPage() {
-  const [metrics, setMetrics] = React.useState<DashboardMetrics>(emptyMetrics);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
+    return {
+      metrics,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      metrics: emptyDashboardMetrics,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Não foi possível carregar o painel.",
+    };
+  }
+}
 
-  React.useEffect(() => {
-    async function loadDashboard() {
-      try {
-        setLoading(true);
-        setError(null);
-
-        const companyId = localStorage.getItem("mappa_company_id");
-
-        if (!companyId) {
-          throw new Error("Empresa não encontrada no navegador.");
-        }
-
-        const data = await apiFetch<DashboardMetrics>(
-          `/api/companies/${companyId}/dashboard`
-        );
-
-        setMetrics(data);
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Não foi possível carregar o painel."
-        );
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadDashboard();
-  }, []);
-
-  const cards = [
+function buildCards(metrics: DashboardMetrics): DashboardCard[] {
+  return [
     {
       title: "Clientes",
       value: metrics.totalCustomers,
@@ -130,6 +104,11 @@ export default function DashboardPage() {
       href: "/routes",
     },
   ];
+}
+
+export default async function DashboardPage() {
+  const { metrics, error } = await loadMetrics();
+  const cards = buildCards(metrics);
 
   return (
     <main className="min-h-screen bg-neutral-50 px-4 py-6 sm:px-6 lg:px-8">
@@ -186,13 +165,9 @@ export default function DashboardPage() {
                   <Icon className="h-5 w-5" />
                 </div>
 
-                {loading ? (
-                  <div className="h-6 w-10 animate-pulse rounded bg-slate-100" />
-                ) : (
-                  <div className="text-2xl font-semibold text-slate-900">
-                    {card.value}
-                  </div>
-                )}
+                <div className="text-2xl font-semibold text-slate-900">
+                  {card.value}
+                </div>
               </div>
 
               <h3 className="text-sm font-semibold text-slate-900">

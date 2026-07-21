@@ -36,6 +36,11 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      console.log("LOGIN URL:", `${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`);
+console.log("LOGIN PAYLOAD:", {
+  email: email.trim(),
+  password: senha,
+});
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`,
         {

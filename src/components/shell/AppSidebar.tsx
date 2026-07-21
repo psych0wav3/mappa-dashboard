@@ -18,10 +18,15 @@ import {
   Cog,
   ClipboardList,
   ListChecks,
-  Droplets,
+  CalendarClock,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useEffect, useMemo, useState, useLayoutEffect } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from "react";
 
 const LS_KEY = "sidebar:collapsed";
 const WIDTH_EXPANDED = 280;
@@ -41,7 +46,10 @@ export default function AppSidebar({
 
     try {
       const raw = localStorage.getItem(LS_KEY);
-      if (raw != null) return JSON.parse(raw);
+
+      if (raw != null) {
+        return JSON.parse(raw);
+      }
     } catch {}
 
     const css = getComputedStyle(document.documentElement)
@@ -49,18 +57,28 @@ export default function AppSidebar({
       .trim()
       .replace("px", "");
 
-    const w = parseInt(css || "280", 10);
-    return w <= WIDTH_COLLAPSED;
+    const width = parseInt(css || "280", 10);
+
+    return width <= WIDTH_COLLAPSED;
   });
 
   const [ready, setReady] = useState(false);
 
   useLayoutEffect(() => {
     try {
-      const isDesk = window.matchMedia("(min-width: 1024px)").matches;
-      const target = isDesk ? (collapsed ? WIDTH_COLLAPSED : WIDTH_EXPANDED) : 0;
+      const isDesktop = window.matchMedia(
+        "(min-width: 1024px)",
+      ).matches;
 
-      const currentCss = getComputedStyle(document.documentElement)
+      const target = isDesktop
+        ? collapsed
+          ? WIDTH_COLLAPSED
+          : WIDTH_EXPANDED
+        : 0;
+
+      const currentCss = getComputedStyle(
+        document.documentElement,
+      )
         .getPropertyValue("--sidebar-w")
         .trim()
         .replace("px", "");
@@ -68,7 +86,10 @@ export default function AppSidebar({
       const current = parseInt(currentCss || "0", 10);
 
       if (current !== target) {
-        document.documentElement.style.setProperty("--sidebar-w", target + "px");
+        document.documentElement.style.setProperty(
+          "--sidebar-w",
+          `${target}px`,
+        );
       }
 
       dispatchSidebarWidth(target);
@@ -80,25 +101,44 @@ export default function AppSidebar({
 
   useEffect(() => {
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify(collapsed));
+      localStorage.setItem(
+        LS_KEY,
+        JSON.stringify(collapsed),
+      );
     } catch {}
 
-    const w = collapsed ? WIDTH_COLLAPSED : WIDTH_EXPANDED;
-    dispatchSidebarWidth(w);
+    const width = collapsed
+      ? WIDTH_COLLAPSED
+      : WIDTH_EXPANDED;
+
+    dispatchSidebarWidth(width);
 
     try {
-      const isDesk = window.matchMedia("(min-width: 1024px)").matches;
+      const isDesktop = window.matchMedia(
+        "(min-width: 1024px)",
+      ).matches;
 
-      if (typeof document !== "undefined" && isDesk) {
-        const currentCss = getComputedStyle(document.documentElement)
+      if (
+        typeof document !== "undefined" &&
+        isDesktop
+      ) {
+        const currentCss = getComputedStyle(
+          document.documentElement,
+        )
           .getPropertyValue("--sidebar-w")
           .trim()
           .replace("px", "");
 
-        const current = parseInt(currentCss || "0", 10);
+        const current = parseInt(
+          currentCss || "0",
+          10,
+        );
 
-        if (current !== w) {
-          document.documentElement.style.setProperty("--sidebar-w", w + "px");
+        if (current !== width) {
+          document.documentElement.style.setProperty(
+            "--sidebar-w",
+            `${width}px`,
+          );
         }
       }
     } catch {}
@@ -111,28 +151,40 @@ export default function AppSidebar({
   }, [collapsed]);
 
   useEffect(() => {
-    if (open) onClose();
+    if (open) {
+      onClose();
+    }
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   return (
     <>
       <div
-        className={`fixed inset-0 z-[100] bg-black/40 lg:hidden transition-opacity ${
-          open ? "opacity-100" : "opacity-0 pointer-events-none"
+        className={`fixed inset-0 z-[100] bg-black/40 transition-opacity lg:hidden ${
+          open
+            ? "opacity-100"
+            : "pointer-events-none opacity-0"
         }`}
         onClick={onClose}
         aria-hidden="true"
       />
 
       <aside
-        className={`fixed inset-y-0 left-0 z-[110] w-[80vw] max-w-[320px] text-white shadow-xl lg:hidden
-          transition-transform ${open ? "translate-x-0" : "-translate-x-full"}`}
+        className={`fixed inset-y-0 left-0 z-[110] w-[80vw] max-w-[320px] text-white shadow-xl transition-transform lg:hidden ${
+          open
+            ? "translate-x-0"
+            : "-translate-x-full"
+        }`}
         role="dialog"
         aria-label="Menu lateral"
-        style={{ background: "var(--ac-sidebar-bg)" }}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") onClose();
+        style={{
+          background: "var(--ac-sidebar-bg)",
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            onClose();
+          }
         }}
       >
         <SidebarContent
@@ -144,21 +196,41 @@ export default function AppSidebar({
       </aside>
 
       <aside
-        className={`fixed inset-y-0 left-0 z-[80] hidden lg:flex lg:flex-col text-white shadow-lg ${
+        className={`fixed inset-y-0 left-0 z-[80] hidden flex-col text-white shadow-lg lg:flex ${
           ready ? "transition-all duration-300" : ""
         }`}
-        style={{ width: "var(--sidebar-w)", background: "var(--ac-sidebar-bg)" }}
+        style={{
+          width: "var(--sidebar-w)",
+          background: "var(--ac-sidebar-bg)",
+        }}
         aria-label="Menu lateral"
       >
-        <SidebarContent pathname={pathname} collapsed={collapsed} ready={ready} />
+        <SidebarContent
+          pathname={pathname}
+          collapsed={collapsed}
+          ready={ready}
+        />
 
         <button
+          type="button"
           className="absolute -right-3 top-[72px] grid h-8 w-8 place-items-center rounded-full bg-white shadow-md"
-          onClick={() => setCollapsed((v) => !v)}
-          aria-label={collapsed ? "Expandir sidebar" : "Recolher sidebar"}
-          style={{ color: "var(--ac-blue-700)" }}
+          onClick={() =>
+            setCollapsed((current) => !current)
+          }
+          aria-label={
+            collapsed
+              ? "Expandir sidebar"
+              : "Recolher sidebar"
+          }
+          style={{
+            color: "var(--ac-blue-700)",
+          }}
         >
-          {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          {collapsed ? (
+            <ChevronRight size={18} />
+          ) : (
+            <ChevronLeft size={18} />
+          )}
         </button>
       </aside>
     </>
@@ -166,7 +238,13 @@ export default function AppSidebar({
 }
 
 function dispatchSidebarWidth(width: number) {
-  window.dispatchEvent(new CustomEvent("sidebar:width", { detail: { width } }));
+  window.dispatchEvent(
+    new CustomEvent("sidebar:width", {
+      detail: {
+        width,
+      },
+    }),
+  );
 }
 
 function SidebarContent({
@@ -183,53 +261,100 @@ function SidebarContent({
   const router = useRouter();
 
   const links = [
-    { href: "/quickstart", label: "Início rápido", icon: Rocket },
-    { href: "/dashboard", label: "Painel de controle", icon: LayoutDashboard },
-    { href: "/technicians", label: "Técnicos", icon: Wrench },
-    { href: "/clients", label: "Clientes", icon: UserRound },
+    {
+      href: "/quickstart",
+      label: "Início rápido",
+      icon: Rocket,
+    },
+    {
+      href: "/dashboard",
+      label: "Painel de controle",
+      icon: LayoutDashboard,
+    },
+    {
+      href: "/technicians",
+      label: "Técnicos",
+      icon: Wrench,
+    },
+    {
+      href: "/clients",
+      label: "Clientes",
+      icon: UserRound,
+    },
   ] as const;
 
   const routeItems = useMemo(
     () => [
-      { href: "/routes/builder", label: "Criar rota" },
-      { href: "/routes/dashboard", label: "Controle das rotas" },
+      {
+        href: "/routes/builder",
+        label: "Criar rota",
+      },
+      {
+        href: "/routes/dashboard",
+        label: "Controle das rotas",
+      },
     ],
     [],
   );
 
   const workorderItems = useMemo(
     () => [
-      { href: "/workorders/new", label: "Nova OS" },
-      { href: "/workorders/approved", label: "OS Aprovadas" },
-      { href: "/workorders", label: "Todas as OS" },
+      {
+        href: "/workorders/new",
+        label: "Nova OS",
+      },
+      {
+        href: "/service-plans",
+        label: "Planos de Serviço",
+      },
+      {
+        href: "/workorders/approved",
+        label: "OS Aprovadas",
+      },
+      {
+        href: "/workorders",
+        label: "Todas as OS",
+      },
     ],
     [],
   );
 
   const settingsItems = useMemo(
     () => [
-      { href: "/account", label: "Meu perfil", icon: UserIcon },
-      { href: "/settings", label: "Preferências", icon: Cog },
+      {
+        href: "/account",
+        label: "Meu perfil",
+        icon: UserIcon,
+      },
+      {
+        href: "/settings",
+        label: "Preferências",
+        icon: Cog,
+      },
       {
         href: "/settings/checklist-templates",
         label: "Checklists de Serviço",
         icon: ListChecks,
       },
       {
-        href: "/settings/measurement-fields",
-        label: "Campos de Medição",
-        icon: Droplets,
+        href: "/settings/measurement-templates",
+        label: "Templates de Medição",
+        icon: CalendarClock,
       },
     ],
     [],
   );
 
-  const [planLabel, setPlanLabel] = useState<string | null>(null);
+  const [planLabel, setPlanLabel] =
+    useState<string | null>(null);
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem("mappa_user");
-      if (!raw) return;
+
+      if (!raw) {
+        return;
+      }
 
       const user = JSON.parse(raw);
 
@@ -241,48 +366,68 @@ function SidebarContent({
         user?.role ||
         "COMPANY_ADMIN";
 
-      const map: Record<string, string> = {
+      const labels: Record<string, string> = {
         SUPER_ADMIN: "Super Admin",
         COMPANY_ADMIN: "Admin",
         EMPLOYEE: "Funcionário",
         CUSTOMER: "Cliente",
       };
 
-      setPlanLabel(map[role] ?? role);
+      setPlanLabel(labels[role] ?? role);
     } catch {
       setPlanLabel(null);
     }
   }, []);
 
-  const isWorkordersSection = pathname.startsWith("/workorders");
+  const isWorkordersSection =
+    pathname.startsWith("/workorders") ||
+    pathname.startsWith("/service-plans");
+
   const [workordersOpen, setWorkordersOpen] =
-    useState<boolean>(isWorkordersSection);
+    useState(isWorkordersSection);
 
   useEffect(() => {
-    if (isWorkordersSection) setWorkordersOpen(true);
+    if (isWorkordersSection) {
+      setWorkordersOpen(true);
+    }
   }, [isWorkordersSection]);
 
-  const isRoutesSection = pathname.startsWith("/routes");
-  const [routesOpen, setRoutesOpen] = useState<boolean>(isRoutesSection);
+  const isRoutesSection =
+    pathname.startsWith("/routes");
+
+  const [routesOpen, setRoutesOpen] =
+    useState(isRoutesSection);
 
   useEffect(() => {
-    if (isRoutesSection) setRoutesOpen(true);
+    if (isRoutesSection) {
+      setRoutesOpen(true);
+    }
   }, [isRoutesSection]);
 
   const isSettingsSection =
-    pathname.startsWith("/settings") || pathname.startsWith("/account");
+    pathname.startsWith("/settings") ||
+    pathname.startsWith("/account");
 
-  const [settingsOpen, setSettingsOpen] = useState<boolean>(isSettingsSection);
+  const [settingsOpen, setSettingsOpen] =
+    useState(isSettingsSection);
 
   useEffect(() => {
-    if (isSettingsSection) setSettingsOpen(true);
+    if (isSettingsSection) {
+      setSettingsOpen(true);
+    }
   }, [isSettingsSection]);
 
-  const renderLink = (href: string, label: string, icon: LucideIcon) => {
-    const active = pathname === href || pathname.startsWith(href + "/");
+  function renderLink(
+    href: string,
+    label: string,
+    icon: LucideIcon,
+  ) {
+    const active =
+      pathname === href ||
+      pathname.startsWith(`${href}/`);
 
     if (onNavigate) {
-      const IconCmp = icon;
+      const Icon = icon;
 
       return (
         <button
@@ -292,8 +437,10 @@ function SidebarContent({
             router.push(href);
             onNavigate();
           }}
-          className={`w-full text-left px-3 py-2 rounded-md transition-colors ${
-            active ? "bg-white/20 text-white" : "text-white hover:bg-white/10"
+          className={`w-full rounded-md px-3 py-2 text-left transition-colors ${
+            active
+              ? "bg-white/20 text-white"
+              : "text-white hover:bg-white/10"
           }`}
         >
           <div
@@ -301,8 +448,15 @@ function SidebarContent({
               collapsed ? "justify-center" : ""
             }`}
           >
-            <IconCmp size={18} aria-hidden className="shrink-0" />
-            <LabelSlot ready={ready}>{label}</LabelSlot>
+            <Icon
+              size={18}
+              aria-hidden
+              className="shrink-0"
+            />
+
+            <LabelSlot ready={ready}>
+              {label}
+            </LabelSlot>
           </div>
         </button>
       );
@@ -316,20 +470,29 @@ function SidebarContent({
         active={active}
         collapsed={collapsed}
       >
-        <LabelSlot ready={ready}>{label}</LabelSlot>
+        <LabelSlot ready={ready}>
+          {label}
+        </LabelSlot>
       </SidebarLink>
     );
-  };
+  }
 
   async function handleSignOut() {
     try {
-      localStorage.removeItem("mappa_access_token");
+      localStorage.removeItem(
+        "mappa_access_token",
+      );
+
       localStorage.removeItem("mappa_user");
-      localStorage.removeItem("mappa_company_id");
+      localStorage.removeItem(
+        "mappa_company_id",
+      );
+
       localStorage.removeItem("mappa_roles");
 
       document.cookie =
         "mappa_access_token=; path=/; max-age=0; SameSite=Lax";
+
       document.cookie =
         "mappa_company_id=; path=/; max-age=0; SameSite=Lax";
 
@@ -344,37 +507,56 @@ function SidebarContent({
   return (
     <div className="flex h-full flex-col">
       <div
-        className={`flex items-center gap-3 px-4 h-[64px] border-b border-white/20 ${
+        className={`flex h-[64px] items-center gap-3 border-b border-white/20 px-4 ${
           collapsed ? "justify-center" : ""
         }`}
       >
         <div
-          className="h-10 w-10 rounded-lg bg-white grid place-items-center text-lg font-bold select-none"
-          style={{ color: "var(--ac-blue-700)" }}
+          className="grid h-10 w-10 select-none place-items-center rounded-lg bg-white text-lg font-bold"
+          style={{
+            color: "var(--ac-blue-700)",
+          }}
         >
           A
         </div>
 
         <LabelSlot ready={ready}>
-          <span className="font-semibold text-white text-lg">Aqua Mappa</span>
+          <span className="text-lg font-semibold text-white">
+            Aqua Mappa
+          </span>
         </LabelSlot>
       </div>
 
       {planLabel && (
-        <div className={`px-4 pt-2 ${collapsed ? "flex justify-center" : ""}`}>
+        <div
+          className={`px-4 pt-2 ${
+            collapsed
+              ? "flex justify-center"
+              : ""
+          }`}
+        >
           <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-3 py-1 text-[0.7rem] font-medium text-emerald-100">
             <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_3px_rgba(16,185,129,0.4)]" />
+
             {collapsed ? (
               <span>{planLabel}</span>
             ) : (
-              <span>Plano {planLabel} ativo</span>
+              <span>
+                Plano {planLabel} ativo
+              </span>
             )}
           </div>
         </div>
       )}
 
-      <nav className="flex-1 p-2 space-y-1">
-        {links.map((link) => renderLink(link.href, link.label, link.icon))}
+      <nav className="flex-1 space-y-1 p-2">
+        {links.map((link) =>
+          renderLink(
+            link.href,
+            link.label,
+            link.icon,
+          ),
+        )}
 
         <SidebarDropdown
           id="workorders-submenu"
@@ -424,27 +606,36 @@ function SidebarContent({
 
         {!collapsed && (
           <button
+            type="button"
             onClick={handleSignOut}
             className="ml-3 mt-2 flex w-[calc(100%-0.75rem)] items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-white/90 hover:bg-white/10"
           >
-            <LogOut size={18} className="shrink-0" />
+            <LogOut
+              size={18}
+              className="shrink-0"
+            />
+
             Sair
           </button>
         )}
 
         {collapsed && (
           <button
+            type="button"
             onClick={handleSignOut}
             className="mt-2 grid h-9 w-full place-items-center rounded-lg text-white/90 hover:bg-white/10"
             title="Sair"
           >
-            <LogOut size={18} className="shrink-0" />
+            <LogOut
+              size={18}
+              className="shrink-0"
+            />
           </button>
         )}
       </nav>
 
       <div
-        className={`p-4 border-t border-white/20 text-xs text-white/80 ${
+        className={`border-t border-white/20 p-4 text-xs text-white/80 ${
           collapsed ? "text-center" : ""
         }`}
       >
