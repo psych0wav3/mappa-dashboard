@@ -155,6 +155,12 @@ export type WorkOrderListItem = {
   } | null;
 };
 
+export type PriceWorkOrderInput = {
+  serviceOrderId: string;
+  scheduledDate: string;
+  totalAmount: number;
+};
+
 export type CreateAdminWorkOrderInput = {
   customerId: string;
   customerAddressId: string;
@@ -456,8 +462,40 @@ export async function listWorkOrders(
     }`,
   );
 
-  return extractItems<ApiServiceOrder>(data)
-    .map(normalizeWorkOrder);
+  const summaries =
+    extractItems<ApiServiceOrder>(data);
+
+  const hydrated = await Promise.all(
+    summaries.map(async (summary) => {
+      try {
+        const details =
+          await mappaFetch<ApiServiceOrder>(
+            `/api/companies/${companyId}/service-orders/${summary.id}`,
+          );
+
+        return {
+          ...summary,
+          ...details,
+          customerName:
+            details.customerName ||
+            summary.customerName,
+          customerId:
+            details.customerId ||
+            summary.customerId,
+          customerAddressId:
+            details.customerAddressId ||
+            summary.customerAddressId,
+          address:
+            details.address ||
+            summary.address,
+        };
+      } catch {
+        return summary;
+      }
+    }),
+  );
+
+  return hydrated.map(normalizeWorkOrder);
 }
 
 export async function getWorkOrderById(
@@ -703,33 +741,33 @@ export async function createAdminWorkOrder(
 
   if (
     !Number.isFinite(totalAmount) ||
-    totalAmount < 0
+    totalAmount <= 0
   ) {
     throw new Error(
-      "Informe um valor total válido.",
+      "O valor total deve ser maior que zero.",
     );
   }
 
-const payload = {
-  customerId: input.customerId,
+  const payload = {
+    customerId: input.customerId,
 
-  customerAddressId:
-    input.customerAddressId,
+    customerAddressId:
+      input.customerAddressId,
 
-  title: input.title.trim(),
+    title: input.title.trim(),
 
-  description:
-    input.description?.trim() || "",
+    description:
+      input.description?.trim() || "",
 
-  scheduledDate:
-    toApiDate(input.scheduledDate),
+    scheduledDate:
+      toApiDate(input.scheduledDate),
 
-  totalAmount,
+    totalAmount,
 
-  checklistTemplateId: null,
+    checklistTemplateId: null,
 
-  measurementTemplateId: null,
-};
+    measurementTemplateId: null,
+  };
 
   const created =
     await mappaFetch<ApiServiceOrder>(
@@ -747,4 +785,56 @@ const payload = {
   revalidatePath("/routes/dashboard");
 
   return normalizeWorkOrder(created);
+}
+
+export async function priceWorkOrder(
+  input: PriceWorkOrderInput,
+) {
+  const companyId = await getCompanyId();
+
+  if (!input.serviceOrderId) {
+    throw new Error(
+      "ID da ordem de serviço não informado.",
+    );
+  }
+
+  if (!input.scheduledDate) {
+    throw new Error(
+      "Informe a data prevista para o serviço.",
+    );
+  }
+
+  const totalAmount = Number(input.totalAmount);
+
+  if (
+    !Number.isFinite(totalAmount) ||
+    totalAmount <= 0
+  ) {
+    throw new Error(
+      "O valor do orçamento deve ser maior que zero.",
+    );
+  }
+
+  const updated =
+    await mappaFetch<ApiServiceOrder>(
+      `/api/companies/${companyId}/service-orders/${input.serviceOrderId}/pricing`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          scheduledDate: toApiDate(
+            input.scheduledDate,
+          ),
+          totalAmount,
+        }),
+      },
+    );
+
+  revalidatePath("/workorders");
+  revalidatePath("/workorders/pricing");
+  revalidatePath(
+    "/workorders/customer-approval",
+  );
+  revalidatePath("/workorders/approved");
+
+  return normalizeWorkOrder(updated);
 }

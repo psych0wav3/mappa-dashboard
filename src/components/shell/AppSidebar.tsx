@@ -1,32 +1,33 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
-import { SidebarLink } from "./SidebarLink";
-import LabelSlot from "./LabelSlot";
-import SidebarDropdown from "./SidebarDropdown";
-import {
-  LayoutDashboard,
-  Settings as SettingsIcon,
-  ChevronLeft,
-  ChevronRight,
-  Route as RouteIcon,
-  Rocket,
-  Wrench,
-  UserRound,
-  LogOut,
-  User as UserIcon,
-  Cog,
-  ClipboardList,
-  ListChecks,
-  CalendarClock,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import {
   useEffect,
   useLayoutEffect,
   useMemo,
   useState,
 } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import type { LucideIcon } from "lucide-react";
+import {
+  CalendarClock,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
+  Cog,
+  LayoutDashboard,
+  ListChecks,
+  LogOut,
+  Rocket,
+  Route as RouteIcon,
+  Settings as SettingsIcon,
+  User as UserIcon,
+  UserRound,
+  Wrench,
+} from "lucide-react";
+
+import LabelSlot from "./LabelSlot";
+import SidebarDropdown from "./SidebarDropdown";
+import { SidebarLink } from "./SidebarLink";
 
 const LS_KEY = "sidebar:collapsed";
 const WIDTH_EXPANDED = 280;
@@ -41,34 +42,44 @@ export default function AppSidebar({
 }) {
   const pathname = usePathname();
 
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-
-      if (raw != null) {
-        return JSON.parse(raw);
+  const [collapsed, setCollapsed] =
+    useState<boolean>(() => {
+      if (typeof window === "undefined") {
+        return false;
       }
-    } catch {}
 
-    const css = getComputedStyle(document.documentElement)
-      .getPropertyValue("--sidebar-w")
-      .trim()
-      .replace("px", "");
+      try {
+        const raw =
+          localStorage.getItem(LS_KEY);
 
-    const width = parseInt(css || "280", 10);
+        if (raw != null) {
+          return JSON.parse(raw);
+        }
+      } catch {}
 
-    return width <= WIDTH_COLLAPSED;
-  });
+      const css = getComputedStyle(
+        document.documentElement,
+      )
+        .getPropertyValue("--sidebar-w")
+        .trim()
+        .replace("px", "");
+
+      const width = parseInt(
+        css || "280",
+        10,
+      );
+
+      return width <= WIDTH_COLLAPSED;
+    });
 
   const [ready, setReady] = useState(false);
 
   useLayoutEffect(() => {
     try {
-      const isDesktop = window.matchMedia(
-        "(min-width: 1024px)",
-      ).matches;
+      const isDesktop =
+        window.matchMedia(
+          "(min-width: 1024px)",
+        ).matches;
 
       const target = isDesktop
         ? collapsed
@@ -83,7 +94,10 @@ export default function AppSidebar({
         .trim()
         .replace("px", "");
 
-      const current = parseInt(currentCss || "0", 10);
+      const current = parseInt(
+        currentCss || "0",
+        10,
+      );
 
       if (current !== target) {
         document.documentElement.style.setProperty(
@@ -96,6 +110,7 @@ export default function AppSidebar({
     } catch {}
 
     setReady(true);
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -114,9 +129,10 @@ export default function AppSidebar({
     dispatchSidebarWidth(width);
 
     try {
-      const isDesktop = window.matchMedia(
-        "(min-width: 1024px)",
-      ).matches;
+      const isDesktop =
+        window.matchMedia(
+          "(min-width: 1024px)",
+        ).matches;
 
       if (
         typeof document !== "undefined" &&
@@ -179,7 +195,8 @@ export default function AppSidebar({
         role="dialog"
         aria-label="Menu lateral"
         style={{
-          background: "var(--ac-sidebar-bg)",
+          background:
+            "var(--ac-sidebar-bg)",
         }}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
@@ -197,11 +214,14 @@ export default function AppSidebar({
 
       <aside
         className={`fixed inset-y-0 left-0 z-[80] hidden flex-col text-white shadow-lg lg:flex ${
-          ready ? "transition-all duration-300" : ""
+          ready
+            ? "transition-all duration-300"
+            : ""
         }`}
         style={{
           width: "var(--sidebar-w)",
-          background: "var(--ac-sidebar-bg)",
+          background:
+            "var(--ac-sidebar-bg)",
         }}
         aria-label="Menu lateral"
       >
@@ -215,7 +235,9 @@ export default function AppSidebar({
           type="button"
           className="absolute -right-3 top-[72px] grid h-8 w-8 place-items-center rounded-full bg-white shadow-md"
           onClick={() =>
-            setCollapsed((current) => !current)
+            setCollapsed(
+              (current) => !current,
+            )
           }
           aria-label={
             collapsed
@@ -237,7 +259,9 @@ export default function AppSidebar({
   );
 }
 
-function dispatchSidebarWidth(width: number) {
+function dispatchSidebarWidth(
+  width: number,
+) {
   window.dispatchEvent(
     new CustomEvent("sidebar:width", {
       detail: {
@@ -308,8 +332,17 @@ function SidebarContent({
         label: "Planos de Serviço",
       },
       {
+        href: "/workorders/pricing",
+        label: "Aguardando orçamento",
+      },
+      {
+        href:
+          "/workorders/customer-approval",
+        label: "Aguardando cliente",
+      },
+      {
         href: "/workorders/approved",
-        label: "OS Aprovadas",
+        label: "Prontas para rota",
       },
       {
         href: "/workorders",
@@ -332,12 +365,14 @@ function SidebarContent({
         icon: Cog,
       },
       {
-        href: "/settings/checklist-templates",
+        href:
+          "/settings/checklist-templates",
         label: "Checklists de Serviço",
         icon: ListChecks,
       },
       {
-        href: "/settings/measurement-templates",
+        href:
+          "/settings/measurement-templates",
         label: "Templates de Medição",
         icon: CalendarClock,
       },
@@ -350,7 +385,8 @@ function SidebarContent({
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("mappa_user");
+      const raw =
+        localStorage.getItem("mappa_user");
 
       if (!raw) {
         return;
@@ -366,25 +402,38 @@ function SidebarContent({
         user?.role ||
         "COMPANY_ADMIN";
 
-      const labels: Record<string, string> = {
+      const labels: Record<
+        string,
+        string
+      > = {
         SUPER_ADMIN: "Super Admin",
         COMPANY_ADMIN: "Admin",
         EMPLOYEE: "Funcionário",
         CUSTOMER: "Cliente",
       };
 
-      setPlanLabel(labels[role] ?? role);
+      setPlanLabel(
+        labels[role] ?? role,
+      );
     } catch {
       setPlanLabel(null);
     }
   }, []);
 
   const isWorkordersSection =
-    pathname.startsWith("/workorders") ||
-    pathname.startsWith("/service-plans");
+    pathname.startsWith(
+      "/workorders",
+    ) ||
+    pathname.startsWith(
+      "/service-plans",
+    );
 
-  const [workordersOpen, setWorkordersOpen] =
-    useState(isWorkordersSection);
+  const [
+    workordersOpen,
+    setWorkordersOpen,
+  ] = useState(
+    isWorkordersSection,
+  );
 
   useEffect(() => {
     if (isWorkordersSection) {
@@ -408,8 +457,12 @@ function SidebarContent({
     pathname.startsWith("/settings") ||
     pathname.startsWith("/account");
 
-  const [settingsOpen, setSettingsOpen] =
-    useState(isSettingsSection);
+  const [
+    settingsOpen,
+    setSettingsOpen,
+  ] = useState(
+    isSettingsSection,
+  );
 
   useEffect(() => {
     if (isSettingsSection) {
@@ -424,7 +477,9 @@ function SidebarContent({
   ) {
     const active =
       pathname === href ||
-      pathname.startsWith(`${href}/`);
+      pathname.startsWith(
+        `${href}/`,
+      );
 
     if (onNavigate) {
       const Icon = icon;
@@ -445,7 +500,9 @@ function SidebarContent({
         >
           <div
             className={`flex items-center gap-3 ${
-              collapsed ? "justify-center" : ""
+              collapsed
+                ? "justify-center"
+                : ""
             }`}
           >
             <Icon
@@ -483,12 +540,17 @@ function SidebarContent({
         "mappa_access_token",
       );
 
-      localStorage.removeItem("mappa_user");
+      localStorage.removeItem(
+        "mappa_user",
+      );
+
       localStorage.removeItem(
         "mappa_company_id",
       );
 
-      localStorage.removeItem("mappa_roles");
+      localStorage.removeItem(
+        "mappa_roles",
+      );
 
       document.cookie =
         "mappa_access_token=; path=/; max-age=0; SameSite=Lax";
@@ -508,13 +570,16 @@ function SidebarContent({
     <div className="flex h-full flex-col">
       <div
         className={`flex h-[64px] items-center gap-3 border-b border-white/20 px-4 ${
-          collapsed ? "justify-center" : ""
+          collapsed
+            ? "justify-center"
+            : ""
         }`}
       >
         <div
           className="grid h-10 w-10 select-none place-items-center rounded-lg bg-white text-lg font-bold"
           style={{
-            color: "var(--ac-blue-700)",
+            color:
+              "var(--ac-blue-700)",
           }}
         >
           A
@@ -549,7 +614,7 @@ function SidebarContent({
         </div>
       )}
 
-      <nav className="flex-1 space-y-1 p-2">
+      <nav className="flex-1 space-y-1 overflow-y-auto p-2">
         {links.map((link) =>
           renderLink(
             link.href,
@@ -571,6 +636,7 @@ function SidebarContent({
           items={workorderItems}
           pathname={pathname}
           onNavigate={onNavigate}
+          maxHeight={520}
         />
 
         <SidebarDropdown
@@ -636,11 +702,14 @@ function SidebarContent({
 
       <div
         className={`border-t border-white/20 p-4 text-xs text-white/80 ${
-          collapsed ? "text-center" : ""
+          collapsed
+            ? "text-center"
+            : ""
         }`}
       >
         <span suppressHydrationWarning>
-          © {new Date().getFullYear()} Aqua Mappa
+          © {new Date().getFullYear()}{" "}
+          Aqua Mappa
         </span>
       </div>
     </div>

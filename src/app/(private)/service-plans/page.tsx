@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+
 import ServicePlansClient from "./ServicePlansClient";
 import { listServicePlans } from "./actions";
 
@@ -10,6 +12,10 @@ import {
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
+
+export const metadata: Metadata = {
+  title: "Planos de Serviço — Aqua Mappa",
+};
 
 export default async function ServicePlansPage() {
   const [
@@ -32,7 +38,9 @@ export default async function ServicePlansPage() {
         initialPlans={plans}
         customers={customers}
         technicians={technicians}
-        checklistTemplates={checklistTemplates}
+        checklistTemplates={
+          checklistTemplates
+        }
         measurementTemplates={
           measurementTemplates
         }

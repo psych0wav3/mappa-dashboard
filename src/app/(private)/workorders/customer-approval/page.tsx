@@ -1,23 +1,26 @@
 import type { Metadata } from "next";
 
 import { listWorkOrders } from "../actions";
-import ApprovedWorkOrdersClient from "./ApprovedWorkOrdersClient";
+import PendingCustomerApprovalClient from "./PendingCustomerApprovalClient";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 
 export const metadata: Metadata = {
-  title: "Prontas para rota — Aqua Mappa",
+  title:
+    "Aguardando aprovação do cliente — Aqua Mappa",
 };
 
-export default async function ApprovedWorkOrdersPage() {
+export default async function PendingCustomerApprovalPage() {
   const orders = await listWorkOrders({
-    status: "WaitingExecution",
+    status: "PendingCustomerApproval",
   });
 
   return (
     <div className="min-h-screen bg-neutral-50 px-4 py-6 sm:px-6 lg:px-8">
-      <ApprovedWorkOrdersClient initialData={orders} />
+      <PendingCustomerApprovalClient
+        initialOrders={orders}
+      />
     </div>
   );
 }
