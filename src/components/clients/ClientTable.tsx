@@ -1,448 +1,503 @@
 "use client";
 
 import * as React from "react";
-import ClientForm from "./ClientForm";
-import { Button } from "@/components/ui/button";
 import {
   Building2,
   Mail,
   MapPin,
   Pencil,
   Phone,
+  Plus,
   Search,
+  UserCheck,
   UserRound,
+  UsersRound,
+  UserX,
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { deleteClient } from "@/app/(private)/clients/actions";
 
-type Client = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone?: string | null;
-  cpf?: string | null;
-  cnpj?: string | null;
-  companyName?: string | null;
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
-  street?: string | null;
-  number?: string | null;
-  district?: string | null;
-  city?: string | null;
-  uf?: string | null;
-  cep?: string | null;
+import type { Client } from "@/app/(private)/clients/actions";
 
-  poolStreet?: string | null;
-  poolNumber?: string | null;
-  poolDistrict?: string | null;
-  poolCity?: string | null;
-  poolUf?: string | null;
-  poolCep?: string | null;
-  poolLat?: number | null;
-  poolLng?: number | null;
+import ClientForm from "./ClientForm";
 
-  active?: boolean | null;
-};
+function getInitials(name: string) {
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
 
-type Counts = {
-  active: number;
-  inactive: number;
-};
-
-const INACTIVE_STORAGE_KEY = "aqua-mappa:inactive-clients";
-
-function readInactiveIds() {
-  if (typeof window === "undefined") return new Set<string>();
-
-  try {
-    const raw = window.localStorage.getItem(INACTIVE_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-
-    if (!Array.isArray(parsed)) return new Set<string>();
-
-    return new Set(parsed.filter((item) => typeof item === "string"));
-  } catch {
-    return new Set<string>();
+  if (!parts.length) {
+    return "C";
   }
+
+  if (parts.length === 1) {
+    return parts[0]
+      .slice(0, 1)
+      .toLocaleUpperCase("pt-BR");
+  }
+
+  return `${parts[0][0]}${
+    parts[parts.length - 1][0]
+  }`.toLocaleUpperCase("pt-BR");
 }
 
-function writeInactiveIds(ids: Set<string>) {
-  if (typeof window === "undefined") return;
+function formatAddress(
+  client: Client,
+) {
+  const address =
+    client.mainAddress;
 
-  window.localStorage.setItem(
-    INACTIVE_STORAGE_KEY,
-    JSON.stringify(Array.from(ids)),
-  );
-}
+  if (!address) {
+    return "Endereço principal não cadastrado";
+  }
 
-function applyLocalInactiveStatus(data: Client[]) {
-  const inactiveIds = readInactiveIds();
-
-  return data.map((item) => ({
-    ...item,
-    active: item.active !== false && !inactiveIds.has(item.id),
-  }));
-}
-
-function fullName(client: Client) {
-  return [client.firstName, client.lastName].filter(Boolean).join(" ") || "—";
-}
-
-function displayName(client: Client) {
-  return client.companyName?.trim() || fullName(client);
-}
-
-function documentText(client: Client) {
-  return client.cnpj || client.cpf || "—";
-}
-
-function poolAddressText(client: Client) {
-  const street = client.poolStreet || client.street;
-  const number = client.poolNumber || client.number;
-  const district = client.poolDistrict || client.district;
-  const city = client.poolCity || client.city;
-  const uf = client.poolUf || client.uf;
-  const cep = client.poolCep || client.cep;
-
-  const line = [
-    street,
-    number,
-    district,
-    city && `${city}${uf ? `/${uf}` : ""}`,
-    cep,
+  const firstLine = [
+    address.street,
+    address.number,
   ]
     .filter(Boolean)
     .join(", ");
 
-  return line || "Piscina sem endereço cadastrado";
-}
-
-function billingAddressText(client: Client) {
-  const line = [
-    client.street,
-    client.number,
-    client.district,
-    client.city && `${client.city}${client.uf ? `/${client.uf}` : ""}`,
-    client.cep,
+  const secondLine = [
+    address.neighborhood,
+    address.city &&
+      `${address.city}${
+        address.state
+          ? `/${address.state}`
+          : ""
+      }`,
   ]
     .filter(Boolean)
-    .join(", ");
+    .join(" • ");
 
-  return line || "Endereço de cobrança não cadastrado";
+  return [firstLine, secondLine]
+    .filter(Boolean)
+    .join(" — ");
+}
+
+function normalizeSearch(
+  value?: string | null,
+) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(
+      /[\u0300-\u036f]/g,
+      "",
+    )
+    .toLocaleLowerCase("pt-BR");
 }
 
 export default function ClientTable({
   initialData,
-  initialSearch = "",
-  initialStatus = "ACTIVE",
-  counts,
-  created = false,
 }: {
   initialData: Client[];
-  initialSearch?: string;
-  initialStatus?: "ACTIVE" | "INACTIVE";
-  counts?: Counts;
-  created?: boolean;
 }) {
   const router = useRouter();
 
-  const [tab, setTab] = React.useState<"active" | "inactive">(
-    initialStatus === "INACTIVE" ? "inactive" : "active",
-  );
+  const [rows, setRows] =
+    React.useState<Client[]>(
+      initialData ?? [],
+    );
 
-  const [q, setQ] = React.useState(initialSearch);
-  const [rows, setRows] = React.useState<Client[]>(
-    applyLocalInactiveStatus(initialData ?? []),
-  );
+  const [tab, setTab] =
+    React.useState<
+      "all" | "active" | "inactive"
+    >("active");
+
+  const [query, setQuery] =
+    React.useState("");
 
   React.useEffect(() => {
-    setRows(applyLocalInactiveStatus(initialData ?? []));
+    setRows(initialData ?? []);
   }, [initialData]);
 
-  React.useEffect(() => {
-    if (created) {
-      toast.success("Cliente cadastrado com sucesso.");
-      router.replace("/clients", { scroll: false });
-    }
-  }, [created, router]);
+  const counts = React.useMemo(() => {
+    const active = rows.filter(
+      (client) => client.active,
+    ).length;
 
-  const localCounts = React.useMemo(() => {
-    const active = rows.filter((client) => client.active !== false).length;
-    const inactive = rows.length - active;
-
-    return { active, inactive };
+    return {
+      total: rows.length,
+      active,
+      inactive: rows.length - active,
+    };
   }, [rows]);
 
-  const effectiveCounts = counts
-    ? {
-        active: localCounts.active,
-        inactive: localCounts.inactive,
-      }
-    : localCounts;
-
-  const byStatus = React.useMemo(
-    () =>
-      rows.filter((client) =>
-        tab === "active" ? client.active !== false : client.active === false,
-      ),
-    [rows, tab],
-  );
-
   const filtered = React.useMemo(() => {
-    const term = q.trim().toLowerCase();
+    const byStatus = rows.filter(
+      (client) => {
+        if (tab === "all") {
+          return true;
+        }
 
-    if (!term) return byStatus;
-
-    const norm = (value?: string | number | null) =>
-      String(value ?? "").toLowerCase();
-
-    return byStatus.filter((client) =>
-      [
-        displayName(client),
-        fullName(client),
-        client.companyName,
-        client.email,
-        client.phone,
-        client.cpf,
-        client.cnpj,
-        client.street,
-        client.number,
-        client.district,
-        client.city,
-        client.uf,
-        client.cep,
-        client.poolStreet,
-        client.poolNumber,
-        client.poolDistrict,
-        client.poolCity,
-        client.poolUf,
-        client.poolCep,
-      ]
-        .map(norm)
-        .some((value) => value.includes(term)),
+        return tab === "active"
+          ? client.active
+          : !client.active;
+      },
     );
-  }, [byStatus, q]);
 
-  const sorted = React.useMemo(() => {
-    const copy = [...filtered];
+    const term =
+      normalizeSearch(query.trim());
 
-    copy.sort((a, b) => {
-      const aKey = displayName(a).toLowerCase();
-      const bKey = displayName(b).toLowerCase();
+    if (!term) {
+      return byStatus;
+    }
 
-      return aKey.localeCompare(bKey, "pt-BR");
-    });
+    return byStatus.filter(
+      (client) => {
+        const searchable = [
+          client.name,
+          client.email,
+          client.phone,
+          client.document,
+          client.mainAddress?.street,
+          client.mainAddress?.number,
+          client.mainAddress
+            ?.neighborhood,
+          client.mainAddress?.city,
+          client.mainAddress?.state,
+          client.mainAddress?.zipCode,
+        ]
+          .map(normalizeSearch)
+          .join(" ");
 
-    return copy;
-  }, [filtered]);
+        return searchable.includes(term);
+      },
+    );
+  }, [query, rows, tab]);
 
-  function handleDeactivate(id: string) {
-    const inactiveIds = readInactiveIds();
-    inactiveIds.add(id);
-    writeInactiveIds(inactiveIds);
-
+  function updateClientInList(
+    client: Client,
+  ) {
     setRows((current) =>
       current.map((item) =>
-        item.id === id ? { ...item, active: false } : item,
+        item.id === client.id
+          ? client
+          : item,
       ),
     );
-
-    setTab("inactive");
-    toast.success("Cliente inativado.");
   }
 
-  function handleReactivate(id: string) {
-    const inactiveIds = readInactiveIds();
-    inactiveIds.delete(id);
-    writeInactiveIds(inactiveIds);
-
+  function removeClientFromList(
+    customerId: string,
+  ) {
     setRows((current) =>
-      current.map((item) =>
-        item.id === id ? { ...item, active: true } : item,
+      current.filter(
+        (item) =>
+          item.id !== customerId,
       ),
     );
-
-    setTab("active");
-    toast.success("Cliente reativado.");
   }
 
-  async function handleDelete(id: string) {
-    await deleteClient(id);
-
-    const inactiveIds = readInactiveIds();
-    inactiveIds.delete(id);
-    writeInactiveIds(inactiveIds);
-
-    setRows((current) => current.filter((item) => item.id !== id));
-
-    toast.success("Cliente excluído definitivamente.");
-    router.refresh();
+  function tabClass(
+    selected: boolean,
+  ) {
+    return [
+      "inline-flex h-10 items-center gap-2 rounded-xl border px-4 text-sm font-semibold transition",
+      selected
+        ? "border-sky-600 bg-sky-600 text-white shadow-sm"
+        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
+    ].join(" ");
   }
-
-  const tabBtn = (active: boolean) =>
-    `h-9 rounded-md px-3 text-sm border ${
-      active
-        ? "btn-brand text-white"
-        : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50"
-    }`;
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setTab("active")}
-            className={tabBtn(tab === "active")}
-          >
-            Ativos ({effectiveCounts.active})
-          </button>
+    <div className="space-y-5">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Total de clientes
+              </p>
 
-          <button
-            type="button"
-            onClick={() => setTab("inactive")}
-            className={tabBtn(tab === "inactive")}
-          >
-            Inativos ({effectiveCounts.inactive})
-          </button>
-        </div>
+              <p className="mt-2 text-2xl font-bold text-slate-950">
+                {counts.total}
+              </p>
+            </div>
 
-        <div className="flex items-center gap-2">
-          <div className="relative w-[280px] sm:w-[420px]">
-            <Search
-              size={16}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
-            />
+            <div className="grid h-11 w-11 place-items-center rounded-xl bg-sky-50 text-sky-700">
+              <UsersRound className="h-5 w-5" />
+            </div>
+          </div>
+        </article>
 
-            <Input
-              value={q}
-              onChange={(event) => setQ(event.target.value)}
-              placeholder="Buscar por nome, telefone, email, CPF/CNPJ ou endereço da piscina…"
-              className="pl-9"
-            />
+        <article className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                Clientes ativos
+              </p>
+
+              <p className="mt-2 text-2xl font-bold text-emerald-800">
+                {counts.active}
+              </p>
+            </div>
+
+            <div className="grid h-11 w-11 place-items-center rounded-xl bg-white text-emerald-700 shadow-sm">
+              <UserCheck className="h-5 w-5" />
+            </div>
+          </div>
+        </article>
+
+        <article className="rounded-2xl border border-amber-200 bg-amber-50/70 p-5 shadow-sm sm:col-span-2 lg:col-span-1">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                Clientes inativos
+              </p>
+
+              <p className="mt-2 text-2xl font-bold text-amber-800">
+                {counts.inactive}
+              </p>
+            </div>
+
+            <div className="grid h-11 w-11 place-items-center rounded-xl bg-white text-amber-700 shadow-sm">
+              <UserX className="h-5 w-5" />
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className={tabClass(
+                tab === "active",
+              )}
+              onClick={() =>
+                setTab("active")
+              }
+            >
+              <UserCheck className="h-4 w-4" />
+              Ativos ({counts.active})
+            </button>
+
+            <button
+              type="button"
+              className={tabClass(
+                tab === "inactive",
+              )}
+              onClick={() =>
+                setTab("inactive")
+              }
+            >
+              <UserX className="h-4 w-4" />
+              Inativos ({counts.inactive})
+            </button>
           </div>
 
-          <Button
-            className="btn-brand text-white"
-            onClick={() => router.push("/clients/new")}
-          >
-            Novo cliente
-          </Button>
-        </div>
-      </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative w-full sm:w-[390px]">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
-      <div className="rounded-xl border bg-white p-3">
-        {sorted.length === 0 ? (
-          <div className="p-6 text-center text-neutral-500">
-            Nenhum cliente encontrado.
+              <Input
+                value={query}
+                onChange={(event) =>
+                  setQuery(
+                    event.target.value,
+                  )
+                }
+                placeholder="Buscar por nome, e-mail, telefone, documento ou endereço..."
+                className="h-10 rounded-xl pl-10"
+              />
+            </div>
+
+            <Button
+              type="button"
+              className="btn-brand h-10 rounded-xl px-5 text-white"
+              onClick={() =>
+                router.push(
+                  "/clients/new",
+                )
+              }
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Novo cliente
+            </Button>
           </div>
-        ) : (
-          <div className="space-y-2">
-            {sorted.map((client) => {
-              const isActive = client.active !== false;
-              const hasCompany = Boolean(client.companyName || client.cnpj);
+        </div>
 
-              return (
-                <div
-                  key={client.id}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-3 transition hover:border-sky-200 hover:bg-sky-50/20"
-                >
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="min-w-0 truncate text-base font-semibold text-slate-900">
-                          {displayName(client)}
+        <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-sm">
+              <thead className="bg-slate-50">
+                <tr className="border-b border-slate-200">
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Cliente
+                  </th>
+
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Contato
+                  </th>
+
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Endereço principal
+                  </th>
+
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Status
+                  </th>
+
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Ações
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {filtered.map(
+                  (client) => (
+                    <tr
+                      key={client.id}
+                      className="border-b border-slate-100 transition last:border-b-0 hover:bg-slate-50/70"
+                    >
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-xs font-bold text-sky-700">
+                            {getInitials(
+                              client.name,
+                            )}
+                          </div>
+
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold text-slate-900">
+                              {client.name}
+                            </p>
+
+                            <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-400">
+                              {client.document ? (
+                                <Building2 className="h-3.5 w-3.5" />
+                              ) : (
+                                <UserRound className="h-3.5 w-3.5" />
+                              )}
+
+                              <span>
+                                {client.document ||
+                                  "Documento não informado"}
+                              </span>
+                            </div>
+                          </div>
                         </div>
+                      </td>
 
-                        <span
-                          className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${
-                            isActive
-                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                              : "border-neutral-300 bg-neutral-100 text-neutral-700"
-                          }`}
-                        >
-                          {isActive ? "Ativo" : "Inativo"}
-                        </span>
+                      <td className="px-4 py-4">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2 text-slate-700">
+                            <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400" />
 
-                        {hasCompany && (
-                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                            Empresa
-                          </span>
-                        )}
-                      </div>
+                            <span className="truncate">
+                              {client.email ||
+                                "E-mail não informado"}
+                            </span>
+                          </div>
 
-                      {client.companyName && fullName(client) !== client.companyName && (
-                        <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-slate-500">
-                          <UserRound className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">
-                            Responsável: {fullName(client)}
-                          </span>
+                          <div className="flex items-center gap-2 text-xs text-slate-500">
+                            <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+
+                            <span>
+                              {client.phone ||
+                                "Telefone não informado"}
+                            </span>
+                          </div>
                         </div>
-                      )}
+                      </td>
 
-                      <div className="mt-2 grid gap-x-6 gap-y-1 text-sm text-slate-600 lg:grid-cols-[220px_1fr]">
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                          <span className="truncate">
-                            {client.phone || "Telefone não cadastrado"}
-                          </span>
-                        </div>
+                      <td className="max-w-[330px] px-4 py-4">
+                        <div className="flex items-start gap-2">
+                          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
 
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                          <span className="truncate">
-                            {client.email || "Email não cadastrado"}
-                          </span>
-                        </div>
-
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          <Building2 className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                          <span className="truncate">
-                            CPF/CNPJ: {documentText(client)}
-                          </span>
-                        </div>
-
-                        <div
-                          className="flex min-w-0 items-center gap-1.5"
-                          title={poolAddressText(client)}
-                        >
-                          <MapPin className="h-3.5 w-3.5 shrink-0 text-sky-500" />
-                          <span className="truncate">
-                            Piscina: {poolAddressText(client)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex shrink-0 items-center justify-end">
-                      <ClientForm
-                        id={client.id}
-                        defaultValues={client as any}
-                        onDeactivate={() => handleDeactivate(client.id)}
-                        onReactivate={() => handleReactivate(client.id)}
-                        onDelete={() => handleDelete(client.id)}
-                        trigger={
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-9 w-9 rounded-md p-0 bg-orange-500 hover:bg-orange-600 text-white shrink-0"
-                            title="Visualizar cliente"
-                            aria-label="Visualizar cliente"
+                          <span
+                            className="line-clamp-2 text-sm leading-5 text-slate-600"
+                            title={formatAddress(
+                              client,
+                            )}
                           >
-                            <Pencil size={16} />
-                          </Button>
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+                            {formatAddress(
+                              client,
+                            )}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <span
+                          className={[
+                            "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
+                            client.active
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : "border-amber-200 bg-amber-50 text-amber-700",
+                          ].join(" ")}
+                        >
+                          {client.active
+                            ? "Ativo"
+                            : "Inativo"}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <div className="flex justify-end">
+                          <ClientForm
+                            clientId={
+                              client.id
+                            }
+                            summary={
+                              client
+                            }
+                            onUpdated={
+                              updateClientInList
+                            }
+                            onDeleted={() =>
+                              removeClientFromList(
+                                client.id,
+                              )
+                            }
+                            trigger={
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-9 w-9 rounded-xl border-slate-200 p-0 text-slate-600 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
+                                title="Visualizar cliente"
+                                aria-label="Visualizar cliente"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            }
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  ),
+                )}
+
+                {filtered.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-6 py-14 text-center"
+                    >
+                      <UserRound className="mx-auto h-9 w-9 text-slate-300" />
+
+                      <h3 className="mt-3 text-sm font-semibold text-slate-700">
+                        Nenhum cliente encontrado
+                      </h3>
+
+                      <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-slate-400">
+                        Não existem clientes nesta categoria ou nenhum resultado corresponde à busca.
+                      </p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+        </div>
+      </section>
     </div>
   );
 }

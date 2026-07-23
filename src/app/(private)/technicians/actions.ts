@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 
-const API_URL = process.env.API_URL ?? "http://localhost:5264";
+const API_URL =
+  process.env.API_URL ??
+  "http://localhost:5264";
 
 type ApiEmployee = {
   id: string;
@@ -11,19 +13,18 @@ type ApiEmployee = {
   name?: string | null;
   email: string;
   phone?: string | null;
-  cpf?: string | null;
-  document?: string | null;
-  documentNumber?: string | null;
-  status?: "ACTIVE" | "INACTIVE" | string;
+  status?:
+    | "ACTIVE"
+    | "INACTIVE"
+    | string;
 };
 
-type Tech = {
+export type Tech = {
   id: string;
   firstName: string;
   lastName: string;
   email: string;
   phone?: string | null;
-  cpf?: string | null;
   active: boolean;
   role: "OWNER" | "TECH";
 };
@@ -42,15 +43,24 @@ type ApiError = {
 async function getAuthFromCookies() {
   const cookieStore = await cookies();
 
-  const token = cookieStore.get("mappa_access_token")?.value;
-  const companyId = cookieStore.get("mappa_company_id")?.value;
+  const token = cookieStore.get(
+    "mappa_access_token",
+  )?.value;
+
+  const companyId = cookieStore.get(
+    "mappa_company_id",
+  )?.value;
 
   if (!token) {
-    throw new Error("Token não encontrado. Faça login novamente.");
+    throw new Error(
+      "Token não encontrado. Faça login novamente.",
+    );
   }
 
   if (!companyId) {
-    throw new Error("Empresa não encontrada. Faça login novamente.");
+    throw new Error(
+      "Empresa não encontrada. Faça login novamente.",
+    );
   }
 
   return {
@@ -59,9 +69,14 @@ async function getAuthFromCookies() {
   };
 }
 
-function parseApiError(status: number, text: string) {
+function parseApiError(
+  status: number,
+  text: string,
+) {
   try {
-    const json = JSON.parse(text) as ApiError;
+    const json = JSON.parse(
+      text,
+    ) as ApiError;
 
     const message =
       json.errors?.[0]?.message ||
@@ -81,7 +96,7 @@ function parseApiError(status: number, text: string) {
     if (status === 409) {
       return (
         message ||
-        "Não foi possível excluir. Funcionário possui ordens de serviço vinculadas."
+        "Já existe um usuário cadastrado com esse e-mail."
       );
     }
 
@@ -96,24 +111,35 @@ function parseApiError(status: number, text: string) {
     }
 
     if (status === 409) {
-      return "Não foi possível excluir. Funcionário possui ordens de serviço vinculadas.";
+      return "Já existe um usuário cadastrado com esse e-mail ou o técnico possui registros vinculados.";
     }
 
     return `Erro ${status}: ${text}`;
   }
 }
 
-function splitName(name?: string | null) {
-  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+function splitName(
+  name?: string | null,
+) {
+  const parts = (name ?? "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
 
   return {
     firstName: parts[0] ?? "",
-    lastName: parts.slice(1).join(" "),
+    lastName:
+      parts.slice(1).join(" "),
   };
 }
 
-function normalizeEmployee(employee: ApiEmployee): Tech {
-  const { firstName, lastName } = splitName(employee.name);
+function normalizeEmployee(
+  employee: ApiEmployee,
+): Tech {
+  const {
+    firstName,
+    lastName,
+  } = splitName(employee.name);
 
   return {
     id: employee.userId || employee.id,
@@ -121,13 +147,15 @@ function normalizeEmployee(employee: ApiEmployee): Tech {
     lastName,
     email: employee.email,
     phone: employee.phone ?? null,
-    cpf: employee.cpf ?? employee.document ?? employee.documentNumber ?? null,
-    active: employee.status !== "INACTIVE",
+    active:
+      employee.status !== "INACTIVE",
     role: "TECH",
   };
 }
 
-function extractEmployees(payload: unknown): ApiEmployee[] {
+function extractEmployees(
+  payload: unknown,
+): ApiEmployee[] {
   if (Array.isArray(payload)) {
     return payload as ApiEmployee[];
   }
@@ -136,34 +164,60 @@ function extractEmployees(payload: unknown): ApiEmployee[] {
     payload &&
     typeof payload === "object" &&
     "items" in payload &&
-    Array.isArray((payload as { items?: unknown }).items)
+    Array.isArray(
+      (payload as { items?: unknown })
+        .items,
+    )
   ) {
-    return (payload as { items: ApiEmployee[] }).items;
+    return (
+      payload as {
+        items: ApiEmployee[];
+      }
+    ).items;
   }
 
   if (
     payload &&
     typeof payload === "object" &&
     "employees" in payload &&
-    Array.isArray((payload as { employees?: unknown }).employees)
+    Array.isArray(
+      (
+        payload as {
+          employees?: unknown;
+        }
+      ).employees,
+    )
   ) {
-    return (payload as { employees: ApiEmployee[] }).employees;
+    return (
+      payload as {
+        employees: ApiEmployee[];
+      }
+    ).employees;
   }
 
   if (
     payload &&
     typeof payload === "object" &&
     "data" in payload &&
-    Array.isArray((payload as { data?: unknown }).data)
+    Array.isArray(
+      (payload as { data?: unknown }).data,
+    )
   ) {
-    return (payload as { data: ApiEmployee[] }).data;
+    return (
+      payload as {
+        data: ApiEmployee[];
+      }
+    ).data;
   }
 
   return [];
 }
 
-export async function listTechnicians(): Promise<Tech[]> {
-  const { token, companyId } = await getAuthFromCookies();
+export async function listTechnicians(): Promise<
+  Tech[]
+> {
+  const { token, companyId } =
+    await getAuthFromCookies();
 
   const response = await fetch(
     `${API_URL}/api/companies/${companyId}/employees`,
@@ -173,64 +227,116 @@ export async function listTechnicians(): Promise<Tech[]> {
         Authorization: `Bearer ${token}`,
       },
       cache: "no-store",
-    }
+    },
   );
 
   const text = await response.text();
 
   if (!response.ok) {
-    throw new Error(parseApiError(response.status, text));
+    throw new Error(
+      parseApiError(
+        response.status,
+        text,
+      ),
+    );
   }
 
-  const json = text ? JSON.parse(text) : [];
-  const employees = extractEmployees(json);
+  const json = text
+    ? JSON.parse(text)
+    : [];
 
-  return employees.map(normalizeEmployee);
+  const employees =
+    extractEmployees(json);
+
+  return employees
+    .map(normalizeEmployee)
+    .sort((first, second) => {
+      const firstName = [
+        first.firstName,
+        first.lastName,
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      const secondName = [
+        second.firstName,
+        second.lastName,
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      return firstName.localeCompare(
+        secondName,
+        "pt-BR",
+      );
+    });
 }
 
-export async function createTechnician(data: {
-  name: string;
-  email: string;
-  password: string;
-  phone?: string;
-}) {
-  const { token, companyId } = await getAuthFromCookies();
+export async function createTechnician(
+  data: {
+    name: string;
+    email: string;
+    password: string;
+    phone?: string;
+  },
+) {
+  const { token, companyId } =
+    await getAuthFromCookies();
 
   const response = await fetch(
     `${API_URL}/api/companies/${companyId}/employees`,
     {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type":
+          "application/json",
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         name: data.name.trim(),
-        email: data.email.trim(),
-        password: data.password.trim(),
-        phone: data.phone?.trim() || "",
+        email: data.email
+          .trim()
+          .toLocaleLowerCase("pt-BR"),
+        password:
+          data.password.trim(),
+        phone:
+          data.phone?.trim() || "",
       }),
       cache: "no-store",
-    }
+    },
   );
 
   const text = await response.text();
 
   if (!response.ok) {
-    throw new Error(parseApiError(response.status, text));
+    throw new Error(
+      parseApiError(
+        response.status,
+        text,
+      ),
+    );
   }
 
   revalidatePath("/technicians");
+  revalidatePath("/dashboard");
+  revalidatePath("/routes/builder");
 
-  return text ? JSON.parse(text) : true;
+  return text
+    ? JSON.parse(text)
+    : true;
 }
 
-export async function deleteTechnician(employeeUserId: string) {
+export async function deleteTechnician(
+  employeeUserId: string,
+) {
   if (!employeeUserId) {
-    throw new Error("ID do técnico não informado.");
+    throw new Error(
+      "ID do técnico não informado.",
+    );
   }
 
-  const { token, companyId } = await getAuthFromCookies();
+  const { token, companyId } =
+    await getAuthFromCookies();
 
   const response = await fetch(
     `${API_URL}/api/companies/${companyId}/employees/${employeeUserId}`,
@@ -240,16 +346,23 @@ export async function deleteTechnician(employeeUserId: string) {
         Authorization: `Bearer ${token}`,
       },
       cache: "no-store",
-    }
+    },
   );
 
   const text = await response.text();
 
   if (!response.ok) {
-    throw new Error(parseApiError(response.status, text));
+    throw new Error(
+      parseApiError(
+        response.status,
+        text,
+      ),
+    );
   }
 
   revalidatePath("/technicians");
+  revalidatePath("/dashboard");
+  revalidatePath("/routes/builder");
 
   return true;
 }

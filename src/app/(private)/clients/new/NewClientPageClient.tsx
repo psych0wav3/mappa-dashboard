@@ -2,779 +2,636 @@
 
 import * as React from "react";
 import { useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { z } from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-
-import { Button } from "@/components/ui/button";
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { MaskedInput } from "@/components/ui/MaskedInput";
+  Building2,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Loader2,
+  Mail,
+  MapPin,
+  Phone,
+  Save,
+  UserRound,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+
 import { createClient } from "@/app/(private)/clients/actions";
 
-const schema = z.object({
-  firstName: z.string().min(2, "Informe o nome"),
-  lastName: z.string().min(2, "Informe o sobrenome"),
-  email: z.string().email("Email inválido"),
-  phone: z.string().optional(),
-  cpf: z.string().optional(),
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { MaskedInput } from "@/components/ui/MaskedInput";
 
-  hasCompany: z.boolean().optional(),
-  companyName: z.string().optional(),
-  cnpj: z.string().optional(),
+type FormState = {
+  name: string;
+  document: string;
+  phone: string;
+  email: string;
+  password: string;
 
-  cep: z.string().optional(),
-  street: z.string().optional(),
-  number: z.string().optional(),
-  district: z.string().optional(),
-  city: z.string().optional(),
-  uf: z.string().max(2).optional(),
+  zipCode: string;
+  street: string;
+  number: string;
+  complement: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+};
 
-  notes: z.string().optional(),
+const initialState: FormState = {
+  name: "",
+  document: "",
+  phone: "",
+  email: "",
+  password: "123456",
 
-  poolCep: z.string().optional(),
-  poolStreet: z.string().optional(),
-  poolNumber: z.string().optional(),
-  poolDistrict: z.string().optional(),
-  poolCity: z.string().optional(),
-  poolUf: z.string().max(2).optional(),
+  zipCode: "",
+  street: "",
+  number: "",
+  complement: "",
+  neighborhood: "",
+  city: "",
+  state: "",
+};
 
-  technicianId: z.string().optional(),
-  days: z
-    .array(z.enum(["dom", "seg", "ter", "qua", "qui", "sex", "sab"]))
-    .optional(),
+function onlyDigits(value: string) {
+  return value.replace(/\D+/g, "");
+}
 
-  active: z.boolean().optional(),
-});
+async function fetchViaCep(
+  zipCode: string,
+) {
+  const digits =
+    onlyDigits(zipCode);
 
-type Values = z.infer<typeof schema>;
-
-type SectionKey = "client" | "billing" | "pool";
-
-const onlyDigits = (s: string) => s.replace(/\D+/g, "");
-
-async function fetchViaCep(cepDigits: string) {
-  const res = await fetch(`https://viacep.com.br/ws/${cepDigits}/json/`);
-
-  if (!res.ok) {
-    throw new Error("Falha ao consultar CEP");
+  if (digits.length !== 8) {
+    throw new Error(
+      "O CEP deve possuir 8 dígitos.",
+    );
   }
 
-  const data = await res.json();
+  const response = await fetch(
+    `https://viacep.com.br/ws/${digits}/json/`,
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      "Não foi possível consultar o CEP.",
+    );
+  }
+
+  const data = await response.json();
 
   if (data?.erro) {
-    return null;
+    throw new Error(
+      "CEP não encontrado.",
+    );
   }
 
   return {
-    street: data?.logradouro ?? "",
-    district: data?.bairro ?? "",
-    city: data?.localidade ?? "",
-    uf: data?.uf ?? "",
+    street: data.logradouro || "",
+    neighborhood:
+      data.bairro || "",
+    city: data.localidade || "",
+    state: data.uf || "",
   };
 }
 
-function buildDefaults(): Values {
-  return {
-    firstName: "",
-    lastName: "",
-    email: "",
-    phone: "",
-    cpf: "",
+function FieldLabel({
+  children,
+  required = false,
+}: {
+  children: React.ReactNode;
+  required?: boolean;
+}) {
+  return (
+    <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+      {children}
 
-    hasCompany: false,
-    companyName: "",
-    cnpj: "",
-
-    cep: "",
-    street: "",
-    number: "",
-    district: "",
-    city: "",
-    uf: "",
-
-    notes: "",
-
-    poolCep: "",
-    poolStreet: "",
-    poolNumber: "",
-    poolDistrict: "",
-    poolCity: "",
-    poolUf: "",
-
-    technicianId: "",
-    days: [],
-
-    active: true,
-  };
+      {required && (
+        <span className="ml-1 text-red-500">
+          *
+        </span>
+      )}
+    </label>
+  );
 }
 
-function hasText(value?: string | null) {
-  return Boolean(String(value ?? "").trim());
-}
+function SectionHeader({
+  icon,
+  title,
+  description,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="mb-5 flex items-start gap-3">
+      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
+        {icon}
+      </div>
 
-function hasDigits(value?: string | null) {
-  return onlyDigits(String(value ?? "")).length > 0;
-}
+      <div>
+        <h2 className="font-bold text-slate-950">
+          {title}
+        </h2>
 
-function isEmailValid(value?: string | null) {
-  return z.string().email().safeParse(value).success;
+        <p className="mt-0.5 text-sm leading-5 text-slate-500">
+          {description}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export default function NewClientPageClient() {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
-  const [openSection, setOpenSection] = React.useState<SectionKey>("client");
 
-  const form = useForm<Values>({
-    resolver: zodResolver(schema),
-    defaultValues: buildDefaults(),
-  });
-
-  const watchedValues = form.watch();
-  const hasCompany = watchedValues.hasCompany;
-
-  const canSubmit = React.useMemo(() => {
-    const hasClientData =
-      hasText(watchedValues.firstName) &&
-      hasText(watchedValues.lastName) &&
-      isEmailValid(watchedValues.email) &&
-      hasDigits(watchedValues.phone) &&
-      hasDigits(watchedValues.cpf);
-
-    const hasCompanyData = watchedValues.hasCompany
-      ? hasText(watchedValues.companyName) && hasDigits(watchedValues.cnpj)
-      : true;
-
-    const hasBillingAddress =
-      hasDigits(watchedValues.cep) &&
-      hasText(watchedValues.street) &&
-      hasText(watchedValues.number) &&
-      hasText(watchedValues.district) &&
-      hasText(watchedValues.city) &&
-      hasText(watchedValues.uf);
-
-    const hasPoolAddress =
-      hasDigits(watchedValues.poolCep) &&
-      hasText(watchedValues.poolStreet) &&
-      hasText(watchedValues.poolNumber) &&
-      hasText(watchedValues.poolDistrict) &&
-      hasText(watchedValues.poolCity) &&
-      hasText(watchedValues.poolUf);
-
-    return (
-      hasClientData &&
-      hasCompanyData &&
-      hasBillingAddress &&
-      hasPoolAddress
+  const [form, setForm] =
+    React.useState<FormState>(
+      initialState,
     );
-  }, [watchedValues]);
 
-  const copyBillingToPool = () => {
-    const v = form.getValues();
+  const [showPassword, setShowPassword] =
+    React.useState(false);
 
-    form.setValue("poolCep", v.cep || "", {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
-    form.setValue("poolStreet", v.street || "", {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
-    form.setValue("poolNumber", v.number || "", {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
-    form.setValue("poolDistrict", v.district || "", {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
-    form.setValue("poolCity", v.city || "", {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
-    form.setValue("poolUf", v.uf || "", {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
+  const [errorMessage, setErrorMessage] =
+    React.useState<string | null>(null);
 
-    setOpenSection("pool");
+  const [pending, startTransition] =
+    useTransition();
 
-    toast.message("Localização da piscina copiada do endereço de cobrança");
-  };
+  const canSubmit =
+    form.name.trim().length >= 2 &&
+    form.email.includes("@") &&
+    form.password.length >= 6 &&
+    form.street.trim().length > 0 &&
+    form.city.trim().length > 0 &&
+    form.state.trim().length === 2 &&
+    !pending;
 
-  const tryFillByCep = async (cepField: "cep" | "poolCep") => {
-    const raw = form.getValues(cepField) || "";
-    const digits = onlyDigits(raw);
+  function updateField<
+    Key extends keyof FormState,
+  >(
+    field: Key,
+    value: FormState[Key],
+  ) {
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
 
-    if (digits.length !== 8) {
-      toast.error("CEP deve ter 8 dígitos");
+  async function handleZipCodeBlur() {
+    const digits = onlyDigits(
+      form.zipCode,
+    );
+
+    if (!digits) {
       return;
     }
 
     try {
-      const addr = await fetchViaCep(digits);
+      const address =
+        await fetchViaCep(digits);
 
-      if (!addr) {
-        toast.error("CEP não encontrado");
-        return;
-      }
+      setForm((current) => ({
+        ...current,
+        ...address,
+      }));
 
-      if (cepField === "cep") {
-        form.setValue("street", addr.street, {
-          shouldDirty: true,
-          shouldValidate: true,
-        });
-        form.setValue("district", addr.district, {
-          shouldDirty: true,
-          shouldValidate: true,
-        });
-        form.setValue("city", addr.city, {
-          shouldDirty: true,
-          shouldValidate: true,
-        });
-        form.setValue("uf", addr.uf, {
-          shouldDirty: true,
-          shouldValidate: true,
-        });
-      } else {
-        form.setValue("poolStreet", addr.street, {
-          shouldDirty: true,
-          shouldValidate: true,
-        });
-        form.setValue("poolDistrict", addr.district, {
-          shouldDirty: true,
-          shouldValidate: true,
-        });
-        form.setValue("poolCity", addr.city, {
-          shouldDirty: true,
-          shouldValidate: true,
-        });
-        form.setValue("poolUf", addr.uf, {
-          shouldDirty: true,
-          shouldValidate: true,
-        });
-      }
-
-      toast.success("Endereço preenchido pelo CEP");
-    } catch (e: any) {
-      toast.error(e?.message || "Falha ao consultar CEP");
+      toast.success(
+        "Endereço preenchido pelo CEP.",
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível consultar o CEP.",
+      );
     }
-  };
+  }
 
-  const onSubmit = (values: Values) =>
+  function handleSubmit(
+    event: React.FormEvent,
+  ) {
+    event.preventDefault();
+
+    if (!canSubmit) {
+      return;
+    }
+
     startTransition(async () => {
       try {
         setErrorMessage(null);
 
-        if (!canSubmit) {
-          toast.error("Preencha todos os dados obrigatórios antes de salvar.");
-          return;
-        }
+        await createClient({
+          name: form.name,
+          email: form.email,
+          password: form.password,
+          phone: form.phone,
+          document: form.document,
 
-        if (!values.hasCompany) {
-          values.companyName = "";
-          values.cnpj = "";
-        }
+          address: {
+            zipCode:
+              form.zipCode,
+            street: form.street,
+            number: form.number,
+            complement:
+              form.complement,
+            neighborhood:
+              form.neighborhood,
+            city: form.city,
+            state: form.state,
+            latitude: null,
+            longitude: null,
+          },
+        });
 
-        await createClient(values);
+        toast.success(
+          "Cliente cadastrado com sucesso.",
+        );
 
-        router.push("/clients?created=1");
+        router.push("/clients");
         router.refresh();
-      } catch (e: any) {
-        const message = e?.message || "Erro ao salvar cliente";
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Não foi possível cadastrar o cliente.";
 
         setErrorMessage(message);
         toast.error(message);
       }
     });
-
-  const handleCancel = () => {
-    form.reset(buildDefaults());
-    router.push("/clients");
-  };
+  }
 
   return (
-    <Form {...form}>
-      <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
-        {errorMessage && (
-          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {errorMessage}
-          </div>
-        )}
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-5"
+    >
+      {errorMessage && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {errorMessage}
+        </div>
+      )}
 
-        <CollapsibleSection
-          title="Dados do cliente"
-          description="Nome, contato, documento e dados de empresa."
-          open={openSection === "client"}
-          onOpen={() => setOpenSection("client")}
-        >
-          <section className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <FormField
-                name="firstName"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nome</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                name="lastName"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Sobrenome</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              name="email"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input type="email" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <FormField
-                name="phone"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Telefone</FormLabel>
-                    <FormControl>
-                      <MaskedInput mask="(99) 99999-9999" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                name="cpf"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>CPF</FormLabel>
-                    <FormControl>
-                      <MaskedInput mask="999.999.999-99" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <label className="inline-flex select-none items-center gap-2">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-neutral-300"
-                checked={!!hasCompany}
-                onChange={(e) =>
-                  form.setValue("hasCompany", e.target.checked, {
-                    shouldDirty: true,
-                    shouldValidate: true,
-                  })
-                }
-              />
-              <span className="text-sm text-neutral-700">
-                Cadastrar empresa
-              </span>
-            </label>
-
-            {hasCompany && (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <FormField
-                  name="companyName"
-                  control={form.control}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nome da empresa</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  name="cnpj"
-                  control={form.control}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>CNPJ</FormLabel>
-                      <FormControl>
-                        <MaskedInput mask="99.999.999/9999-99" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            )}
-          </section>
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          title="Endereço de cobrança e informações úteis"
-          description="Endereço principal do cliente e observações internas."
-          open={openSection === "billing"}
-          onOpen={() => setOpenSection("billing")}
-        >
-          <section className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
-              <FormField
-                name="cep"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem className="sm:col-span-3">
-                    <FormLabel>CEP</FormLabel>
-                    <FormControl>
-                      <MaskedInput
-                        mask="99999-999"
-                        {...field}
-                        onBlur={async () => {
-                          await tryFillByCep("cep");
-                        }}
-                        onChange={(e) => {
-                          field.onChange(e);
-
-                          const digits = onlyDigits(e.target.value);
-
-                          if (digits.length === 8) {
-                            tryFillByCep("cep");
-                          }
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                name="city"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem className="sm:col-span-3">
-                    <FormLabel>Cidade</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                name="uf"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem className="sm:col-span-1">
-                    <FormLabel>UF</FormLabel>
-                    <FormControl>
-                      <Input
-                        maxLength={2}
-                        className="text-center sm:max-w-[64px]"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                name="district"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem className="sm:col-span-5">
-                    <FormLabel>Bairro</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-              <FormField
-                name="street"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem className="sm:col-span-3">
-                    <FormLabel>Endereço</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                name="number"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem className="sm:col-span-1">
-                    <FormLabel>Número</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              name="notes"
-              control={form.control}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Observações</FormLabel>
-                  <FormControl>
-                    <Textarea rows={3} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </section>
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          title="Localização da piscina"
-          description="Endereço onde o serviço será realizado."
-          open={openSection === "pool"}
-          onOpen={() => setOpenSection("pool")}
-          action={
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={copyBillingToPool}
-            >
-              Usar o mesmo do endereço de cobrança
-            </Button>
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <SectionHeader
+          icon={
+            <UserRound className="h-5 w-5" />
           }
-        >
-          <section className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
-              <FormField
-                name="poolCep"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem className="sm:col-span-3">
-                    <FormLabel>CEP</FormLabel>
-                    <FormControl>
-                      <MaskedInput
-                        mask="99999-999"
-                        {...field}
-                        onBlur={async () => {
-                          await tryFillByCep("poolCep");
-                        }}
-                        onChange={(e) => {
-                          field.onChange(e);
+          title="Identificação do cliente"
+          description="Informe os dados principais do responsável ou da empresa."
+        />
 
-                          const digits = onlyDigits(e.target.value);
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <FieldLabel required>
+              Nome completo ou razão social
+            </FieldLabel>
 
-                          if (digits.length === 8) {
-                            tryFillByCep("poolCep");
-                          }
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <Input
+              value={form.name}
+              onChange={(event) =>
+                updateField(
+                  "name",
+                  event.target.value,
+                )
+              }
+              placeholder="Ex.: Magno Nascimento ou Piscinas Azul Ltda."
+              className="h-11 rounded-xl"
+            />
+          </div>
 
-              <FormField
-                name="poolCity"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem className="sm:col-span-3">
-                    <FormLabel>Cidade</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+          <div>
+            <FieldLabel>
+              CPF ou CNPJ
+            </FieldLabel>
 
-              <FormField
-                name="poolUf"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem className="sm:col-span-1">
-                    <FormLabel>UF</FormLabel>
-                    <FormControl>
-                      <Input
-                        maxLength={2}
-                        className="text-center sm:max-w-[64px]"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <Input
+              value={form.document}
+              onChange={(event) =>
+                updateField(
+                  "document",
+                  event.target.value,
+                )
+              }
+              placeholder="Informe somente se necessário"
+              className="h-11 rounded-xl"
+            />
 
-              <FormField
-                name="poolDistrict"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem className="sm:col-span-5">
-                    <FormLabel>Bairro</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+            <p className="mt-1.5 text-xs text-slate-400">
+              O sistema enviará somente os números para a API.
+            </p>
+          </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-              <FormField
-                name="poolStreet"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem className="sm:col-span-3">
-                    <FormLabel>Endereço</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+          <div>
+            <FieldLabel>
+              Telefone
+            </FieldLabel>
 
-              <FormField
-                name="poolNumber"
-                control={form.control}
-                render={({ field }) => (
-                  <FormItem className="sm:col-span-1">
-                    <FormLabel>Número</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+            <MaskedInput
+              mask="(99) 99999-9999"
+              value={form.phone}
+              onChange={(event) =>
+                updateField(
+                  "phone",
+                  event.target.value,
+                )
+              }
+              className="h-11 rounded-xl"
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <SectionHeader
+          icon={
+            <KeyRound className="h-5 w-5" />
+          }
+          title="Acesso ao aplicativo"
+          description="Essas informações serão utilizadas pelo cliente para acessar o app."
+        />
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <FieldLabel required>
+              E-mail de acesso
+            </FieldLabel>
+
+            <div className="relative">
+              <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+
+              <Input
+                type="email"
+                value={form.email}
+                onChange={(event) =>
+                  updateField(
+                    "email",
+                    event.target.value,
+                  )
+                }
+                placeholder="cliente@email.com"
+                className="h-11 rounded-xl pl-10"
               />
             </div>
-          </section>
-        </CollapsibleSection>
+          </div>
 
-        <div className="mt-6 flex items-center justify-between">
+          <div>
+            <FieldLabel required>
+              Senha inicial
+            </FieldLabel>
+
+            <div className="relative">
+              <Input
+                type={
+                  showPassword
+                    ? "text"
+                    : "password"
+                }
+                value={form.password}
+                onChange={(event) =>
+                  updateField(
+                    "password",
+                    event.target.value,
+                  )
+                }
+                className="h-11 rounded-xl pr-11"
+              />
+
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                onClick={() =>
+                  setShowPassword(
+                    (current) =>
+                      !current,
+                  )
+                }
+                aria-label={
+                  showPassword
+                    ? "Ocultar senha"
+                    : "Mostrar senha"
+                }
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+
+            <p className="mt-1.5 text-xs text-slate-400">
+              Mínimo de 6 caracteres.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <SectionHeader
+          icon={
+            <MapPin className="h-5 w-5" />
+          }
+          title="Endereço principal da piscina"
+          description="Este endereço será utilizado automaticamente nas ordens, planos recorrentes e rotas."
+        />
+
+        <div className="grid gap-4 sm:grid-cols-12">
+          <div className="sm:col-span-3">
+            <FieldLabel>
+              CEP
+            </FieldLabel>
+
+            <MaskedInput
+              mask="99999-999"
+              value={form.zipCode}
+              onChange={(event) =>
+                updateField(
+                  "zipCode",
+                  event.target.value,
+                )
+              }
+              onBlur={
+                handleZipCodeBlur
+              }
+              className="h-11 rounded-xl"
+            />
+          </div>
+
+          <div className="sm:col-span-7">
+            <FieldLabel required>
+              Cidade
+            </FieldLabel>
+
+            <Input
+              value={form.city}
+              onChange={(event) =>
+                updateField(
+                  "city",
+                  event.target.value,
+                )
+              }
+              className="h-11 rounded-xl"
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <FieldLabel required>
+              UF
+            </FieldLabel>
+
+            <Input
+              maxLength={2}
+              value={form.state}
+              onChange={(event) =>
+                updateField(
+                  "state",
+                  event.target.value.toUpperCase(),
+                )
+              }
+              className="h-11 rounded-xl text-center"
+            />
+          </div>
+
+          <div className="sm:col-span-8">
+            <FieldLabel required>
+              Endereço
+            </FieldLabel>
+
+            <Input
+              value={form.street}
+              onChange={(event) =>
+                updateField(
+                  "street",
+                  event.target.value,
+                )
+              }
+              placeholder="Rua, avenida ou estrada"
+              className="h-11 rounded-xl"
+            />
+          </div>
+
+          <div className="sm:col-span-4">
+            <FieldLabel>
+              Número
+            </FieldLabel>
+
+            <Input
+              value={form.number}
+              onChange={(event) =>
+                updateField(
+                  "number",
+                  event.target.value,
+                )
+              }
+              className="h-11 rounded-xl"
+            />
+          </div>
+
+          <div className="sm:col-span-6">
+            <FieldLabel>
+              Bairro
+            </FieldLabel>
+
+            <Input
+              value={
+                form.neighborhood
+              }
+              onChange={(event) =>
+                updateField(
+                  "neighborhood",
+                  event.target.value,
+                )
+              }
+              className="h-11 rounded-xl"
+            />
+          </div>
+
+          <div className="sm:col-span-6">
+            <FieldLabel>
+              Complemento
+            </FieldLabel>
+
+            <Input
+              value={form.complement}
+              onChange={(event) =>
+                updateField(
+                  "complement",
+                  event.target.value,
+                )
+              }
+              placeholder="Casa, bloco, referência..."
+              className="h-11 rounded-xl"
+            />
+          </div>
+        </div>
+
+        <div className="mt-5 flex items-start gap-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+          <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+
+          <p className="leading-6">
+            Outros endereços ou piscinas poderão ser adicionados depois, nos
+            detalhes do cliente.
+          </p>
+        </div>
+      </section>
+
+      <div className="sticky bottom-0 z-20 -mx-4 border-t border-slate-200 bg-white/95 px-4 py-4 shadow-[0_-8px_24px_rgba(15,23,42,0.05)] backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+        <div className="mx-auto flex max-w-7xl flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.back()}
-            className="border-slate-300 text-slate-700"
+            className="rounded-xl"
+            onClick={() =>
+              router.back()
+            }
+            disabled={pending}
           >
             Voltar
           </Button>
 
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" onClick={handleCancel}>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1 rounded-xl sm:flex-none"
+              onClick={() =>
+                router.push(
+                  "/clients",
+                )
+              }
+              disabled={pending}
+            >
               Cancelar
             </Button>
 
             <Button
               type="submit"
-              disabled={pending || !canSubmit}
-              className="btn-brand text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="btn-brand flex-1 rounded-xl px-6 text-white sm:flex-none"
+              disabled={!canSubmit}
             >
-              {pending ? "Criando..." : "Criar cliente"}
+              {pending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Criando...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Criar cliente
+                </>
+              )}
             </Button>
           </div>
         </div>
-      </form>
-    </Form>
-  );
-}
-
-function CollapsibleSection({
-  title,
-  description,
-  open,
-  onOpen,
-  action,
-  children,
-}: {
-  title: string;
-  description?: string;
-  open: boolean;
-  onOpen: () => void;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
-        <button
-          type="button"
-          onClick={onOpen}
-          className="flex min-w-0 flex-1 items-center gap-3 text-left"
-        >
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-sm font-semibold text-slate-700">
-            {open ? "−" : "+"}
-          </span>
-
-          <span className="min-w-0">
-            <span className="block text-sm font-semibold text-slate-800">
-              {title}
-            </span>
-
-            {description && (
-              <span className="block truncate text-xs text-slate-500">
-                {description}
-              </span>
-            )}
-          </span>
-        </button>
-
-        {action && <div className="shrink-0">{action}</div>}
       </div>
-
-      {open && <div className="p-4">{children}</div>}
-    </section>
+    </form>
   );
 }

@@ -1,871 +1,672 @@
 "use client";
 
 import * as React from "react";
-import { z } from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useTransition } from "react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { Loader2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
-import { AlertTriangle, Trash2, UserCheck, UserX } from "lucide-react";
 
-import { createClient, getClientById } from "@/app/(private)/clients/actions";
+import {
+  addClientAddress,
+  deleteClient,
+  getClientById,
+  type AddClientAddressInput,
+  type Client,
+} from "@/app/(private)/clients/actions";
+
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { MaskedInput } from "@/components/ui/MaskedInput";
 
-const schema = z.object({
-  firstName: z.string().min(2, "Informe o nome"),
-  lastName: z.string().min(2, "Informe o sobrenome"),
-  email: z.string().email("Email inválido"),
-  phone: z.string().optional(),
-  cpf: z.string().optional(),
+import ClientAddressesSection from "./ClientAddressesSection";
+import ClientContactSection from "./ClientContactSection";
+import ClientDetailsHeader from "./ClientDetailsHeader";
+import ClientIdentityCard from "./ClientIdentityCard";
+import ClientRegistrationSection from "./ClientRegistrationSection";
 
-  hasCompany: z.boolean().optional(),
-  companyName: z.string().optional(),
-  cnpj: z.string().optional(),
+import { getClientAddresses } from "./client-form.utils";
 
-  cep: z.string().optional(),
-  street: z.string().optional(),
-  number: z.string().optional(),
-  district: z.string().optional(),
-  city: z.string().optional(),
-  uf: z.string().max(2).optional(),
-
-  notes: z.string().optional(),
-
-  poolCep: z.string().optional(),
-  poolStreet: z.string().optional(),
-  poolNumber: z.string().optional(),
-  poolDistrict: z.string().optional(),
-  poolCity: z.string().optional(),
-  poolUf: z.string().max(2).optional(),
-
-  technicianId: z.string().optional(),
-  days: z
-    .array(z.enum(["dom", "seg", "ter", "qua", "qui", "sex", "sab"]))
-    .optional(),
-
-  active: z.boolean().optional(),
-});
-
-type Values = z.infer<typeof schema>;
-
-type TechnicianOpt = {
-  id: string;
-  name: string;
+type ClientFormProps = {
+  clientId: string;
+  summary: Client;
+  trigger: React.ReactNode;
+  onUpdated?: (client: Client) => void;
+  onDeleted?: () => void;
 };
 
-const onlyDigits = (s: string) => s.replace(/\D+/g, "");
+type ModalPosition = {
+  top: number;
+  bottom: number;
+  left: number;
+  width: number;
+};
 
-async function fetchViaCep(cepDigits: string) {
-  const res = await fetch(`https://viacep.com.br/ws/${cepDigits}/json/`);
+const MODAL_MAX_WIDTH = 1120;
 
-  if (!res.ok) {
-    throw new Error("Falha ao consultar CEP");
-  }
+const DESKTOP_HORIZONTAL_MARGIN = 24;
+const DESKTOP_VERTICAL_MARGIN = 24;
 
-  const data = await res.json();
+const MOBILE_HORIZONTAL_MARGIN = 12;
+const MOBILE_VERTICAL_MARGIN = 12;
 
-  if (data?.erro) {
-    return null;
-  }
+const MOBILE_BREAKPOINT = 768;
 
-  return {
-    street: data?.logradouro ?? "",
-    district: data?.bairro ?? "",
-    city: data?.localidade ?? "",
-    uf: data?.uf ?? "",
-  };
+/**
+ * Altura usada caso a barra superior não seja localizada automaticamente.
+ */
+const DEFAULT_TOP_BAR_HEIGHT = 64;
+
+function isVisibleElement(element: HTMLElement) {
+  const styles = window.getComputedStyle(element);
+  const rect = element.getBoundingClientRect();
+
+  return (
+    styles.display !== "none" &&
+    styles.visibility !== "hidden" &&
+    Number(styles.opacity) !== 0 &&
+    rect.width > 0 &&
+    rect.height > 0
+  );
 }
 
-function buildDefaults(src?: Partial<Values>): Values {
+function isPossibleSidebar(element: HTMLElement) {
+  if (!isVisibleElement(element)) {
+    return false;
+  }
+
+  const rect = element.getBoundingClientRect();
+
+  return (
+    rect.left <= 1 &&
+    rect.top <= 1 &&
+    rect.width >= 56 &&
+    rect.width <= 360 &&
+    rect.height >= window.innerHeight * 0.7
+  );
+}
+
+function isPossibleTopBar(element: HTMLElement) {
+  if (!isVisibleElement(element)) {
+    return false;
+  }
+
+  const rect = element.getBoundingClientRect();
+
+  const startsAtTop = rect.top >= -2 && rect.top <= 2;
+  const reasonableHeight = rect.height >= 48 && rect.height <= 100;
+  const wideEnough = rect.width >= window.innerWidth * 0.45;
+
+  return startsAtTop && reasonableHeight && wideEnough;
+}
+
+function getSidebarRightEdge() {
+  if (window.innerWidth < MOBILE_BREAKPOINT) {
+    return 0;
+  }
+
+  const selectors = [
+    "[data-app-sidebar]",
+    '[data-sidebar="sidebar"]',
+    '[data-sidebar="root"]',
+    "aside",
+  ];
+
+  for (const selector of selectors) {
+    const elements = Array.from(
+      document.querySelectorAll<HTMLElement>(selector),
+    );
+
+    const sidebar = elements.find(isPossibleSidebar);
+
+    if (sidebar) {
+      return Math.max(0, sidebar.getBoundingClientRect().right);
+    }
+  }
+
+  const elementsAtLeft = document.elementsFromPoint(
+    10,
+    Math.round(window.innerHeight / 2),
+  );
+
+  const candidates = elementsAtLeft
+    .filter(
+      (element): element is HTMLElement =>
+        element instanceof HTMLElement,
+    )
+    .filter(isPossibleSidebar)
+    .map((element) => element.getBoundingClientRect())
+    .sort((first, second) => second.width - first.width);
+
+  if (candidates.length > 0) {
+    return Math.max(0, candidates[0].right);
+  }
+
+  return 0;
+}
+
+function getTopBarBottomEdge() {
+  const selectors = [
+    "[data-app-header]",
+    "[data-topbar]",
+    "[data-header]",
+    "header",
+  ];
+
+  for (const selector of selectors) {
+    const elements = Array.from(
+      document.querySelectorAll<HTMLElement>(selector),
+    );
+
+    const topBarCandidates = elements
+      .filter(isPossibleTopBar)
+      .map((element) => element.getBoundingClientRect())
+      .sort((first, second) => second.width - first.width);
+
+    if (topBarCandidates.length > 0) {
+      return Math.max(0, topBarCandidates[0].bottom);
+    }
+  }
+
+  /*
+   * Segunda tentativa: procura elementos visíveis no meio da região superior.
+   */
+  const topElements = document.elementsFromPoint(
+    Math.round(window.innerWidth / 2),
+    20,
+  );
+
+  const topBarCandidates = topElements
+    .filter(
+      (element): element is HTMLElement =>
+        element instanceof HTMLElement,
+    )
+    .filter(isPossibleTopBar)
+    .map((element) => element.getBoundingClientRect())
+    .sort((first, second) => second.width - first.width);
+
+  if (topBarCandidates.length > 0) {
+    return Math.max(0, topBarCandidates[0].bottom);
+  }
+
+  /*
+   * Fallback correspondente à altura atual da barra do Aqua Mappa.
+   */
+  return DEFAULT_TOP_BAR_HEIGHT;
+}
+
+function calculateModalPosition(): ModalPosition {
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+
+  const isMobile = viewportWidth < MOBILE_BREAKPOINT;
+
+  const horizontalMargin = isMobile
+    ? MOBILE_HORIZONTAL_MARGIN
+    : DESKTOP_HORIZONTAL_MARGIN;
+
+  const verticalMargin = isMobile
+    ? MOBILE_VERTICAL_MARGIN
+    : DESKTOP_VERTICAL_MARGIN;
+
+  const sidebarRight = isMobile ? 0 : getSidebarRightEdge();
+
+  const topBarBottom = isMobile ? 0 : getTopBarBottomEdge();
+
+  const contentLeft = sidebarRight + horizontalMargin;
+  const contentRight = viewportWidth - horizontalMargin;
+
+  const availableWidth = Math.max(280, contentRight - contentLeft);
+
+  const width = Math.min(MODAL_MAX_WIDTH, availableWidth);
+
+  const remainingHorizontalSpace = Math.max(
+    0,
+    availableWidth - width,
+  );
+
+  const top = topBarBottom + verticalMargin;
+  const bottom = verticalMargin;
+
+  /*
+   * Proteção para telas com pouca altura.
+   */
+  const minimumModalHeight = 320;
+
+  const availableHeight = viewportHeight - top - bottom;
+
+  const safeTop =
+    availableHeight >= minimumModalHeight
+      ? top
+      : Math.max(verticalMargin, viewportHeight - bottom - minimumModalHeight);
+
   return {
-    firstName: src?.firstName ?? "",
-    lastName: src?.lastName ?? "",
-    email: src?.email ?? "",
-    phone: src?.phone ?? "",
-    cpf: src?.cpf ?? "",
-
-    hasCompany: Boolean(src?.companyName || src?.cnpj),
-    companyName: src?.companyName ?? "",
-    cnpj: src?.cnpj ?? "",
-
-    cep: src?.cep ?? "",
-    street: src?.street ?? "",
-    number: src?.number ?? "",
-    district: src?.district ?? "",
-    city: src?.city ?? "",
-    uf: src?.uf ?? "",
-
-    notes: src?.notes ?? "",
-
-    poolCep: src?.poolCep ?? "",
-    poolStreet: src?.poolStreet ?? "",
-    poolNumber: src?.poolNumber ?? "",
-    poolDistrict: src?.poolDistrict ?? "",
-    poolCity: src?.poolCity ?? "",
-    poolUf: src?.poolUf ?? "",
-
-    technicianId: src?.technicianId ?? "",
-    days: src?.days ?? [],
-
-    active: src?.active ?? true,
+    top: safeTop,
+    bottom,
+    left: contentLeft + remainingHorizontalSpace / 2,
+    width,
   };
 }
 
 export default function ClientForm({
-  id,
-  defaultValues,
-  trigger = "Novo cliente",
-  technicians = [],
-  onDeactivate,
-  onReactivate,
-  onDelete,
-}: {
-  id?: string;
-  defaultValues?: Partial<Values>;
-  trigger?: React.ReactNode;
-  technicians?: TechnicianOpt[];
-  onDeactivate?: () => void;
-  onReactivate?: () => void;
-  onDelete?: () => Promise<void> | void;
-}) {
+  clientId,
+  summary,
+  trigger,
+  onUpdated,
+  onDeleted,
+}: ClientFormProps) {
   const [open, setOpen] = React.useState(false);
-  const [pending, startTransition] = useTransition();
-  const [loadingDetails, setLoadingDetails] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [savingAddress, setSavingAddress] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
 
-  const isEditing = Boolean(id);
+  const [client, setClient] = React.useState<Client>(summary);
 
-  const defaults = React.useMemo(
-    () => buildDefaults(defaultValues),
-    [defaultValues],
-  );
+  const [modalPosition, setModalPosition] =
+    React.useState<ModalPosition | null>(null);
 
-  const form = useForm<Values>({
-    resolver: zodResolver(schema),
-    defaultValues: defaults,
-  });
-
-  const hasCompany = form.watch("hasCompany");
-  const isActive = form.watch("active") !== false;
+  const scrollContainerRef = React.useRef<HTMLElement | null>(null);
+  const onUpdatedRef = React.useRef(onUpdated);
 
   React.useEffect(() => {
-    form.reset(defaults);
-  }, [id, defaults, form]);
+    onUpdatedRef.current = onUpdated;
+  }, [onUpdated]);
 
   React.useEffect(() => {
-    if (!open || !id) {
+    setClient(summary);
+  }, [summary]);
+
+  const updateClient = React.useCallback((updatedClient: Client) => {
+    setClient(updatedClient);
+    onUpdatedRef.current?.(updatedClient);
+  }, []);
+
+  const updateModalPosition = React.useCallback(() => {
+    setModalPosition(calculateModalPosition());
+  }, []);
+
+  React.useLayoutEffect(() => {
+    if (!open) {
+      setModalPosition(null);
       return;
     }
 
-    let alive = true;
-    const idToLoad = id as string;
+    let animationFrameId = 0;
+    let intervalId: ReturnType<typeof window.setInterval> | null = null;
 
-    async function loadClientDetails() {
+    function schedulePositionUpdate() {
+      window.cancelAnimationFrame(animationFrameId);
+
+      animationFrameId = window.requestAnimationFrame(() => {
+        updateModalPosition();
+      });
+    }
+
+    schedulePositionUpdate();
+
+    /*
+     * Acompanha a animação da sidebar enquanto ela abre ou recolhe.
+     */
+    intervalId = window.setInterval(schedulePositionUpdate, 50);
+
+    const stopTransitionTracking = window.setTimeout(() => {
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+        intervalId = null;
+      }
+
+      schedulePositionUpdate();
+    }, 700);
+
+    window.addEventListener("resize", schedulePositionUpdate);
+
+    const mutationObserver = new MutationObserver(
+      schedulePositionUpdate,
+    );
+
+    mutationObserver.observe(document.body, {
+      attributes: true,
+      subtree: true,
+      attributeFilter: [
+        "class",
+        "style",
+        "data-state",
+        "data-collapsed",
+      ],
+    });
+
+    return () => {
+      window.cancelAnimationFrame(animationFrameId);
+      window.clearTimeout(stopTransitionTracking);
+
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+      }
+
+      mutationObserver.disconnect();
+
+      window.removeEventListener(
+        "resize",
+        schedulePositionUpdate,
+      );
+    };
+  }, [open, updateModalPosition]);
+
+  React.useEffect(() => {
+    if (!open || !modalPosition) {
+      return;
+    }
+
+    const animationFrameId = window.requestAnimationFrame(() => {
+      scrollContainerRef.current?.scrollTo({
+        top: 0,
+        behavior: "auto",
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(animationFrameId);
+    };
+  }, [open, modalPosition]);
+
+  const loadClientDetails = React.useCallback(async () => {
+    const details = await getClientById(clientId);
+
+    updateClient(details);
+
+    return details;
+  }, [clientId, updateClient]);
+
+  React.useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    let mounted = true;
+
+    async function load() {
       try {
-        setLoadingDetails(true);
+        setLoading(true);
 
-        const details = await getClientById(idToLoad);
+        const details = await getClientById(clientId);
 
-        if (!alive) return;
+        if (!mounted) {
+          return;
+        }
 
-        form.reset(
-          buildDefaults({
-            ...(details as unknown as Partial<Values>),
-            active: defaultValues?.active ?? (details as any)?.active ?? true,
-          }),
+        updateClient(details);
+      } catch (error) {
+        if (!mounted) {
+          return;
+        }
+
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível carregar os dados do cliente.",
         );
-      } catch (error: any) {
-        toast.error(error?.message || "Erro ao buscar detalhes do cliente.");
       } finally {
-        if (alive) {
-          setLoadingDetails(false);
+        if (mounted) {
+          setLoading(false);
         }
       }
     }
 
-    loadClientDetails();
+    load();
 
     return () => {
-      alive = false;
+      mounted = false;
     };
-  }, [open, id, form, defaultValues?.active]);
+  }, [clientId, open, updateClient]);
 
-  const copyBillingToPool = () => {
-    if (isEditing) {
-      toast.message("Edição de cliente ainda não está disponível na API.");
-      return;
+  async function handleAddAddress(
+    address: AddClientAddressInput,
+  ) {
+    try {
+      setSavingAddress(true);
+
+      await addClientAddress(clientId, address);
+      await loadClientDetails();
+
+      toast.success("Endereço adicionado com sucesso.");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Não foi possível adicionar o endereço.";
+
+      toast.error(message);
+
+      throw error;
+    } finally {
+      setSavingAddress(false);
     }
+  }
 
-    const v = form.getValues();
+  async function handleDelete() {
+    const confirmed = window.confirm(
+      "Tem certeza que deseja excluir este cliente? Essa ação não poderá ser desfeita.",
+    );
 
-    form.setValue("poolCep", v.cep || "");
-    form.setValue("poolStreet", v.street || "");
-    form.setValue("poolNumber", v.number || "");
-    form.setValue("poolDistrict", v.district || "");
-    form.setValue("poolCity", v.city || "");
-    form.setValue("poolUf", v.uf || "");
-
-    toast.message("Localização da piscina copiada do endereço de cobrança");
-  };
-
-  const tryFillByCep = async (cepField: "cep" | "poolCep") => {
-    if (isEditing) {
-      return;
-    }
-
-    const raw = form.getValues(cepField) || "";
-    const digits = onlyDigits(raw);
-
-    if (digits.length !== 8) {
-      toast.error("CEP deve ter 8 dígitos");
+    if (!confirmed) {
       return;
     }
 
     try {
-      const addr = await fetchViaCep(digits);
+      setDeleting(true);
 
-      if (!addr) {
-        toast.error("CEP não encontrado");
-        return;
-      }
+      await deleteClient(clientId);
 
-      if (cepField === "cep") {
-        form.setValue("street", addr.street);
-        form.setValue("district", addr.district);
-        form.setValue("city", addr.city);
-        form.setValue("uf", addr.uf);
-      } else {
-        form.setValue("poolStreet", addr.street);
-        form.setValue("poolDistrict", addr.district);
-        form.setValue("poolCity", addr.city);
-        form.setValue("poolUf", addr.uf);
-      }
+      toast.success("Cliente excluído com sucesso.");
 
-      toast.success("Endereço preenchido pelo CEP");
-    } catch (error: any) {
-      toast.error(error?.message || "Falha ao consultar CEP");
+      setOpen(false);
+      onDeleted?.();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível excluir o cliente.",
+      );
+    } finally {
+      setDeleting(false);
     }
-  };
+  }
 
-  const onSubmit = (values: Values) =>
-    startTransition(async () => {
-      try {
-        if (isEditing) {
-          toast.error("Edição de cliente ainda não está disponível na API.");
-          return;
+  function handleOpenChange(nextOpen: boolean) {
+    if (!nextOpen && (savingAddress || deleting)) {
+      return;
+    }
+
+    setOpen(nextOpen);
+  }
+
+  const addresses = getClientAddresses(client);
+  const busy = savingAddress || deleting;
+
+  const contentStyle: React.CSSProperties | undefined =
+    modalPosition
+      ? {
+          top: modalPosition.top,
+          bottom: modalPosition.bottom,
+          left: modalPosition.left,
+          width: modalPosition.width,
         }
-
-        if (!values.hasCompany) {
-          values.companyName = "";
-          values.cnpj = "";
-        }
-
-        await createClient(values);
-
-        toast.success("Cliente criado");
-        form.reset(buildDefaults({}));
-        setOpen(false);
-      } catch (error: any) {
-        toast.error(error?.message || "Erro ao salvar cliente");
-      }
-    });
-
-  const handleClose = () => {
-    form.reset(isEditing ? defaults : buildDefaults({}));
-    setOpen(false);
-  };
-
-  function handleDeactivate() {
-    if (!onDeactivate) return;
-
-    onDeactivate();
-    form.setValue("active", false);
-    setOpen(false);
-  }
-
-  function handleReactivate() {
-    if (!onReactivate) return;
-
-    onReactivate();
-    form.setValue("active", true);
-    setOpen(false);
-  }
-
-  function handleDelete() {
-    if (!onDelete) return;
-
-    const confirmed = window.confirm(
-      "Tem certeza que deseja excluir este cliente definitivamente? Essa ação não poderá ser desfeita.",
-    );
-
-    if (!confirmed) return;
-
-    startTransition(async () => {
-      try {
-        await onDelete();
-        setOpen(false);
-      } catch (error: any) {
-        toast.error(error?.message || "Erro ao excluir cliente.");
-      }
-    });
-  }
-
-  const inputDisabled = isEditing || loadingDetails;
+      : undefined;
 
   return (
-    <Dialog
+    <DialogPrimitive.Root
       open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-
-        if (next) {
-          form.reset(isEditing ? defaults : buildDefaults({}));
-        }
-      }}
+      onOpenChange={handleOpenChange}
     >
-      <DialogTrigger asChild>
-        {typeof trigger === "string" ? (
-          <Button className="btn-brand text-white">{trigger}</Button>
-        ) : (
-          (trigger as React.ReactElement)
-        )}
-      </DialogTrigger>
+      <DialogPrimitive.Trigger asChild>
+        {trigger as React.ReactElement}
+      </DialogPrimitive.Trigger>
 
-      <DialogContent
-        className={`
-          fixed right-0 top-[24px] bottom-[32px] z-[200] m-0
-          h-[calc(100dvh-96px)] w-screen max-w-none rounded-lg p-0 overflow-hidden
-          lg:w-[50vw] lg:left-auto
-          data-[state=open]:animate-none
-        `}
-      >
-        <div className="flex h-full flex-col bg-white">
-          <div className="sticky top-0 z-10 border-b bg-white px-4 py-3 sm:px-6">
-            <DialogHeader>
-              <DialogTitle>
-                {isEditing ? "Visualizar cliente" : "Novo cliente"}
-              </DialogTitle>
-            </DialogHeader>
-          </div>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay
+          className="
+            fixed
+            inset-0
+            z-50
+            bg-slate-950/40
+            backdrop-blur-[1px]
+            data-[state=closed]:animate-out
+            data-[state=closed]:fade-out-0
+            data-[state=open]:animate-in
+            data-[state=open]:fade-in-0
+          "
+        />
 
-          <div className="flex-1 overflow-y-auto p-4 pb-24 sm:p-6 sm:pb-28">
-            {loadingDetails && (
-              <div className="mb-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                Carregando dados completos do cliente...
-              </div>
-            )}
+        {modalPosition && (
+          <DialogPrimitive.Content
+            style={contentStyle}
+            aria-describedby={undefined}
+            onEscapeKeyDown={(event) => {
+              if (busy) {
+                event.preventDefault();
+              }
+            }}
+            onPointerDownOutside={(event) => {
+              if (busy) {
+                event.preventDefault();
+              }
+            }}
+            className="
+              fixed
+              z-[60]
+              flex
+              min-h-0
+              flex-col
+              overflow-hidden
+              rounded-3xl
+              border
+              border-slate-200
+              bg-white
+              shadow-2xl
+              outline-none
+              transition-[left,width,top,bottom]
+              duration-200
+              ease-out
+              data-[state=closed]:animate-out
+              data-[state=closed]:fade-out-0
+              data-[state=closed]:zoom-out-95
+              data-[state=open]:animate-in
+              data-[state=open]:fade-in-0
+              data-[state=open]:zoom-in-95
+            "
+          >
+            <DialogPrimitive.Title className="sr-only">
+              Detalhes do cliente
+            </DialogPrimitive.Title>
 
-            <Form {...form}>
-              <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
-                <section className="space-y-4">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <FormField
-                      name="firstName"
-                      control={form.control}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Nome</FormLabel>
-                          <FormControl>
-                            <Input {...field} disabled={inputDisabled} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+            <DialogPrimitive.Close
+              disabled={busy}
+              aria-label="Fechar detalhes do cliente"
+              className="
+                absolute
+                right-5
+                top-5
+                z-30
+                grid
+                h-9
+                w-9
+                place-items-center
+                rounded-lg
+                text-slate-500
+                transition
+                hover:bg-slate-100
+                hover:text-slate-900
+                focus-visible:outline-none
+                focus-visible:ring-2
+                focus-visible:ring-sky-500
+                disabled:cursor-not-allowed
+                disabled:opacity-50
+                sm:right-7
+                sm:top-7
+              "
+            >
+              <X className="h-5 w-5" />
+            </DialogPrimitive.Close>
 
-                    <FormField
-                      name="lastName"
-                      control={form.control}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Sobrenome</FormLabel>
-                          <FormControl>
-                            <Input {...field} disabled={inputDisabled} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+            <ClientDetailsHeader />
+
+            <main
+              ref={scrollContainerRef}
+              className="
+                min-h-0
+                flex-1
+                overflow-x-hidden
+                overflow-y-auto
+                overscroll-contain
+              "
+            >
+              <div className="space-y-6 px-4 py-5 pb-8 sm:px-8 sm:py-7 sm:pb-10">
+                {loading && (
+                  <div className="flex min-h-12 items-center gap-2 rounded-xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-700">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+
+                    Carregando dados completos do cliente...
                   </div>
+                )}
 
-                  <label className="inline-flex select-none items-center gap-2">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border-neutral-300"
-                      checked={!!hasCompany}
-                      disabled={inputDisabled}
-                      onChange={(event) =>
-                        form.setValue("hasCompany", event.target.checked)
-                      }
-                    />
+                <ClientIdentityCard client={client} />
 
-                    <span className="text-sm text-neutral-700">
-                      Cadastrar empresa
-                    </span>
-                  </label>
+                <div className="grid min-w-0 gap-6 lg:grid-cols-2">
+                  <ClientRegistrationSection client={client} />
 
-                  {hasCompany && (
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <FormField
-                        name="companyName"
-                        control={form.control}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Nome da empresa</FormLabel>
-                            <FormControl>
-                              <Input {...field} disabled={inputDisabled} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        name="cnpj"
-                        control={form.control}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>CNPJ</FormLabel>
-                            <FormControl>
-                              <MaskedInput
-                                mask="99.999.999/9999-99"
-                                {...field}
-                                disabled={inputDisabled}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  )}
-
-                  <FormField
-                    name="email"
-                    control={form.control}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="email"
-                            {...field}
-                            disabled={inputDisabled}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <FormField
-                      name="phone"
-                      control={form.control}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Telefone</FormLabel>
-                          <FormControl>
-                            <MaskedInput
-                              mask="(99) 99999-9999"
-                              {...field}
-                              disabled={inputDisabled}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      name="cpf"
-                      control={form.control}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>CPF</FormLabel>
-                          <FormControl>
-                            <MaskedInput
-                              mask="999.999.999-99"
-                              {...field}
-                              disabled={inputDisabled}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  {isEditing && (
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <div>
-                        <label className="mb-2 block text-sm font-medium text-slate-700">
-                          Status
-                        </label>
-
-                        <Input
-                          value={isActive ? "Ativo" : "Inativo"}
-                          disabled
-                        />
-                      </div>
-                    </div>
-                  )}
-                </section>
-
-                <SectionTitle>ENDEREÇO DE COBRANÇA</SectionTitle>
-
-                <section className="space-y-4">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
-                    <FormField
-                      name="cep"
-                      control={form.control}
-                      render={({ field }) => (
-                        <FormItem className="sm:col-span-3">
-                          <FormLabel>CEP</FormLabel>
-                          <FormControl>
-                            <MaskedInput
-                              mask="99999-999"
-                              {...field}
-                              disabled={inputDisabled}
-                              onBlur={async () => {
-                                await tryFillByCep("cep");
-                              }}
-                              onChange={(event) => {
-                                field.onChange(event);
-
-                                const digits = onlyDigits(event.target.value);
-
-                                if (digits.length === 8) {
-                                  tryFillByCep("cep");
-                                }
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      name="city"
-                      control={form.control}
-                      render={({ field }) => (
-                        <FormItem className="sm:col-span-3">
-                          <FormLabel>Cidade</FormLabel>
-                          <FormControl>
-                            <Input {...field} disabled={inputDisabled} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      name="uf"
-                      control={form.control}
-                      render={({ field }) => (
-                        <FormItem className="sm:col-span-1">
-                          <FormLabel>UF</FormLabel>
-                          <FormControl>
-                            <Input
-                              maxLength={2}
-                              className="text-center sm:max-w-[64px]"
-                              {...field}
-                              disabled={inputDisabled}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      name="district"
-                      control={form.control}
-                      render={({ field }) => (
-                        <FormItem className="sm:col-span-5">
-                          <FormLabel>Bairro</FormLabel>
-                          <FormControl>
-                            <Input {...field} disabled={inputDisabled} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-                    <FormField
-                      name="street"
-                      control={form.control}
-                      render={({ field }) => (
-                        <FormItem className="sm:col-span-3">
-                          <FormLabel>Endereço</FormLabel>
-                          <FormControl>
-                            <Input {...field} disabled={inputDisabled} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      name="number"
-                      control={form.control}
-                      render={({ field }) => (
-                        <FormItem className="sm:col-span-1">
-                          <FormLabel>Número</FormLabel>
-                          <FormControl>
-                            <Input {...field} disabled={inputDisabled} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </section>
-
-                <SectionTitle>INFORMAÇÕES ÚTEIS</SectionTitle>
-
-                <FormField
-                  name="notes"
-                  control={form.control}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Observações</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          rows={3}
-                          {...field}
-                          disabled={inputDisabled}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="flex items-center justify-between">
-                  <SectionTitle>LOCALIZAÇÃO DA PISCINA</SectionTitle>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={copyBillingToPool}
-                    disabled={inputDisabled}
-                  >
-                    Usar o mesmo do endereço de cobrança
-                  </Button>
+                  <ClientContactSection client={client} />
                 </div>
 
-                <section className="space-y-4">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
-                    <FormField
-                      name="poolCep"
-                      control={form.control}
-                      render={({ field }) => (
-                        <FormItem className="sm:col-span-3">
-                          <FormLabel>CEP</FormLabel>
-                          <FormControl>
-                            <MaskedInput
-                              mask="99999-999"
-                              {...field}
-                              disabled={inputDisabled}
-                              onBlur={async () => {
-                                await tryFillByCep("poolCep");
-                              }}
-                              onChange={(event) => {
-                                field.onChange(event);
-
-                                const digits = onlyDigits(event.target.value);
-
-                                if (digits.length === 8) {
-                                  tryFillByCep("poolCep");
-                                }
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      name="poolCity"
-                      control={form.control}
-                      render={({ field }) => (
-                        <FormItem className="sm:col-span-3">
-                          <FormLabel>Cidade</FormLabel>
-                          <FormControl>
-                            <Input {...field} disabled={inputDisabled} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      name="poolUf"
-                      control={form.control}
-                      render={({ field }) => (
-                        <FormItem className="sm:col-span-1">
-                          <FormLabel>UF</FormLabel>
-                          <FormControl>
-                            <Input
-                              maxLength={2}
-                              className="text-center sm:max-w-[64px]"
-                              {...field}
-                              disabled={inputDisabled}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      name="poolDistrict"
-                      control={form.control}
-                      render={({ field }) => (
-                        <FormItem className="sm:col-span-5">
-                          <FormLabel>Bairro</FormLabel>
-                          <FormControl>
-                            <Input {...field} disabled={inputDisabled} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-                    <FormField
-                      name="poolStreet"
-                      control={form.control}
-                      render={({ field }) => (
-                        <FormItem className="sm:col-span-3">
-                          <FormLabel>Endereço</FormLabel>
-                          <FormControl>
-                            <Input {...field} disabled={inputDisabled} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      name="poolNumber"
-                      control={form.control}
-                      render={({ field }) => (
-                        <FormItem className="sm:col-span-1">
-                          <FormLabel>Número</FormLabel>
-                          <FormControl>
-                            <Input {...field} disabled={inputDisabled} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </section>
-              </form>
-            </Form>
-          </div>
-
-          <div className="sticky bottom-0 z-20 border-t bg-white px-4 py-3 sm:px-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap items-center gap-2">
-                {isEditing && isActive && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="border-amber-300 text-amber-700 hover:bg-amber-50"
-                    onClick={handleDeactivate}
-                    disabled={pending || loadingDetails}
-                  >
-                    <UserX className="mr-2 h-4 w-4" />
-                    Inativar cliente
-                  </Button>
-                )}
-
-                {isEditing && !isActive && (
-                  <>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-                      onClick={handleReactivate}
-                      disabled={pending || loadingDetails}
-                    >
-                      <UserCheck className="mr-2 h-4 w-4" />
-                      Reativar
-                    </Button>
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="border-red-300 text-red-700 hover:bg-red-50"
-                      onClick={handleDelete}
-                      disabled={pending || loadingDetails}
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      {pending ? "Excluindo..." : "Excluir definitivamente"}
-                    </Button>
-                  </>
-                )}
+                <ClientAddressesSection
+                  addresses={addresses}
+                  pending={savingAddress}
+                  onAddAddress={handleAddAddress}
+                />
               </div>
+            </main>
 
-              <div className="flex items-center justify-end gap-2">
+            <footer className="shrink-0 border-t border-slate-200 bg-white px-4 py-4 sm:px-8">
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={handleClose}
-                  disabled={pending}
+                  className="
+                    rounded-xl
+                    border-red-300
+                    text-red-700
+                    hover:border-red-400
+                    hover:bg-red-50
+                    hover:text-red-800
+                  "
+                  onClick={handleDelete}
+                  disabled={
+                    deleting ||
+                    savingAddress ||
+                    loading
+                  }
                 >
-                  Fechar
+                  {deleting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="mr-2 h-4 w-4" />
+                  )}
+
+                  {deleting
+                    ? "Excluindo..."
+                    : "Excluir cliente"}
                 </Button>
 
-                {!isEditing && (
+                <DialogPrimitive.Close asChild>
                   <Button
-                    onClick={form.handleSubmit(onSubmit)}
-                    disabled={pending}
-                    className="btn-brand text-white"
+                    type="button"
+                    variant="outline"
+                    className="rounded-xl px-6"
+                    disabled={busy}
                   >
-                    {pending ? "Criando..." : "Criar"}
+                    Fechar
                   </Button>
-                )}
+                </DialogPrimitive.Close>
               </div>
-            </div>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="pt-1">
-      <div className="text-sm font-medium text-neutral-800">{children}</div>
-      <div className="mt-1 h-px w-full bg-neutral-200" />
-    </div>
+            </footer>
+          </DialogPrimitive.Content>
+        )}
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }

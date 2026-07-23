@@ -1,11 +1,75 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 
-const API_URL = process.env.API_URL ?? "http://localhost:5264";
+const API_URL =
+  process.env.API_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:5264";
 
-type ClientStatus = "ACTIVE" | "INACTIVE";
+export type ClientStatus = "ACTIVE" | "INACTIVE";
+
+export type ClientAddress = {
+  id: string;
+  street: string;
+  number?: string | null;
+  complement?: string | null;
+  neighborhood?: string | null;
+  city: string;
+  state: string;
+  zipCode?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  isMain: boolean;
+};
+
+export type Client = {
+  id: string;
+  userId?: string | null;
+  companyId?: string | null;
+  name: string;
+  email: string;
+  phone?: string | null;
+  document?: string | null;
+  status: ClientStatus;
+  active: boolean;
+  mainAddress?: ClientAddress | null;
+  addresses: ClientAddress[];
+};
+
+export type CreateClientInput = {
+  name: string;
+  email: string;
+  password: string;
+  phone?: string;
+  document?: string;
+
+  address: {
+    street: string;
+    number?: string;
+    complement?: string;
+    neighborhood?: string;
+    city: string;
+    state: string;
+    zipCode?: string;
+    latitude?: number | null;
+    longitude?: number | null;
+  };
+};
+
+export type AddClientAddressInput = {
+  street: string;
+  number?: string;
+  complement?: string;
+  neighborhood?: string;
+  city: string;
+  state: string;
+  zipCode?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  isMain?: boolean;
+};
 
 type ApiError = {
   errors?: Array<{
@@ -45,31 +109,25 @@ type ApiCustomer = {
   addresses?: ApiAddress[] | null;
 };
 
-type AddressPayload = {
-  street: string;
-  number: string | null;
-  complement: string | null;
-  neighborhood: string | null;
-  city: string;
-  state: string;
-  zipCode: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  isMain?: boolean;
-};
-
 async function getAuthFromCookies() {
   const cookieStore = await cookies();
 
-  const token = cookieStore.get("mappa_access_token")?.value;
-  const companyId = cookieStore.get("mappa_company_id")?.value;
+  const token =
+    cookieStore.get("mappa_access_token")?.value;
+
+  const companyId =
+    cookieStore.get("mappa_company_id")?.value;
 
   if (!token) {
-    throw new Error("Token não encontrado. Faça login novamente.");
+    throw new Error(
+      "Token não encontrado. Faça login novamente.",
+    );
   }
 
   if (!companyId) {
-    throw new Error("Empresa não encontrada. Faça login novamente.");
+    throw new Error(
+      "Empresa não encontrada. Faça login novamente.",
+    );
   }
 
   return {
@@ -78,144 +136,245 @@ async function getAuthFromCookies() {
   };
 }
 
-function parseApiError(status: number, text: string) {
+function parseApiError(
+  status: number,
+  text: string,
+) {
   if (status === 401) {
-    return "Sessão expirada ou usuário sem autorização. Faça login novamente.";
+    return "Sua sessão expirou. Faça login novamente.";
   }
 
   if (status === 403) {
-    return "Você não tem permissão para executar esta ação.";
+    return "Você não tem permissão para realizar esta ação.";
   }
 
-  const lowerText = text.toLowerCase();
+  const normalizedText = text.toLowerCase();
 
   if (
-    lowerText.includes("uq_users_email") ||
-    lowerText.includes("duplicate key") ||
-    lowerText.includes("users_email")
+    normalizedText.includes("uq_users_email") ||
+    normalizedText.includes("duplicate key") ||
+    normalizedText.includes("users_email")
   ) {
-    return "Já existe um usuário cadastrado com este e-mail. Use outro e-mail ou localize o cliente existente na lista.";
+    return "Já existe um usuário cadastrado com este e-mail.";
+  }
+
+  if (status === 409) {
+    return "Não é possível excluir este cliente porque ele possui ordens de serviço vinculadas.";
+  }
+
+  if (status === 404) {
+    return "Cliente não encontrado.";
   }
 
   try {
-    const error = JSON.parse(text) as ApiError;
+    const parsed = JSON.parse(text) as ApiError;
 
     const message =
-      error?.errors?.[0]?.message ||
-      error?.detail ||
-      error?.title ||
-      error?.message ||
-      JSON.stringify(error);
+      parsed.errors?.[0]?.message ||
+      parsed.detail ||
+      parsed.message ||
+      parsed.title;
 
-    const lowerMessage = String(message).toLowerCase();
-
-    if (
-      lowerMessage.includes("uq_users_email") ||
-      lowerMessage.includes("duplicate key") ||
-      lowerMessage.includes("users_email")
-    ) {
-      return "Já existe um usuário cadastrado com este e-mail. Use outro e-mail ou localize o cliente existente na lista.";
+    if (message) {
+      return `Erro ${status}: ${message}`;
     }
-
-    if (status === 409) {
-      return (
-        message ||
-        "Não foi possível concluir a operação. Este registro possui vínculos no sistema."
-      );
-    }
-
-    if (status === 404) {
-      return message || "Cliente não encontrado.";
-    }
-
-    if (status === 500) {
-      return message || "Erro interno da API.";
-    }
-
-    return `Erro ${status}: ${message}`;
   } catch {
-    if (status === 409) {
-      return "Não foi possível concluir a operação. Este registro possui vínculos no sistema.";
-    }
-
-    if (status === 404) {
-      return "Cliente não encontrado.";
-    }
-
-    return `Erro ${status}: ${text || "Falha na API."}`;
+    // O corpo pode não ser JSON.
   }
+
+  return `Erro ${status}: ${
+    text || "Não foi possível concluir a operação."
+  }`;
 }
 
-async function mappaFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const { token } = await getAuthFromCookies();
+async function mappaFetch<T>(
+  path: string,
+  options?: RequestInit,
+): Promise<T> {
+  const { token } =
+    await getAuthFromCookies();
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    cache: "no-store",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...(options?.headers || {}),
-    },
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(
+      `${API_URL}${path}`,
+      {
+        ...options,
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          ...(options?.headers || {}),
+        },
+      },
+    );
+  } catch {
+    throw new Error(
+      "Não foi possível conectar à API.",
+    );
+  }
 
   const text = await response.text();
 
   if (!response.ok) {
-    throw new Error(parseApiError(response.status, text));
+    throw new Error(
+      parseApiError(response.status, text),
+    );
   }
 
-  if (response.status === 204 || !text) {
+  if (
+    response.status === 204 ||
+    !text
+  ) {
     return null as T;
   }
 
-  return JSON.parse(text) as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return text as T;
+  }
 }
 
-async function getCompanyId() {
-  const { companyId } = await getAuthFromCookies();
-  return companyId;
+function cleanText(
+  value?: string | null,
+) {
+  return String(value || "").trim();
 }
 
-function clean(value: unknown) {
-  if (typeof value !== "string") return value ?? null;
+function optionalText(
+  value?: string | null,
+) {
+  const cleaned = cleanText(value);
 
-  const trimmed = value.trim();
-
-  return trimmed === "" ? null : trimmed;
+  return cleaned || null;
 }
 
-function onlyDigits(value: unknown) {
-  if (typeof value !== "string") return null;
-
-  const digits = value.replace(/\D+/g, "");
+function onlyDigits(
+  value?: string | null,
+) {
+  const digits = String(value || "").replace(
+    /\D+/g,
+    "",
+  );
 
   return digits || null;
 }
 
-function toNumberOrNull(value: unknown) {
-  if (value === undefined || value === null || value === "") {
+function normalizeStatus(
+  value?: string | null,
+): ClientStatus {
+  const normalized = String(
+    value || "ACTIVE",
+  )
+    .replace(/[_\s-]/g, "")
+    .toUpperCase();
+
+  return normalized === "INACTIVE"
+    ? "INACTIVE"
+    : "ACTIVE";
+}
+
+function normalizeAddress(
+  address?: ApiAddress | null,
+): ClientAddress | null {
+  if (!address) {
     return null;
   }
 
-  const number = Number(value);
-
-  return Number.isFinite(number) ? number : null;
-}
-
-function splitName(name?: string | null) {
-  const parts = String(name || "")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-
   return {
-    firstName: parts[0] || "",
-    lastName: parts.slice(1).join(" "),
+    id: address.id || "",
+    street:
+      address.street ||
+      "Endereço não informado",
+    number: address.number ?? null,
+    complement:
+      address.complement ?? null,
+    neighborhood:
+      address.neighborhood ?? null,
+    city:
+      address.city ||
+      "Cidade não informada",
+    state:
+      address.state ||
+      "Estado não informado",
+    zipCode:
+      address.zipCode ?? null,
+    latitude:
+      address.latitude ?? null,
+    longitude:
+      address.longitude ?? null,
+    isMain:
+      address.isMain === true,
   };
 }
 
-function extractCustomers(payload: unknown): ApiCustomer[] {
+function normalizeCustomer(
+  customer: ApiCustomer,
+): Client {
+  const addresses = Array.isArray(
+    customer.addresses,
+  )
+    ? customer.addresses
+        .map(normalizeAddress)
+        .filter(
+          (
+            address,
+          ): address is ClientAddress =>
+            Boolean(address),
+        )
+    : [];
+
+  const normalizedMainAddress =
+    normalizeAddress(
+      customer.mainAddress,
+    );
+
+  const mainAddress =
+    normalizedMainAddress ||
+    addresses.find(
+      (address) => address.isMain,
+    ) ||
+    addresses[0] ||
+    null;
+
+  const mergedAddresses =
+    mainAddress &&
+    !addresses.some(
+      (address) =>
+        address.id &&
+        address.id === mainAddress.id,
+    )
+      ? [mainAddress, ...addresses]
+      : addresses;
+
+  const status = normalizeStatus(
+    customer.status,
+  );
+
+  return {
+    id: customer.id,
+    userId: customer.userId ?? null,
+    companyId:
+      customer.companyId ?? null,
+    name:
+      customer.name ||
+      "Cliente sem nome",
+    email: customer.email || "",
+    phone: customer.phone ?? null,
+    document:
+      customer.document ?? null,
+    status,
+    active: status === "ACTIVE",
+    mainAddress,
+    addresses: mergedAddresses,
+  };
+}
+
+function extractCustomers(
+  payload: unknown,
+): ApiCustomer[] {
   if (Array.isArray(payload)) {
     return payload as ApiCustomer[];
   }
@@ -224,355 +383,356 @@ function extractCustomers(payload: unknown): ApiCustomer[] {
     payload &&
     typeof payload === "object" &&
     "items" in payload &&
-    Array.isArray((payload as { items?: unknown }).items)
+    Array.isArray(
+      (payload as { items?: unknown })
+        .items,
+    )
   ) {
-    return (payload as { items: ApiCustomer[] }).items;
+    return (
+      payload as {
+        items: ApiCustomer[];
+      }
+    ).items;
   }
 
   if (
     payload &&
     typeof payload === "object" &&
     "customers" in payload &&
-    Array.isArray((payload as { customers?: unknown }).customers)
+    Array.isArray(
+      (
+        payload as {
+          customers?: unknown;
+        }
+      ).customers,
+    )
   ) {
-    return (payload as { customers: ApiCustomer[] }).customers;
+    return (
+      payload as {
+        customers: ApiCustomer[];
+      }
+    ).customers;
   }
 
   if (
     payload &&
     typeof payload === "object" &&
     "data" in payload &&
-    Array.isArray((payload as { data?: unknown }).data)
+    Array.isArray(
+      (payload as { data?: unknown })
+        .data,
+    )
   ) {
-    return (payload as { data: ApiCustomer[] }).data;
+    return (
+      payload as {
+        data: ApiCustomer[];
+      }
+    ).data;
   }
 
   return [];
 }
 
-function getMainAddress(item: ApiCustomer) {
-  if (item.mainAddress) {
-    return item.mainAddress;
-  }
+function validateCreateInput(
+  input: CreateClientInput,
+) {
+  const name = cleanText(input.name);
+  const email = cleanText(
+    input.email,
+  ).toLowerCase();
 
-  if (Array.isArray(item.addresses)) {
-    return (
-      item.addresses.find((address) => address.isMain === true) ||
-      item.addresses[0] ||
-      null
+  const password = cleanText(
+    input.password,
+  );
+
+  const address = input.address;
+
+  if (name.length < 2) {
+    throw new Error(
+      "Informe o nome do cliente.",
     );
   }
 
-  return null;
-}
-
-function getBillingAddress(item: ApiCustomer, mainAddress?: ApiAddress | null) {
-  if (!Array.isArray(item.addresses)) {
-    return null;
+  if (!email || !email.includes("@")) {
+    throw new Error(
+      "Informe um e-mail válido.",
+    );
   }
 
-  return (
-    item.addresses.find((address) => address.isMain === false) ||
-    item.addresses.find((address) => {
-      if (!mainAddress?.id) return false;
-      return address.id !== mainAddress.id;
-    }) ||
-    null
-  );
-}
+  if (password.length < 6) {
+    throw new Error(
+      "A senha inicial deve possuir pelo menos 6 caracteres.",
+    );
+  }
 
-function mapApiCustomerToClient(item: ApiCustomer, companyId: string) {
-  const { firstName, lastName } = splitName(item.name);
+  if (!cleanText(address.street)) {
+    throw new Error(
+      "Informe o endereço principal.",
+    );
+  }
 
-  const poolAddress = getMainAddress(item);
-  const billingAddress = getBillingAddress(item, poolAddress);
+  if (!cleanText(address.city)) {
+    throw new Error(
+      "Informe a cidade.",
+    );
+  }
+
+  if (
+    cleanText(address.state).length !== 2
+  ) {
+    throw new Error(
+      "Informe a UF com duas letras.",
+    );
+  }
 
   return {
-    id: item.id,
-    userId: item.userId ?? null,
-    companyId: item.companyId ?? companyId,
-
-    firstName,
-    lastName,
-
-    email: item.email ?? "",
-    phone: item.phone ?? null,
-    cpf: item.document ?? null,
-    cnpj: null,
-    companyName: null,
-
-    active: item.status !== "INACTIVE",
-    status: item.status ?? "ACTIVE",
-
-    street: billingAddress?.street ?? null,
-    number: billingAddress?.number ?? null,
-    district: billingAddress?.neighborhood ?? null,
-    city: billingAddress?.city ?? null,
-    uf: billingAddress?.state ?? null,
-    cep: billingAddress?.zipCode ?? null,
-
-    poolStreet: poolAddress?.street ?? null,
-    poolNumber: poolAddress?.number ?? null,
-    poolDistrict: poolAddress?.neighborhood ?? null,
-    poolCity: poolAddress?.city ?? null,
-    poolUf: poolAddress?.state ?? null,
-    poolCep: poolAddress?.zipCode ?? null,
-    poolLat: poolAddress?.latitude ?? null,
-    poolLng: poolAddress?.longitude ?? null,
-
-    notes: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    name,
+    email,
+    password,
+    phone: onlyDigits(input.phone),
+    document: onlyDigits(
+      input.document,
+    ),
+    address: {
+      street: cleanText(
+        address.street,
+      ),
+      number:
+        optionalText(address.number),
+      complement: optionalText(
+        address.complement,
+      ),
+      neighborhood: optionalText(
+        address.neighborhood,
+      ),
+      city: cleanText(address.city),
+      state: cleanText(
+        address.state,
+      ).toUpperCase(),
+      zipCode: onlyDigits(
+        address.zipCode,
+      ),
+      latitude:
+        address.latitude ?? null,
+      longitude:
+        address.longitude ?? null,
+    },
   };
 }
 
-function buildPoolAddress(data: any): AddressPayload {
-  return {
-    street:
-      (clean(data.poolStreet) as string | null) ||
-      (clean(data.street) as string | null) ||
-      "Endereço da piscina não informado",
+function validateAddressInput(
+  input: AddClientAddressInput,
+) {
+  if (!cleanText(input.street)) {
+    throw new Error(
+      "Informe o endereço.",
+    );
+  }
 
+  if (!cleanText(input.city)) {
+    throw new Error(
+      "Informe a cidade.",
+    );
+  }
+
+  if (
+    cleanText(input.state).length !== 2
+  ) {
+    throw new Error(
+      "Informe a UF com duas letras.",
+    );
+  }
+
+  return {
+    street: cleanText(input.street),
     number:
-      (clean(data.poolNumber) as string | null) ||
-      (clean(data.number) as string | null),
-
-    complement: null,
-
-    neighborhood:
-      (clean(data.poolDistrict) as string | null) ||
-      (clean(data.district) as string | null),
-
-    city:
-      (clean(data.poolCity) as string | null) ||
-      (clean(data.city) as string | null) ||
-      "Cidade não informada",
-
-    state:
-      (clean(data.poolUf) as string | null) ||
-      (clean(data.uf) as string | null) ||
-      "SP",
-
-    zipCode: onlyDigits(data.poolCep) || onlyDigits(data.cep),
-
-    latitude: toNumberOrNull(data.poolLat),
-    longitude: toNumberOrNull(data.poolLng),
-    isMain: true,
+      optionalText(input.number),
+    complement: optionalText(
+      input.complement,
+    ),
+    neighborhood: optionalText(
+      input.neighborhood,
+    ),
+    city: cleanText(input.city),
+    state: cleanText(
+      input.state,
+    ).toUpperCase(),
+    zipCode: onlyDigits(
+      input.zipCode,
+    ),
+    latitude:
+      input.latitude ?? null,
+    longitude:
+      input.longitude ?? null,
+    isMain:
+      input.isMain === true,
   };
 }
 
-function buildBillingAddress(data: any): AddressPayload | null {
-  const hasBillingAddress =
-    clean(data.street) ||
-    clean(data.number) ||
-    clean(data.district) ||
-    clean(data.city) ||
-    clean(data.uf) ||
-    onlyDigits(data.cep);
-
-  if (!hasBillingAddress) {
-    return null;
-  }
-
-  return {
-    street:
-      (clean(data.street) as string | null) ||
-      "Endereço de cobrança não informado",
-    number: clean(data.number) as string | null,
-    complement: null,
-    neighborhood: clean(data.district) as string | null,
-    city: (clean(data.city) as string | null) || "Cidade não informada",
-    state: (clean(data.uf) as string | null) || "SP",
-    zipCode: onlyDigits(data.cep),
-    latitude: null,
-    longitude: null,
-    isMain: false,
-  };
-}
-
-export async function listClients(opts?: {
-  search?: string;
-  status?: ClientStatus;
-}) {
-  const companyId = await getCompanyId();
+export async function listClients(
+  options?: {
+    search?: string;
+    status?: ClientStatus;
+  },
+): Promise<Client[]> {
+  const { companyId } = await getAuthFromCookies();
 
   const params = new URLSearchParams();
 
-  if (opts?.search?.trim()) {
-    params.set("search", opts.search.trim());
+  if (options?.search?.trim()) {
+    params.set(
+      "search",
+      options.search.trim(),
+    );
   }
 
-  if (opts?.status) {
-    params.set("status", opts.status);
+  if (options?.status) {
+    params.set(
+      "status",
+      options.status,
+    );
   }
 
   const query = params.toString();
 
   const data = await mappaFetch<unknown>(
-    `/api/companies/${companyId}/customers${query ? `?${query}` : ""}`
+    `/api/companies/${companyId}/customers${
+      query ? `?${query}` : ""
+    }`,
   );
 
-  const customers = extractCustomers(data);
+  const summaries = extractCustomers(data);
 
+  /*
+   * O GET da listagem retorna somente os dados resumidos.
+   * Buscamos cada cliente por ID para obter mainAddress e addresses.
+   */
   const hydratedCustomers = await Promise.all(
-    customers.map(async (customer) => {
+    summaries.map(async (summary) => {
       try {
         return await mappaFetch<ApiCustomer>(
-          `/api/companies/${companyId}/customers/${customer.id}`
+          `/api/companies/${companyId}/customers/${summary.id}`,
         );
-      } catch {
-        return customer;
+      } catch (error) {
+        console.error(
+          `Não foi possível carregar os detalhes do cliente ${summary.id}:`,
+          error,
+        );
+
+        return summary;
       }
-    })
+    }),
   );
 
-  return hydratedCustomers.map((item) =>
-    mapApiCustomerToClient(item, companyId)
-  );
+  return hydratedCustomers
+    .map(normalizeCustomer)
+    .sort((first, second) =>
+      first.name.localeCompare(
+        second.name,
+        "pt-BR",
+      ),
+    );
 }
 
-export async function getClientById(customerId: string) {
-  const companyId = await getCompanyId();
+export async function getClientById(
+  customerId: string,
+): Promise<Client> {
+  const { companyId } =
+    await getAuthFromCookies();
 
   if (!customerId) {
-    throw new Error("ID do cliente não informado.");
-  }
-
-  const data = await mappaFetch<ApiCustomer>(
-    `/api/companies/${companyId}/customers/${customerId}`
-  );
-
-  return mapApiCustomerToClient(data, companyId);
-}
-
-export async function createClient(data: any) {
-  const companyId = await getCompanyId();
-
-  const firstName = String(data.firstName || "").trim();
-  const lastName = String(data.lastName || "").trim();
-  const name = [firstName, lastName].filter(Boolean).join(" ");
-
-  if (!name) {
-    throw new Error("Informe o nome do cliente.");
-  }
-
-  if (!data.email) {
-    throw new Error("Informe o email do cliente.");
-  }
-
-  const poolAddress = buildPoolAddress(data);
-  const billingAddress = buildBillingAddress(data);
-
-  const payload = {
-    name,
-    email: String(data.email).trim(),
-    password: "123456",
-    phone: onlyDigits(data.phone),
-    document: onlyDigits(data.cpf || data.cnpj),
-
-    address: {
-      street: poolAddress.street,
-      number: poolAddress.number,
-      complement: poolAddress.complement,
-      neighborhood: poolAddress.neighborhood,
-      city: poolAddress.city,
-      state: poolAddress.state,
-      zipCode: poolAddress.zipCode,
-      latitude: poolAddress.latitude,
-      longitude: poolAddress.longitude,
-    },
-  };
-
-  const createdCustomer = await mappaFetch<ApiCustomer>(
-    `/api/companies/${companyId}/customers`,
-    {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }
-  );
-
-  if (billingAddress && createdCustomer?.id) {
-    await mappaFetch(
-      `/api/companies/${companyId}/customers/${createdCustomer.id}/addresses`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          street: billingAddress.street,
-          number: billingAddress.number,
-          complement: billingAddress.complement,
-          neighborhood: billingAddress.neighborhood,
-          city: billingAddress.city,
-          state: billingAddress.state,
-          zipCode: billingAddress.zipCode,
-          latitude: billingAddress.latitude,
-          longitude: billingAddress.longitude,
-          isMain: false,
-        }),
-      }
+    throw new Error(
+      "ID do cliente não informado.",
     );
   }
 
-  revalidatePath("/clients");
+  const customer =
+    await mappaFetch<ApiCustomer>(
+      `/api/companies/${companyId}/customers/${customerId}`,
+    );
 
-  return createdCustomer;
+  return normalizeCustomer(customer);
 }
 
-export async function addClientAddress(customerId: string, address: any) {
-  const companyId = await getCompanyId();
+export async function createClient(
+  input: CreateClientInput,
+) {
+  const { companyId } =
+    await getAuthFromCookies();
+
+  const payload =
+    validateCreateInput(input);
+
+  const created =
+    await mappaFetch<ApiCustomer>(
+      `/api/companies/${companyId}/customers`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    );
+
+  revalidatePath("/clients");
+  revalidatePath("/workorders");
+  revalidatePath("/service-plans");
+  revalidatePath("/routes/new");
+
+  return normalizeCustomer(created);
+}
+
+export async function addClientAddress(
+  customerId: string,
+  input: AddClientAddressInput,
+) {
+  const { companyId } =
+    await getAuthFromCookies();
 
   if (!customerId) {
-    throw new Error("ID do cliente não informado.");
+    throw new Error(
+      "ID do cliente não informado.",
+    );
   }
 
-  const payload = {
-    street:
-      (clean(address.street) as string | null) || "Endereço não informado",
-    number: clean(address.number) as string | null,
-    complement: clean(address.complement) as string | null,
-    neighborhood: clean(address.neighborhood || address.district) as
-      | string
-      | null,
-    city: (clean(address.city) as string | null) || "Cidade não informada",
-    state: (clean(address.state || address.uf) as string | null) || "SP",
-    zipCode: onlyDigits(address.zipCode || address.cep),
-    latitude: toNumberOrNull(address.latitude),
-    longitude: toNumberOrNull(address.longitude),
-    isMain: Boolean(address.isMain),
-  };
+  const payload =
+    validateAddressInput(input);
 
-  const createdAddress = await mappaFetch(
-    `/api/companies/${companyId}/customers/${customerId}/addresses`,
+  const address =
+    await mappaFetch<ApiAddress>(
+      `/api/companies/${companyId}/customers/${customerId}/addresses`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    );
+
+  revalidatePath("/clients");
+  revalidatePath("/workorders");
+  revalidatePath("/service-plans");
+  revalidatePath("/routes/new");
+
+  return normalizeAddress(address);
+}
+
+export async function deleteClient(
+  customerId: string,
+) {
+  const { companyId } =
+    await getAuthFromCookies();
+
+  if (!customerId) {
+    throw new Error(
+      "ID do cliente não informado.",
+    );
+  }
+
+  await mappaFetch(
+    `/api/companies/${companyId}/customers/${customerId}`,
     {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }
+      method: "DELETE",
+    },
   );
-
-  revalidatePath("/clients");
-
-  return createdAddress;
-}
-
-export async function deleteClient(customerId: string) {
-  const companyId = await getCompanyId();
-
-  if (!customerId) {
-    throw new Error("ID do cliente não informado.");
-  }
-
-  await mappaFetch(`/api/companies/${companyId}/customers/${customerId}`, {
-    method: "DELETE",
-  });
 
   revalidatePath("/clients");
 
   return true;
-}
-
-export async function updateClient() {
-  throw new Error("Atualização de cliente ainda não implementada na API.");
-}
-
-export async function saveClientCoords() {
-  throw new Error("Atualização de coordenadas ainda não implementada na API.");
 }

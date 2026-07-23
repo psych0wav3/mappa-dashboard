@@ -58,24 +58,25 @@ export type ApiRouteResponse = {
   createdAt?: string | null;
 };
 
-export type ApiRouteDetailsResponse = ApiRouteResponse & {
-  serviceOrders?: Array<{
-    serviceOrderId?: string | null;
-    id?: string | null;
-    title?: string | null;
-    customerId?: string | null;
-    customerName?: string | null;
-    customerAddressId?: string | null;
-    address?: string | ApiAddress | null;
-    latitude?: number | null;
-    longitude?: number | null;
-    executionOrder?: number | null;
-    status?: string | null;
-    description?: string | null;
-    scheduledDate?: string | null;
-    totalAmount?: number | null;
-  }>;
-};
+export type ApiRouteDetailsResponse =
+  ApiRouteResponse & {
+    serviceOrders?: Array<{
+      serviceOrderId?: string | null;
+      id?: string | null;
+      title?: string | null;
+      customerId?: string | null;
+      customerName?: string | null;
+      customerAddressId?: string | null;
+      address?: string | ApiAddress | null;
+      latitude?: number | null;
+      longitude?: number | null;
+      executionOrder?: number | null;
+      status?: string | null;
+      description?: string | null;
+      scheduledDate?: string | null;
+      totalAmount?: number | null;
+    }>;
+  };
 
 export type RouteTechnicianOption = {
   id: string;
@@ -95,15 +96,23 @@ export type AvailableRouteWorkOrder = {
   id: string;
   customerId: string;
   customerName: string;
+  customerAddressId?: string | null;
   title: string;
-  serviceKind: "POOL_CLEANING" | "ADDITIONAL_SERVICE";
+  description: string;
+  serviceKind:
+    | "POOL_CLEANING"
+    | "ADDITIONAL_SERVICE";
   frequencyLabel: string;
   weekdays: RouteWeekday[];
   weekdaysLabel: string;
   scheduledTime: string;
   scheduledDate: string;
   address: string;
-  status: "WAITING_EXECUTION" | "READY_FOR_ROUTE";
+  hasAddress: boolean;
+  hasCoordinates: boolean;
+  status:
+    | "WAITING_EXECUTION"
+    | "READY_FOR_ROUTE";
   lat: number;
   lng: number;
   totalAmount: number;
@@ -111,22 +120,16 @@ export type AvailableRouteWorkOrder = {
   technicianName?: string | null;
 };
 
-export type CreateWeeklyRoutesInput = {
+export type CreateRoutePlannerInput = {
+  title: string;
+  routeDate: string;
   employeeUserId: string;
-  weekStartDate: string;
-  items: Array<{
-    serviceOrderId: string;
-    customerName: string;
-    weekdays: RouteWeekday[];
-    scheduledTime: string;
-    order: number;
-  }>;
+  serviceOrderIds: string[];
 };
 
-export type CreateWeeklyRoutesResult = {
+export type CreateRoutePlannerResult = {
   ok: boolean;
-  count: number;
-  routes: ApiRouteDetailsResponse[];
+  route?: ApiRouteDetailsResponse;
   error?: string;
 };
 
@@ -139,6 +142,7 @@ export type RouteDashboardItem = {
   status: string;
   serviceOrderCount: number;
   createdAt?: string | null;
+
   serviceOrders: Array<{
     id: string;
     serviceOrderId: string;

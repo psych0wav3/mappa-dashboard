@@ -2,8 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 
-import { extractItems } from "@/lib/mappa/api";
-
 import {
   addServiceOrdersToRoute,
   createRoute,
@@ -11,13 +9,12 @@ import {
   fetchRouteEmployees,
   fetchRoutes,
   fetchWaitingExecutionServiceOrders,
+  updateRouteEmployee,
 } from "./routes.api";
 
 import {
   normalizeStatus,
   splitName,
-  toApiDate,
-  weekdayToDate,
 } from "./routes.parsers";
 
 import {
@@ -28,217 +25,329 @@ import {
 
 import type {
   ApiRouteDetailsResponse,
-  CreateWeeklyRoutesInput,
-  CreateWeeklyRoutesResult,
+  AvailableRouteWorkOrder,
+  CreateRoutePlannerInput,
+  CreateRoutePlannerResult,
   RouteDashboardItem,
   RouteTechnicianOption,
-  RouteWeekday,
-  AvailableRouteWorkOrder,
 } from "./routes.types";
 
 export type {
   ApiRouteDetailsResponse,
   AvailableRouteWorkOrder,
-  CreateWeeklyRoutesInput,
-  CreateWeeklyRoutesResult,
+  CreateRoutePlannerInput,
+  CreateRoutePlannerResult,
   RouteDashboardItem,
   RouteTechnicianOption,
-  RouteWeekday,
 };
 
-export async function listRouteTechnicians(): Promise<RouteTechnicianOption[]> {
-  const employees = await fetchRouteEmployees();
+export async function listRouteTechnicians(): Promise<
+  RouteTechnicianOption[]
+> {
+  const employees =
+    await fetchRouteEmployees();
 
   return employees
-    .filter((employee) => employee.status !== "INACTIVE")
+    .filter(
+      (employee) =>
+        String(
+          employee.status || "",
+        ).toUpperCase() !==
+        "INACTIVE",
+    )
     .map((employee) => ({
-      id: employee.userId || employee.id,
-      name: employeeDisplayName(employee),
+      id:
+        employee.userId ||
+        employee.id,
+
+      name:
+        employeeDisplayName(employee),
     }))
-    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    .sort((first, second) =>
+      first.name.localeCompare(
+        second.name,
+        "pt-BR",
+      ),
+    );
 }
 
 export async function listTechniciansLite() {
-  const technicians = await listRouteTechnicians();
+  const technicians =
+    await listRouteTechnicians();
 
-  return technicians.map((technician) => {
-    const { firstName, lastName } = splitName(technician.name);
+  return technicians.map(
+    (technician) => {
+      const {
+        firstName,
+        lastName,
+      } = splitName(
+        technician.name,
+      );
 
-    return {
-      id: technician.id,
-      firstName,
-      lastName,
-    };
-  });
+      return {
+        id: technician.id,
+        firstName,
+        lastName,
+      };
+    },
+  );
 }
 
-/**
- * Lista somente OS que podem entrar em rota.
- * A API exige status WaitingExecution.
- */
 export async function listApprovedServiceOrdersForRoute(): Promise<
   AvailableRouteWorkOrder[]
 > {
-  const orders = await fetchWaitingExecutionServiceOrders();
+  const orders =
+    await fetchWaitingExecutionServiceOrders();
 
   return orders
-    .filter((order) => normalizeStatus(order.status) === "waitingexecution")
+    .filter(
+      (order) =>
+        normalizeStatus(order.status) ===
+        "waitingexecution",
+    )
     .map(normalizeWorkOrderForRoute)
-    .sort((a, b) => {
-      const dateCompare = String(a.scheduledDate || "").localeCompare(
-        String(b.scheduledDate || ""),
+    .sort((first, second) => {
+      const dateCompare = String(
+        first.scheduledDate || "",
+      ).localeCompare(
+        String(
+          second.scheduledDate || "",
+        ),
       );
 
-      if (dateCompare !== 0) return dateCompare;
+      if (dateCompare !== 0) {
+        return dateCompare;
+      }
 
-      const timeCompare = String(a.scheduledTime || "").localeCompare(
-        String(b.scheduledTime || ""),
+      return first.customerName.localeCompare(
+        second.customerName,
+        "pt-BR",
       );
-
-      if (timeCompare !== 0) return timeCompare;
-
-      return a.customerName.localeCompare(b.customerName, "pt-BR");
     });
 }
 
-export async function createWeeklyRoutesFromPlanner(
-  input: CreateWeeklyRoutesInput,
-): Promise<CreateWeeklyRoutesResult> {
+function validateRouteInput(
+  input: CreateRoutePlannerInput,
+) {
+  const title = input.title.trim();
+
+  if (!title) {
+    throw new Error(
+      "Informe o nome da rota.",
+    );
+  }
+
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(
+      input.routeDate,
+    )
+  ) {
+    throw new Error(
+      "Informe uma data válida para a rota.",
+    );
+  }
+
+  if (!input.employeeUserId) {
+    throw new Error(
+      "Selecione o técnico responsável.",
+    );
+  }
+
+  const serviceOrderIds = Array.from(
+    new Set(
+      input.serviceOrderIds.filter(
+        Boolean,
+      ),
+    ),
+  );
+
+  if (!serviceOrderIds.length) {
+    throw new Error(
+      "Adicione ao menos uma OS à rota.",
+    );
+  }
+
+  return {
+    title,
+    routeDate: input.routeDate,
+    employeeUserId:
+      input.employeeUserId,
+    serviceOrderIds,
+  };
+}
+
+export async function createRouteFromPlanner(
+  input: CreateRoutePlannerInput,
+): Promise<CreateRoutePlannerResult> {
   try {
-    if (!input.employeeUserId) {
-      return {
-        ok: false,
-        count: 0,
-        routes: [],
-        error: "Selecione o técnico responsável.",
-      };
-    }
+    const validated =
+      validateRouteInput(input);
 
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.weekStartDate)) {
-      return {
-        ok: false,
-        count: 0,
-        routes: [],
-        error: "Semana inválida.",
-      };
-    }
+    const created =
+      await createRoute({
+        title: validated.title,
 
-    if (!input.items?.length) {
-      return {
-        ok: false,
-        count: 0,
-        routes: [],
-        error: "Adicione pelo menos uma OS ao planejamento.",
-      };
-    }
+        routeDate:
+          validated.routeDate,
 
-    const grouped = new Map<
-      string,
-      Array<{
-        serviceOrderId: string;
-        executionOrder: number;
-      }>
-    >();
-
-    for (const item of input.items) {
-      const weekdays: RouteWeekday[] = item.weekdays.length
-        ? item.weekdays
-        : ["MONDAY"];
-
-      for (const weekday of weekdays) {
-        const routeDate = weekdayToDate(input.weekStartDate, weekday);
-
-        const current = grouped.get(routeDate) || [];
-
-        current.push({
-          serviceOrderId: item.serviceOrderId,
-          executionOrder: current.length + 1,
-        });
-
-        grouped.set(routeDate, current);
-      }
-    }
-
-    const createdRoutes: ApiRouteDetailsResponse[] = [];
-
-    for (const [routeDate, serviceOrders] of grouped.entries()) {
-      const route = await createRoute({
-        title: `Rota ${toApiDate(routeDate)}`,
-        routeDate,
-        employeeUserId: input.employeeUserId,
+        employeeUserId:
+          validated.employeeUserId,
       });
 
-      const updated = await addServiceOrdersToRoute({
-        routeId: route.id,
-        serviceOrders,
+    const route =
+      await addServiceOrdersToRoute({
+        routeId: created.id,
+
+        serviceOrders:
+          validated.serviceOrderIds.map(
+            (
+              serviceOrderId,
+              index,
+            ) => ({
+              serviceOrderId,
+
+              executionOrder:
+                index + 1,
+            }),
+          ),
       });
 
-      createdRoutes.push(updated);
-    }
+    revalidatePath(
+      "/routes/builder",
+    );
 
-    revalidatePath("/routes/builder");
-    revalidatePath("/routes/dashboard");
-    revalidatePath("/workorders");
-    revalidatePath("/workorders/approved");
+    revalidatePath(
+      "/routes/dashboard",
+    );
+
+    revalidatePath(
+      "/workorders",
+    );
+
+    revalidatePath(
+      "/workorders/approved",
+    );
 
     return {
       ok: true,
-      count: createdRoutes.length,
-      routes: createdRoutes,
+      route,
     };
-  } catch (error: any) {
-    console.error("[createWeeklyRoutesFromPlanner]", error);
+  } catch (error) {
+    console.error(
+      "[createRouteFromPlanner]",
+      error,
+    );
 
     return {
       ok: false,
-      count: 0,
-      routes: [],
+
       error:
-        error?.message ||
-        "Não foi possível criar a rota. Verifique o status das OS selecionadas.",
+        error instanceof Error
+          ? error.message
+          : "Não foi possível criar a rota.",
     };
   }
 }
 
-export async function listRoutesForDashboard(params?: {
-  routeDate?: string;
-  status?: string;
-}): Promise<RouteDashboardItem[]> {
-  try {
-    const routes = await fetchRoutes(params);
-
-    const detailed = await Promise.all(
-      routes.map(async (route) => {
-        try {
-          return await fetchRouteDetails(route.id);
-        } catch {
-          return {
-            id: route.id,
-            title: route.title,
-            routeDate: route.routeDate,
-            employeeUserId: route.employeeUserId,
-            employeeName: route.employeeName,
-            status: route.status,
-            serviceOrders: [],
-            createdAt: route.createdAt,
-          } satisfies ApiRouteDetailsResponse;
-        }
-      }),
+export async function changeRouteEmployee(
+  params: {
+    routeId: string;
+    employeeUserId: string;
+  },
+) {
+  if (!params.routeId) {
+    throw new Error(
+      "ID da rota não informado.",
     );
+  }
+
+  if (!params.employeeUserId) {
+    throw new Error(
+      "Selecione o técnico responsável.",
+    );
+  }
+
+  const updated =
+    await updateRouteEmployee(params);
+
+  revalidatePath(
+    "/routes/dashboard",
+  );
+
+  return updated;
+}
+
+export async function listRoutesForDashboard(
+  params?: {
+    routeDate?: string;
+    status?: string;
+    employeeUserId?: string;
+  },
+): Promise<RouteDashboardItem[]> {
+  try {
+    const routes =
+      await fetchRoutes(params);
+
+    const detailed =
+      await Promise.all(
+        routes.map(async (route) => {
+          try {
+            return await fetchRouteDetails(
+              route.id,
+            );
+          } catch {
+            return {
+              id: route.id,
+
+              title:
+                route.title,
+
+              routeDate:
+                route.routeDate,
+
+              employeeUserId:
+                route.employeeUserId,
+
+              employeeName:
+                route.employeeName,
+
+              status:
+                route.status,
+
+              serviceOrders: [],
+
+              createdAt:
+                route.createdAt,
+            } satisfies ApiRouteDetailsResponse;
+          }
+        }),
+      );
 
     return detailed
       .map(normalizeRouteDetails)
-      .sort((a, b) => {
-        const dateCompare = String(b.routeDate || "").localeCompare(
-          String(a.routeDate || ""),
+      .sort((first, second) => {
+        const dateCompare = String(
+          second.routeDate || "",
+        ).localeCompare(
+          String(
+            first.routeDate || "",
+          ),
         );
 
-        if (dateCompare !== 0) return dateCompare;
+        if (dateCompare !== 0) {
+          return dateCompare;
+        }
 
-        return a.employeeName.localeCompare(b.employeeName, "pt-BR");
+        return first.employeeName.localeCompare(
+          second.employeeName,
+          "pt-BR",
+        );
       });
   } catch (error) {
-    console.error("[listRoutesForDashboard]", error);
+    console.error(
+      "[listRoutesForDashboard]",
+      error,
+    );
 
     return [];
   }

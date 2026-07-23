@@ -1,7 +1,12 @@
-import type { ApiAddress, RouteWeekday } from "./routes.types";
+import type {
+  ApiAddress,
+  RouteWeekday,
+} from "./routes.types";
 
-export function toApiDate(value: string) {
-  if (!value) return "";
+export function toApiDate(value?: string | null) {
+  if (!value) {
+    return "";
+  }
 
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return value;
@@ -9,25 +14,23 @@ export function toApiDate(value: string) {
 
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
     const [day, month, year] = value.split("/");
-    return `${year}-${month}-${day}`;
-  }
 
-  if (/^\d{2}-\d{2}-\d{4}$/.test(value)) {
-    const [day, month, year] = value.split("-");
     return `${year}-${month}-${day}`;
   }
 
   return value.slice(0, 10);
 }
 
-export function normalizeStatus(status?: string | null) {
-  return String(status || "")
+export function normalizeStatus(
+  value?: string | null,
+) {
+  return String(value || "")
     .replace(/[_\s-]/g, "")
     .toLowerCase();
 }
 
-export function splitName(name?: string | null) {
-  const parts = String(name || "")
+export function splitName(value: string) {
+  const parts = value
     .trim()
     .split(/\s+/)
     .filter(Boolean);
@@ -38,18 +41,31 @@ export function splitName(name?: string | null) {
   };
 }
 
-export function addressLabel(address?: string | ApiAddress | null) {
-  if (!address) return "Endereço não informado";
+export function addressLabel(
+  address?: string | ApiAddress | null,
+) {
+  if (!address) {
+    return "Endereço não informado";
+  }
 
   if (typeof address === "string") {
-    return address || "Endereço não informado";
+    return (
+      address.trim() ||
+      "Endereço não informado"
+    );
   }
 
   const line = [
     address.street,
     address.number,
+    address.complement,
     address.neighborhood,
-    address.city && `${address.city}${address.state ? `/${address.state}` : ""}`,
+    address.city &&
+      `${address.city}${
+        address.state
+          ? `/${address.state}`
+          : ""
+      }`,
     address.zipCode,
   ]
     .filter(Boolean)
@@ -58,141 +74,182 @@ export function addressLabel(address?: string | ApiAddress | null) {
   return line || "Endereço não informado";
 }
 
-export function getAddressLatitude(address?: string | ApiAddress | null) {
-  if (!address || typeof address === "string") return 0;
+export function getAddressLatitude(
+  address?: string | ApiAddress | null,
+) {
+  if (
+    !address ||
+    typeof address === "string"
+  ) {
+    return 0;
+  }
 
   return Number(address.latitude || 0);
 }
 
-export function getAddressLongitude(address?: string | ApiAddress | null) {
-  if (!address || typeof address === "string") return 0;
+export function getAddressLongitude(
+  address?: string | ApiAddress | null,
+) {
+  if (
+    !address ||
+    typeof address === "string"
+  ) {
+    return 0;
+  }
 
   return Number(address.longitude || 0);
 }
 
-export function extractLine(
-  description: string | null | undefined,
-  label: string,
+export function parseScheduledTime(
+  description?: string | null,
 ) {
-  const target = label.toLowerCase();
+  const content = String(description || "");
 
-  const line = String(description || "")
-    .split("\n")
-    .map((item) => item.trim())
-    .find((item) => item.toLowerCase().startsWith(target));
+  const patterns = [
+    /hor[aá]rio\s*previsto\s*:\s*(\d{1,2}:\d{2})/i,
+    /hor[aá]rio\s*:\s*(\d{1,2}:\d{2})/i,
+    /\b(\d{2}:\d{2})\b/,
+  ];
 
-  if (!line) return "";
+  for (const pattern of patterns) {
+    const match = content.match(pattern);
 
-  return line.slice(label.length).trim();
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+
+  return "Horário não informado";
 }
 
-export function parseTechnicianName(description?: string | null) {
-  const line = extractLine(description, "Técnico responsável:");
+export function parseTechnicianId(
+  description?: string | null,
+) {
+  const content = String(description || "");
 
-  if (!line || line === "Não informado") return null;
+  const match = content.match(
+    /t[eé]cnico\s*id\s*:\s*([a-f0-9-]{36})/i,
+  );
 
-  return line;
+  return match?.[1] || null;
 }
 
-export function parseTechnicianId(description?: string | null) {
-  const line = extractLine(description, "Técnico ID:");
+export function parseTechnicianName(
+  description?: string | null,
+) {
+  const content = String(description || "");
 
-  if (!line || line === "Não informado") return null;
+  const match = content.match(
+    /t[eé]cnico\s*:\s*([^\n]+)/i,
+  );
 
-  return line;
+  return match?.[1]?.trim() || null;
+}
+
+export function parseFrequencyLabel(
+  description?: string | null,
+) {
+  const content = String(description || "");
+
+  const match = content.match(
+    /frequ[eê]ncia\s*:\s*([^\n]+)/i,
+  );
+
+  return match?.[1]?.trim() || "Avulsa";
 }
 
 export function parseServiceKind(
   description?: string | null,
   title?: string | null,
+):
+  | "POOL_CLEANING"
+  | "ADDITIONAL_SERVICE" {
+  const content = `${title || ""} ${
+    description || ""
+  }`.toLocaleLowerCase("pt-BR");
+
+  if (
+    content.includes("limpeza") ||
+    content.includes("aspiração") ||
+    content.includes("aspiracao")
+  ) {
+    return "POOL_CLEANING";
+  }
+
+  return "ADDITIONAL_SERVICE";
+}
+
+export function parseWeekdays(
+  description?: string | null,
+): RouteWeekday[] {
+  const content = String(description || "")
+    .toLocaleLowerCase("pt-BR")
+    .replace(/[áàâã]/g, "a")
+    .replace(/[éê]/g, "e");
+
+  const weekdays: Array<{
+    value: RouteWeekday;
+    patterns: string[];
+  }> = [
+    {
+      value: "MONDAY",
+      patterns: ["segunda", "seg"],
+    },
+    {
+      value: "TUESDAY",
+      patterns: ["terca", "ter"],
+    },
+    {
+      value: "WEDNESDAY",
+      patterns: ["quarta", "qua"],
+    },
+    {
+      value: "THURSDAY",
+      patterns: ["quinta", "qui"],
+    },
+    {
+      value: "FRIDAY",
+      patterns: ["sexta", "sex"],
+    },
+    {
+      value: "SATURDAY",
+      patterns: ["sabado", "sab"],
+    },
+    {
+      value: "SUNDAY",
+      patterns: ["domingo", "dom"],
+    },
+  ];
+
+  return weekdays
+    .filter((weekday) =>
+      weekday.patterns.some((pattern) =>
+        content.includes(pattern),
+      ),
+    )
+    .map((weekday) => weekday.value);
+}
+
+export function parseWeekdaysLabel(
+  description?: string | null,
 ) {
-  const line = extractLine(description, "Tipo da OS:");
-
-  if (line.toLowerCase().includes("produto")) {
-    return "ADDITIONAL_SERVICE" as const;
-  }
-
-  if (String(title || "").toLowerCase().includes("troca")) {
-    return "ADDITIONAL_SERVICE" as const;
-  }
-
-  if (String(title || "").toLowerCase().includes("cloro")) {
-    return "ADDITIONAL_SERVICE" as const;
-  }
-
-  return "POOL_CLEANING" as const;
-}
-
-export function parseFrequencyLabel(description?: string | null) {
-  const line = extractLine(description, "Frequência:");
-
-  if (!line) return "Avulsa";
-
-  return line;
-}
-
-export function parseScheduledTime(description?: string | null) {
-  const line = extractLine(description, "Horário previsto:");
-
-  if (!line) return "Horário não informado";
-
-  if (/^\d{2}:\d{2}$/.test(line)) {
-    return line;
-  }
-
-  return line.slice(0, 5) || "Horário não informado";
-}
-
-export function parseWeekdaysLabel(description?: string | null) {
-  const line = extractLine(description, "Dias da semana:");
-
-  if (!line) return "Não se aplica";
-
-  return line;
-}
-
-export function parseWeekdays(description?: string | null): RouteWeekday[] {
-  const line = extractLine(description, "Dias da semana:");
-
-  if (!line || line.toLowerCase().includes("não se aplica")) {
-    return [];
-  }
-
-  const value = line.toLowerCase();
-
-  const days: RouteWeekday[] = [];
-
-  if (value.includes("segunda")) days.push("MONDAY");
-  if (value.includes("terça") || value.includes("terca")) days.push("TUESDAY");
-  if (value.includes("quarta")) days.push("WEDNESDAY");
-  if (value.includes("quinta")) days.push("THURSDAY");
-  if (value.includes("sexta")) days.push("FRIDAY");
-
-  if (value.includes("sábado") || value.includes("sabado")) {
-    days.push("SATURDAY");
-  }
-
-  if (value.includes("domingo")) {
-    days.push("SUNDAY");
-  }
-
-  return days;
-}
-
-export function weekdayToDate(weekStartDate: string, weekday: RouteWeekday) {
-  const offsets: Record<RouteWeekday, number> = {
-    MONDAY: 0,
-    TUESDAY: 1,
-    WEDNESDAY: 2,
-    THURSDAY: 3,
-    FRIDAY: 4,
-    SATURDAY: 5,
-    SUNDAY: 6,
+  const labels: Record<RouteWeekday, string> = {
+    MONDAY: "Seg",
+    TUESDAY: "Ter",
+    WEDNESDAY: "Qua",
+    THURSDAY: "Qui",
+    FRIDAY: "Sex",
+    SATURDAY: "Sáb",
+    SUNDAY: "Dom",
   };
 
-  const date = new Date(`${weekStartDate}T00:00:00`);
+  const weekdays = parseWeekdays(description);
 
-  date.setDate(date.getDate() + offsets[weekday]);
+  if (!weekdays.length) {
+    return "Não se aplica";
+  }
 
-  return date.toISOString().slice(0, 10);
+  return weekdays
+    .map((weekday) => labels[weekday])
+    .join(", ");
 }
