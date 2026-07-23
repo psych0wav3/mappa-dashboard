@@ -15,13 +15,83 @@ import {
   UserX,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+
+import type { Client } from "@/app/(private)/clients/actions";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-import type { Client } from "@/app/(private)/clients/actions";
-
 import ClientForm from "./ClientForm";
+
+const INACTIVE_STORAGE_KEY =
+  "aqua-mappa:inactive-clients";
+
+function readInactiveIds() {
+  if (typeof window === "undefined") {
+    return new Set<string>();
+  }
+
+  try {
+    const raw = window.localStorage.getItem(
+      INACTIVE_STORAGE_KEY,
+    );
+
+    const parsed = raw
+      ? JSON.parse(raw)
+      : [];
+
+    if (!Array.isArray(parsed)) {
+      return new Set<string>();
+    }
+
+    return new Set(
+      parsed.filter(
+        (item): item is string =>
+          typeof item === "string",
+      ),
+    );
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function writeInactiveIds(
+  ids: Set<string>,
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(
+    INACTIVE_STORAGE_KEY,
+    JSON.stringify(Array.from(ids)),
+  );
+}
+
+function applyLocalInactiveStatus(
+  data: Client[],
+) {
+  const inactiveIds =
+    readInactiveIds();
+
+  return data.map((client) => {
+    const locallyInactive =
+      inactiveIds.has(client.id);
+
+    const active =
+      client.active &&
+      !locallyInactive;
+
+    return {
+      ...client,
+      active,
+      status: active
+        ? ("ACTIVE" as const)
+        : ("INACTIVE" as const),
+    };
+  });
+}
 
 function getInitials(name: string) {
   const parts = name
@@ -90,17 +160,20 @@ function normalizeSearch(
     .toLocaleLowerCase("pt-BR");
 }
 
+type ClientTableProps = {
+  initialData: Client[];
+};
+
 export default function ClientTable({
   initialData,
-}: {
-  initialData: Client[];
-}) {
+}: ClientTableProps) {
   const router = useRouter();
 
   const [rows, setRows] =
-    React.useState<Client[]>(
-      initialData ?? [],
-    );
+    React.useState<Client[]>([]);
+
+  const [storageReady, setStorageReady] =
+    React.useState(false);
 
   const [tab, setTab] =
     React.useState<
@@ -111,7 +184,13 @@ export default function ClientTable({
     React.useState("");
 
   React.useEffect(() => {
-    setRows(initialData ?? []);
+    setRows(
+      applyLocalInactiveStatus(
+        initialData ?? [],
+      ),
+    );
+
+    setStorageReady(true);
   }, [initialData]);
 
   const counts = React.useMemo(() => {
@@ -126,68 +205,153 @@ export default function ClientTable({
     };
   }, [rows]);
 
-  const filtered = React.useMemo(() => {
-    const byStatus = rows.filter(
-      (client) => {
-        if (tab === "all") {
-          return true;
-        }
+  const filtered =
+    React.useMemo(() => {
+      const byStatus = rows.filter(
+        (client) => {
+          if (tab === "all") {
+            return true;
+          }
 
-        return tab === "active"
-          ? client.active
-          : !client.active;
-      },
-    );
+          return tab === "active"
+            ? client.active
+            : !client.active;
+        },
+      );
 
-    const term =
-      normalizeSearch(query.trim());
+      const term =
+        normalizeSearch(
+          query.trim(),
+        );
 
-    if (!term) {
-      return byStatus;
-    }
+      if (!term) {
+        return byStatus;
+      }
 
-    return byStatus.filter(
-      (client) => {
-        const searchable = [
-          client.name,
-          client.email,
-          client.phone,
-          client.document,
-          client.mainAddress?.street,
-          client.mainAddress?.number,
-          client.mainAddress
-            ?.neighborhood,
-          client.mainAddress?.city,
-          client.mainAddress?.state,
-          client.mainAddress?.zipCode,
-        ]
-          .map(normalizeSearch)
-          .join(" ");
+      return byStatus.filter(
+        (client) => {
+          const searchable = [
+            client.name,
+            client.email,
+            client.phone,
+            client.document,
+            client.mainAddress?.street,
+            client.mainAddress?.number,
+            client.mainAddress
+              ?.neighborhood,
+            client.mainAddress?.city,
+            client.mainAddress?.state,
+            client.mainAddress?.zipCode,
+          ]
+            .map(normalizeSearch)
+            .join(" ");
 
-        return searchable.includes(term);
-      },
-    );
-  }, [query, rows, tab]);
+          return searchable.includes(
+            term,
+          );
+        },
+      );
+    }, [query, rows, tab]);
 
   function updateClientInList(
-    client: Client,
+    updatedClient: Client,
   ) {
     setRows((current) =>
-      current.map((item) =>
-        item.id === client.id
-          ? client
-          : item,
+      current.map((item) => {
+        if (
+          item.id !== updatedClient.id
+        ) {
+          return item;
+        }
+
+        /*
+         * Mantém o estado exibido na tabela.
+         * Isso evita que o GET de detalhes reative
+         * visualmente um cliente inativado localmente.
+         */
+        return {
+          ...updatedClient,
+          active: item.active,
+          status: item.active
+            ? "ACTIVE"
+            : "INACTIVE",
+        };
+      }),
+    );
+  }
+
+  function handleDeactivate(
+    customerId: string,
+  ) {
+    const inactiveIds =
+      readInactiveIds();
+
+    inactiveIds.add(customerId);
+
+    writeInactiveIds(inactiveIds);
+
+    setRows((current) =>
+      current.map((client) =>
+        client.id === customerId
+          ? {
+              ...client,
+              active: false,
+              status: "INACTIVE",
+            }
+          : client,
       ),
+    );
+
+    setTab("inactive");
+
+    toast.success(
+      "Cliente inativado.",
+    );
+  }
+
+  function handleReactivate(
+    customerId: string,
+  ) {
+    const inactiveIds =
+      readInactiveIds();
+
+    inactiveIds.delete(customerId);
+
+    writeInactiveIds(inactiveIds);
+
+    setRows((current) =>
+      current.map((client) =>
+        client.id === customerId
+          ? {
+              ...client,
+              active: true,
+              status: "ACTIVE",
+            }
+          : client,
+      ),
+    );
+
+    setTab("active");
+
+    toast.success(
+      "Cliente reativado.",
     );
   }
 
   function removeClientFromList(
     customerId: string,
   ) {
+    const inactiveIds =
+      readInactiveIds();
+
+    inactiveIds.delete(customerId);
+
+    writeInactiveIds(inactiveIds);
+
     setRows((current) =>
       current.filter(
-        (item) =>
-          item.id !== customerId,
+        (client) =>
+          client.id !== customerId,
       ),
     );
   }
@@ -201,6 +365,16 @@ export default function ClientTable({
         ? "border-sky-600 bg-sky-600 text-white shadow-sm"
         : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
     ].join(" ");
+  }
+
+  if (!storageReady) {
+    return (
+      <div className="space-y-5">
+        <div className="h-32 animate-pulse rounded-2xl border border-slate-200 bg-white" />
+
+        <div className="h-96 animate-pulse rounded-2xl border border-slate-200 bg-white" />
+      </div>
+    );
   }
 
   return (
@@ -262,8 +436,9 @@ export default function ClientTable({
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-2">
+
             <button
               type="button"
               className={tabClass(
@@ -274,6 +449,7 @@ export default function ClientTable({
               }
             >
               <UserCheck className="h-4 w-4" />
+
               Ativos ({counts.active})
             </button>
 
@@ -287,6 +463,7 @@ export default function ClientTable({
               }
             >
               <UserX className="h-4 w-4" />
+
               Inativos ({counts.inactive})
             </button>
           </div>
@@ -317,6 +494,7 @@ export default function ClientTable({
               }
             >
               <Plus className="mr-2 h-4 w-4" />
+
               Novo cliente
             </Button>
           </div>
@@ -445,11 +623,19 @@ export default function ClientTable({
                             clientId={
                               client.id
                             }
-                            summary={
-                              client
-                            }
+                            summary={client}
                             onUpdated={
                               updateClientInList
+                            }
+                            onDeactivate={() =>
+                              handleDeactivate(
+                                client.id,
+                              )
+                            }
+                            onReactivate={() =>
+                              handleReactivate(
+                                client.id,
+                              )
                             }
                             onDeleted={() =>
                               removeClientFromList(
@@ -488,7 +674,7 @@ export default function ClientTable({
                       </h3>
 
                       <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-slate-400">
-                        Não existem clientes nesta categoria ou nenhum resultado corresponde à busca.
+                        Não existem clientes nesta categoria ou nenhum resultado corresponde à sua busca.
                       </p>
                     </td>
                   </tr>

@@ -2,492 +2,116 @@
 
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { Loader2, Trash2, X } from "lucide-react";
-import { toast } from "sonner";
-
 import {
-  addClientAddress,
-  deleteClient,
-  getClientById,
-  type AddClientAddressInput,
-  type Client,
-} from "@/app/(private)/clients/actions";
+  AlertTriangle,
+  Loader2,
+  X,
+} from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import type { Client } from "@/app/(private)/clients/actions";
 
 import ClientAddressesSection from "./ClientAddressesSection";
 import ClientContactSection from "./ClientContactSection";
+import ClientDetailsFooter from "./ClientDetailsFooter";
 import ClientDetailsHeader from "./ClientDetailsHeader";
 import ClientIdentityCard from "./ClientIdentityCard";
 import ClientRegistrationSection from "./ClientRegistrationSection";
 
-import { getClientAddresses } from "./client-form.utils";
+import {
+  getClientAddresses,
+} from "./client-form.utils";
+
+import useClientDetails from "./useClientDetails";
+import useClientModalPosition from "./useClientModalPosition";
 
 type ClientFormProps = {
   clientId: string;
   summary: Client;
   trigger: React.ReactNode;
   onUpdated?: (client: Client) => void;
+  onDeactivate?: () => void;
+  onReactivate?: () => void;
   onDeleted?: () => void;
 };
-
-type ModalPosition = {
-  top: number;
-  bottom: number;
-  left: number;
-  width: number;
-};
-
-const MODAL_MAX_WIDTH = 1120;
-
-const DESKTOP_HORIZONTAL_MARGIN = 24;
-const DESKTOP_VERTICAL_MARGIN = 24;
-
-const MOBILE_HORIZONTAL_MARGIN = 12;
-const MOBILE_VERTICAL_MARGIN = 12;
-
-const MOBILE_BREAKPOINT = 768;
-
-/**
- * Altura usada caso a barra superior não seja localizada automaticamente.
- */
-const DEFAULT_TOP_BAR_HEIGHT = 64;
-
-function isVisibleElement(element: HTMLElement) {
-  const styles = window.getComputedStyle(element);
-  const rect = element.getBoundingClientRect();
-
-  return (
-    styles.display !== "none" &&
-    styles.visibility !== "hidden" &&
-    Number(styles.opacity) !== 0 &&
-    rect.width > 0 &&
-    rect.height > 0
-  );
-}
-
-function isPossibleSidebar(element: HTMLElement) {
-  if (!isVisibleElement(element)) {
-    return false;
-  }
-
-  const rect = element.getBoundingClientRect();
-
-  return (
-    rect.left <= 1 &&
-    rect.top <= 1 &&
-    rect.width >= 56 &&
-    rect.width <= 360 &&
-    rect.height >= window.innerHeight * 0.7
-  );
-}
-
-function isPossibleTopBar(element: HTMLElement) {
-  if (!isVisibleElement(element)) {
-    return false;
-  }
-
-  const rect = element.getBoundingClientRect();
-
-  const startsAtTop = rect.top >= -2 && rect.top <= 2;
-  const reasonableHeight = rect.height >= 48 && rect.height <= 100;
-  const wideEnough = rect.width >= window.innerWidth * 0.45;
-
-  return startsAtTop && reasonableHeight && wideEnough;
-}
-
-function getSidebarRightEdge() {
-  if (window.innerWidth < MOBILE_BREAKPOINT) {
-    return 0;
-  }
-
-  const selectors = [
-    "[data-app-sidebar]",
-    '[data-sidebar="sidebar"]',
-    '[data-sidebar="root"]',
-    "aside",
-  ];
-
-  for (const selector of selectors) {
-    const elements = Array.from(
-      document.querySelectorAll<HTMLElement>(selector),
-    );
-
-    const sidebar = elements.find(isPossibleSidebar);
-
-    if (sidebar) {
-      return Math.max(0, sidebar.getBoundingClientRect().right);
-    }
-  }
-
-  const elementsAtLeft = document.elementsFromPoint(
-    10,
-    Math.round(window.innerHeight / 2),
-  );
-
-  const candidates = elementsAtLeft
-    .filter(
-      (element): element is HTMLElement =>
-        element instanceof HTMLElement,
-    )
-    .filter(isPossibleSidebar)
-    .map((element) => element.getBoundingClientRect())
-    .sort((first, second) => second.width - first.width);
-
-  if (candidates.length > 0) {
-    return Math.max(0, candidates[0].right);
-  }
-
-  return 0;
-}
-
-function getTopBarBottomEdge() {
-  const selectors = [
-    "[data-app-header]",
-    "[data-topbar]",
-    "[data-header]",
-    "header",
-  ];
-
-  for (const selector of selectors) {
-    const elements = Array.from(
-      document.querySelectorAll<HTMLElement>(selector),
-    );
-
-    const topBarCandidates = elements
-      .filter(isPossibleTopBar)
-      .map((element) => element.getBoundingClientRect())
-      .sort((first, second) => second.width - first.width);
-
-    if (topBarCandidates.length > 0) {
-      return Math.max(0, topBarCandidates[0].bottom);
-    }
-  }
-
-  /*
-   * Segunda tentativa: procura elementos visíveis no meio da região superior.
-   */
-  const topElements = document.elementsFromPoint(
-    Math.round(window.innerWidth / 2),
-    20,
-  );
-
-  const topBarCandidates = topElements
-    .filter(
-      (element): element is HTMLElement =>
-        element instanceof HTMLElement,
-    )
-    .filter(isPossibleTopBar)
-    .map((element) => element.getBoundingClientRect())
-    .sort((first, second) => second.width - first.width);
-
-  if (topBarCandidates.length > 0) {
-    return Math.max(0, topBarCandidates[0].bottom);
-  }
-
-  /*
-   * Fallback correspondente à altura atual da barra do Aqua Mappa.
-   */
-  return DEFAULT_TOP_BAR_HEIGHT;
-}
-
-function calculateModalPosition(): ModalPosition {
-  const viewportWidth = window.innerWidth;
-  const viewportHeight = window.innerHeight;
-
-  const isMobile = viewportWidth < MOBILE_BREAKPOINT;
-
-  const horizontalMargin = isMobile
-    ? MOBILE_HORIZONTAL_MARGIN
-    : DESKTOP_HORIZONTAL_MARGIN;
-
-  const verticalMargin = isMobile
-    ? MOBILE_VERTICAL_MARGIN
-    : DESKTOP_VERTICAL_MARGIN;
-
-  const sidebarRight = isMobile ? 0 : getSidebarRightEdge();
-
-  const topBarBottom = isMobile ? 0 : getTopBarBottomEdge();
-
-  const contentLeft = sidebarRight + horizontalMargin;
-  const contentRight = viewportWidth - horizontalMargin;
-
-  const availableWidth = Math.max(280, contentRight - contentLeft);
-
-  const width = Math.min(MODAL_MAX_WIDTH, availableWidth);
-
-  const remainingHorizontalSpace = Math.max(
-    0,
-    availableWidth - width,
-  );
-
-  const top = topBarBottom + verticalMargin;
-  const bottom = verticalMargin;
-
-  /*
-   * Proteção para telas com pouca altura.
-   */
-  const minimumModalHeight = 320;
-
-  const availableHeight = viewportHeight - top - bottom;
-
-  const safeTop =
-    availableHeight >= minimumModalHeight
-      ? top
-      : Math.max(verticalMargin, viewportHeight - bottom - minimumModalHeight);
-
-  return {
-    top: safeTop,
-    bottom,
-    left: contentLeft + remainingHorizontalSpace / 2,
-    width,
-  };
-}
 
 export default function ClientForm({
   clientId,
   summary,
   trigger,
   onUpdated,
+  onDeactivate,
+  onReactivate,
   onDeleted,
 }: ClientFormProps) {
-  const [open, setOpen] = React.useState(false);
-  const [loading, setLoading] = React.useState(false);
-  const [savingAddress, setSavingAddress] = React.useState(false);
-  const [deleting, setDeleting] = React.useState(false);
+  const [open, setOpen] =
+    React.useState(false);
 
-  const [client, setClient] = React.useState<Client>(summary);
+  const scrollContainerRef =
+    React.useRef<HTMLElement | null>(null);
 
-  const [modalPosition, setModalPosition] =
-    React.useState<ModalPosition | null>(null);
-
-  const scrollContainerRef = React.useRef<HTMLElement | null>(null);
-  const onUpdatedRef = React.useRef(onUpdated);
-
-  React.useEffect(() => {
-    onUpdatedRef.current = onUpdated;
-  }, [onUpdated]);
-
-  React.useEffect(() => {
-    setClient(summary);
-  }, [summary]);
-
-  const updateClient = React.useCallback((updatedClient: Client) => {
-    setClient(updatedClient);
-    onUpdatedRef.current?.(updatedClient);
-  }, []);
-
-  const updateModalPosition = React.useCallback(() => {
-    setModalPosition(calculateModalPosition());
-  }, []);
-
-  React.useLayoutEffect(() => {
-    if (!open) {
-      setModalPosition(null);
-      return;
-    }
-
-    let animationFrameId = 0;
-    let intervalId: ReturnType<typeof window.setInterval> | null = null;
-
-    function schedulePositionUpdate() {
-      window.cancelAnimationFrame(animationFrameId);
-
-      animationFrameId = window.requestAnimationFrame(() => {
-        updateModalPosition();
-      });
-    }
-
-    schedulePositionUpdate();
-
-    /*
-     * Acompanha a animação da sidebar enquanto ela abre ou recolhe.
-     */
-    intervalId = window.setInterval(schedulePositionUpdate, 50);
-
-    const stopTransitionTracking = window.setTimeout(() => {
-      if (intervalId !== null) {
-        window.clearInterval(intervalId);
-        intervalId = null;
-      }
-
-      schedulePositionUpdate();
-    }, 700);
-
-    window.addEventListener("resize", schedulePositionUpdate);
-
-    const mutationObserver = new MutationObserver(
-      schedulePositionUpdate,
-    );
-
-    mutationObserver.observe(document.body, {
-      attributes: true,
-      subtree: true,
-      attributeFilter: [
-        "class",
-        "style",
-        "data-state",
-        "data-collapsed",
-      ],
-    });
-
-    return () => {
-      window.cancelAnimationFrame(animationFrameId);
-      window.clearTimeout(stopTransitionTracking);
-
-      if (intervalId !== null) {
-        window.clearInterval(intervalId);
-      }
-
-      mutationObserver.disconnect();
-
-      window.removeEventListener(
-        "resize",
-        schedulePositionUpdate,
-      );
-    };
-  }, [open, updateModalPosition]);
-
-  React.useEffect(() => {
-    if (!open || !modalPosition) {
-      return;
-    }
-
-    const animationFrameId = window.requestAnimationFrame(() => {
-      scrollContainerRef.current?.scrollTo({
-        top: 0,
-        behavior: "auto",
-      });
-    });
-
-    return () => {
-      window.cancelAnimationFrame(animationFrameId);
-    };
-  }, [open, modalPosition]);
-
-  const loadClientDetails = React.useCallback(async () => {
-    const details = await getClientById(clientId);
-
-    updateClient(details);
-
-    return details;
-  }, [clientId, updateClient]);
-
-  React.useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    let mounted = true;
-
-    async function load() {
-      try {
-        setLoading(true);
-
-        const details = await getClientById(clientId);
-
-        if (!mounted) {
-          return;
-        }
-
-        updateClient(details);
-      } catch (error) {
-        if (!mounted) {
-          return;
-        }
-
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : "Não foi possível carregar os dados do cliente.",
-        );
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    }
-
-    load();
-
-    return () => {
-      mounted = false;
-    };
-  }, [clientId, open, updateClient]);
-
-  async function handleAddAddress(
-    address: AddClientAddressInput,
-  ) {
-    try {
-      setSavingAddress(true);
-
-      await addClientAddress(clientId, address);
-      await loadClientDetails();
-
-      toast.success("Endereço adicionado com sucesso.");
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Não foi possível adicionar o endereço.";
-
-      toast.error(message);
-
-      throw error;
-    } finally {
-      setSavingAddress(false);
-    }
-  }
-
-  async function handleDelete() {
-    const confirmed = window.confirm(
-      "Tem certeza que deseja excluir este cliente? Essa ação não poderá ser desfeita.",
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      setDeleting(true);
-
-      await deleteClient(clientId);
-
-      toast.success("Cliente excluído com sucesso.");
-
+  const closeModal =
+    React.useCallback(() => {
       setOpen(false);
-      onDeleted?.();
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível excluir o cliente.",
-      );
-    } finally {
-      setDeleting(false);
-    }
-  }
+    }, []);
 
-  function handleOpenChange(nextOpen: boolean) {
-    if (!nextOpen && (savingAddress || deleting)) {
+  const {
+    client,
+    loading,
+    savingAddress,
+    deleting,
+    busy,
+    handleAddAddress,
+    handleDeactivate,
+    handleReactivate,
+    handleDelete,
+  } = useClientDetails({
+    open,
+    clientId,
+    summary,
+    onUpdated,
+    onDeactivate,
+    onReactivate,
+    onDeleted,
+    onClose: closeModal,
+  });
+
+  const {
+    position,
+    style: contentStyle,
+  } = useClientModalPosition(open);
+
+  React.useEffect(() => {
+    if (!open || !position) {
+      return;
+    }
+
+    const animationFrameId =
+      window.requestAnimationFrame(() => {
+        scrollContainerRef.current?.scrollTo({
+          top: 0,
+          behavior: "auto",
+        });
+      });
+
+    return () => {
+      window.cancelAnimationFrame(
+        animationFrameId,
+      );
+    };
+  }, [open, position]);
+
+  function handleOpenChange(
+    nextOpen: boolean,
+  ) {
+    if (!nextOpen && busy) {
       return;
     }
 
     setOpen(nextOpen);
   }
 
-  const addresses = getClientAddresses(client);
-  const busy = savingAddress || deleting;
-
-  const contentStyle: React.CSSProperties | undefined =
-    modalPosition
-      ? {
-          top: modalPosition.top,
-          bottom: modalPosition.bottom,
-          left: modalPosition.left,
-          width: modalPosition.width,
-        }
-      : undefined;
+  const addresses =
+    getClientAddresses(client);
 
   return (
     <DialogPrimitive.Root
@@ -513,7 +137,7 @@ export default function ClientForm({
           "
         />
 
-        {modalPosition && (
+        {position && (
           <DialogPrimitive.Content
             style={contentStyle}
             aria-describedby={undefined}
@@ -605,65 +229,68 @@ export default function ClientForm({
                   </div>
                 )}
 
-                <ClientIdentityCard client={client} />
+                <ClientIdentityCard
+                  client={client}
+                />
 
                 <div className="grid min-w-0 gap-6 lg:grid-cols-2">
-                  <ClientRegistrationSection client={client} />
+                  <ClientRegistrationSection
+                    client={client}
+                  />
 
-                  <ClientContactSection client={client} />
+                  <ClientContactSection
+                    client={client}
+                  />
                 </div>
 
                 <ClientAddressesSection
                   addresses={addresses}
                   pending={savingAddress}
-                  onAddAddress={handleAddAddress}
+                  onAddAddress={
+                    handleAddAddress
+                  }
                 />
+
+                {!client.active && (
+                  <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm leading-6 text-amber-800">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+
+                    <div>
+                      <p className="font-semibold">
+                        Cliente temporariamente inativo
+                      </p>
+
+                      <p className="mt-0.5 text-xs leading-5 text-amber-700">
+                        Este cliente não deverá receber novas ordens de serviço,
+                        rotas ou planos até que seu cadastro seja reativado.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </main>
 
-            <footer className="shrink-0 border-t border-slate-200 bg-white px-4 py-4 sm:px-8">
-              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="
-                    rounded-xl
-                    border-red-300
-                    text-red-700
-                    hover:border-red-400
-                    hover:bg-red-50
-                    hover:text-red-800
-                  "
-                  onClick={handleDelete}
-                  disabled={
-                    deleting ||
-                    savingAddress ||
-                    loading
-                  }
-                >
-                  {deleting ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="mr-2 h-4 w-4" />
-                  )}
-
-                  {deleting
-                    ? "Excluindo..."
-                    : "Excluir cliente"}
-                </Button>
-
-                <DialogPrimitive.Close asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="rounded-xl px-6"
-                    disabled={busy}
-                  >
-                    Fechar
-                  </Button>
-                </DialogPrimitive.Close>
-              </div>
-            </footer>
+            <ClientDetailsFooter
+              client={client}
+              loading={loading}
+              savingAddress={savingAddress}
+              deleting={deleting}
+              canDeactivate={
+                Boolean(onDeactivate)
+              }
+              canReactivate={
+                Boolean(onReactivate)
+              }
+              onDeactivate={
+                handleDeactivate
+              }
+              onReactivate={
+                handleReactivate
+              }
+              onDelete={
+                handleDelete
+              }
+            />
           </DialogPrimitive.Content>
         )}
       </DialogPrimitive.Portal>
