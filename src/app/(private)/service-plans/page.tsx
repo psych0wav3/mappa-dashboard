@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import ServicePlansClient from "./ServicePlansClient";
+import ServicePlansClient from "@/components/service-plans/ServicePlansClient";
 import { listServicePlans } from "./actions";
 
 import {

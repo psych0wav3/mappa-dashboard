@@ -6,7 +6,10 @@ import {
   useMemo,
   useState,
 } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import {
+  usePathname,
+  useRouter,
+} from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   CalendarClock,
@@ -52,7 +55,7 @@ export default function AppSidebar({
         const raw =
           localStorage.getItem(LS_KEY);
 
-        if (raw != null) {
+        if (raw !== null) {
           return JSON.parse(raw);
         }
       } catch {}
@@ -72,7 +75,8 @@ export default function AppSidebar({
       return width <= WIDTH_COLLAPSED;
     });
 
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] =
+    useState(false);
 
   useLayoutEffect(() => {
     try {
@@ -138,12 +142,15 @@ export default function AppSidebar({
         typeof document !== "undefined" &&
         isDesktop
       ) {
-        const currentCss = getComputedStyle(
-          document.documentElement,
-        )
-          .getPropertyValue("--sidebar-w")
-          .trim()
-          .replace("px", "");
+        const currentCss =
+          getComputedStyle(
+            document.documentElement,
+          )
+            .getPropertyValue(
+              "--sidebar-w",
+            )
+            .trim()
+            .replace("px", "");
 
         const current = parseInt(
           currentCss || "0",
@@ -305,6 +312,11 @@ function SidebarContent({
       label: "Clientes",
       icon: UserRound,
     },
+    {
+      href: "/service-plans",
+      label: "Rotinas de Atendimento",
+      icon: CalendarClock,
+    },
   ] as const;
 
   const routeItems = useMemo(
@@ -325,24 +337,22 @@ function SidebarContent({
     () => [
       {
         href: "/workorders/new",
-        label: "Nova OS",
-      },
-      {
-        href: "/service-plans",
-        label: "Planos de Serviço",
+        label: "Nova OS Avulsa",
       },
       {
         href: "/workorders/pricing",
-        label: "Aguardando orçamento",
+        label:
+          "Aguardando Precificação",
       },
       {
         href:
           "/workorders/customer-approval",
-        label: "Aguardando cliente",
+        label:
+          "Aguardando Aprovação",
       },
       {
         href: "/workorders/approved",
-        label: "Prontas para rota",
+        label: "Prontas para Rota",
       },
       {
         href: "/workorders",
@@ -367,13 +377,15 @@ function SidebarContent({
       {
         href:
           "/settings/checklist-templates",
-        label: "Checklists de Serviço",
+        label:
+          "Checklists de Serviço",
         icon: ListChecks,
       },
       {
         href:
           "/settings/measurement-templates",
-        label: "Templates de Medição",
+        label:
+          "Templates de Medição",
         icon: CalendarClock,
       },
     ],
@@ -386,7 +398,9 @@ function SidebarContent({
   useEffect(() => {
     try {
       const raw =
-        localStorage.getItem("mappa_user");
+        localStorage.getItem(
+          "mappa_user",
+        );
 
       if (!raw) {
         return;
@@ -398,7 +412,8 @@ function SidebarContent({
         user?.roles?.[0]?.role ||
         user?.roles?.[0] ||
         user?.companies?.[0]?.role ||
-        user?.companyRoles?.[0]?.role ||
+        user?.companyRoles?.[0]
+          ?.role ||
         user?.role ||
         "COMPANY_ADMIN";
 
@@ -423,9 +438,6 @@ function SidebarContent({
   const isWorkordersSection =
     pathname.startsWith(
       "/workorders",
-    ) ||
-    pathname.startsWith(
-      "/service-plans",
     );
 
   const [
@@ -454,8 +466,12 @@ function SidebarContent({
   }, [isRoutesSection]);
 
   const isSettingsSection =
-    pathname.startsWith("/settings") ||
-    pathname.startsWith("/account");
+    pathname.startsWith(
+      "/settings",
+    ) ||
+    pathname.startsWith(
+      "/account",
+    );
 
   const [
     settingsOpen,
@@ -630,8 +646,12 @@ function SidebarContent({
           collapsed={collapsed}
           ready={ready}
           open={workordersOpen}
-          setOpen={setWorkordersOpen}
-          active={isWorkordersSection}
+          setOpen={
+            setWorkordersOpen
+          }
+          active={
+            isWorkordersSection
+          }
           defaultHref="/workorders"
           items={workorderItems}
           pathname={pathname}

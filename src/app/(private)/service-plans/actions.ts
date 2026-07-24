@@ -9,6 +9,7 @@ import {
 } from "@/lib/mappa/api";
 
 export type ServicePlanStatus =
+  | "PENDING_APPROVAL"
   | "ACTIVE"
   | "PAUSED"
   | "CANCELED"
@@ -76,6 +77,7 @@ export type SaveServicePlanInput = {
   description?: string;
   startDate: string;
   endDate?: string;
+  totalAmount: number;
   checklistTemplateId?: string;
   measurementTemplateId?: string;
   preferredEmployeeUserId?: string;
@@ -92,7 +94,8 @@ function toApiDate(value?: string) {
   }
 
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
-    const [day, month, year] = value.split("/");
+    const [day, month, year] =
+      value.split("/");
 
     return `${year}-${month}-${day}`;
   }
@@ -103,7 +106,9 @@ function toApiDate(value?: string) {
 function normalizeFrequency(
   value?: string | null,
 ): RecurrenceFrequencyType {
-  const normalized = String(value || "WEEKLY")
+  const normalized = String(
+    value || "WEEKLY",
+  )
     .replace(/[_\s-]/g, "")
     .toUpperCase();
 
@@ -121,9 +126,19 @@ function normalizeFrequency(
 function normalizeStatus(
   value?: string | null,
 ): ServicePlanStatus {
-  const normalized = String(value || "ACTIVE")
+  const normalized = String(
+    value || "PENDING_APPROVAL",
+  )
     .replace(/[_\s-]/g, "")
     .toUpperCase();
+
+  if (normalized === "PENDINGAPPROVAL") {
+    return "PENDING_APPROVAL";
+  }
+
+  if (normalized === "ACTIVE") {
+    return "ACTIVE";
+  }
 
   if (normalized === "PAUSED") {
     return "PAUSED";
@@ -140,7 +155,25 @@ function normalizeStatus(
     return "FINISHED";
   }
 
-  return "ACTIVE";
+  return "PENDING_APPROVAL";
+}
+
+function toApiStatus(
+  value: ServicePlanStatus,
+) {
+  const values: Record<
+    ServicePlanStatus,
+    string
+  > = {
+    PENDING_APPROVAL:
+      "PendingApproval",
+    ACTIVE: "Active",
+    PAUSED: "Paused",
+    CANCELED: "Canceled",
+    FINISHED: "Finished",
+  };
+
+  return values[value];
 }
 
 function positiveInteger(
@@ -159,12 +192,36 @@ function positiveInteger(
   return Math.floor(normalized);
 }
 
+function normalizeDaysOfWeek(
+  value?: number[] | null,
+) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .map(Number)
+        .filter(
+          (day) =>
+            Number.isInteger(day) &&
+            day >= 1 &&
+            day <= 7,
+        ),
+    ),
+  ).sort((first, second) =>
+    first - second,
+  );
+}
+
 function normalizePlan(
   plan: ApiServicePlan,
 ): ServicePlan {
-  const frequencyType = normalizeFrequency(
-    plan.recurrence?.frequencyType,
-  );
+  const frequencyType =
+    normalizeFrequency(
+      plan.recurrence?.frequencyType,
+    );
 
   return {
     id: plan.id,
@@ -189,7 +246,8 @@ function normalizePlan(
       plan.preferredEmployeeUserId ?? null,
 
     title:
-      plan.title || "Plano de serviço",
+      plan.title ||
+      "Rotina de atendimento",
 
     description:
       plan.description ?? null,
@@ -216,28 +274,23 @@ function normalizePlan(
         ),
 
       daysOfWeek:
-        frequencyType === "WEEKLY" &&
-        Array.isArray(
-          plan.recurrence?.daysOfWeek,
-        )
-          ? plan.recurrence.daysOfWeek
-              .map(Number)
-              .filter(
-                (day) =>
-                  Number.isInteger(day) &&
-                  day >= 0 &&
-                  day <= 6,
-              )
+        frequencyType === "WEEKLY"
+          ? normalizeDaysOfWeek(
+              plan.recurrence
+                ?.daysOfWeek,
+            )
           : [],
 
       dayOfMonth:
         frequencyType === "MONTHLY"
-          ? plan.recurrence?.dayOfMonth ?? null
+          ? plan.recurrence
+              ?.dayOfMonth ?? null
           : null,
 
       generateDaysAhead:
         positiveInteger(
-          plan.recurrence?.generateDaysAhead,
+          plan.recurrence
+            ?.generateDaysAhead,
           30,
         ),
     },
@@ -247,8 +300,6 @@ function normalizePlan(
 function validateInput(
   input: SaveServicePlanInput,
 ) {
-  const title = input.title.trim();
-
   if (!input.customerId) {
     throw new Error(
       "Selecione o cliente/piscina.",
@@ -257,45 +308,44 @@ function validateInput(
 
   if (!input.customerAddressId) {
     throw new Error(
-      "O cliente selecionado não possui endereço principal válido.",
+      "O cliente selecionado não possui endereço válido.",
     );
   }
 
-  if (!title) {
+  if (!input.title.trim()) {
     throw new Error(
-      "Informe o nome do plano.",
+      "Informe o nome da rotina.",
     );
   }
 
   if (!input.startDate) {
     throw new Error(
-      "Informe a data de início do plano.",
+      "Informe a data de início.",
     );
   }
 
-  const normalizedStartDate =
-    toApiDate(input.startDate);
-
-  const normalizedEndDate =
-    toApiDate(input.endDate);
-
   if (
-    normalizedEndDate &&
-    normalizedStartDate &&
-    normalizedEndDate < normalizedStartDate
+    input.endDate &&
+    input.endDate < input.startDate
   ) {
     throw new Error(
-      "A data de término não pode ser anterior à data de início.",
+      "A data final não pode ser anterior à data inicial.",
+    );
+  }
+
+  const totalAmount =
+    Number(input.totalAmount);
+
+  if (
+    !Number.isFinite(totalAmount) ||
+    totalAmount <= 0
+  ) {
+    throw new Error(
+      "Informe um valor maior que zero.",
     );
   }
 
   const recurrence = input.recurrence;
-
-  if (!recurrence) {
-    throw new Error(
-      "Informe a recorrência do plano.",
-    );
-  }
 
   if (
     !Number.isInteger(
@@ -304,18 +354,7 @@ function validateInput(
     recurrence.intervalValue <= 0
   ) {
     throw new Error(
-      "O intervalo da recorrência deve ser um número inteiro maior que zero.",
-    );
-  }
-
-  if (
-    !Number.isInteger(
-      recurrence.generateDaysAhead,
-    ) ||
-    recurrence.generateDaysAhead <= 0
-  ) {
-    throw new Error(
-      "O período de geração deve ser um número inteiro maior que zero.",
+      "O intervalo deve ser maior que zero.",
     );
   }
 
@@ -325,60 +364,51 @@ function validateInput(
     recurrence.daysOfWeek.length === 0
   ) {
     throw new Error(
-      "Selecione ao menos um dia da semana.",
+      "Selecione pelo menos um dia da semana.",
     );
   }
 
   if (
     recurrence.frequencyType ===
-      "MONTHLY" &&
-    (
+    "WEEKLY"
+  ) {
+    const hasInvalidDay =
+      recurrence.daysOfWeek.some(
+        (day) =>
+          !Number.isInteger(day) ||
+          day < 1 ||
+          day > 7,
+      );
+
+    if (hasInvalidDay) {
+      throw new Error(
+        "Os dias da semana devem estar entre 1 e 7.",
+      );
+    }
+  }
+
+  if (
+    recurrence.frequencyType ===
+    "MONTHLY"
+  ) {
+    if (
       !recurrence.dayOfMonth ||
-      !Number.isInteger(
-        recurrence.dayOfMonth,
-      ) ||
       recurrence.dayOfMonth < 1 ||
       recurrence.dayOfMonth > 31
-    )
-  ) {
-    throw new Error(
-      "Informe um dia do mês entre 1 e 31.",
-    );
+    ) {
+      throw new Error(
+        "Informe um dia do mês entre 1 e 31.",
+      );
+    }
   }
+}
 
-  const normalizedDaysOfWeek =
-    recurrence.frequencyType === "WEEKLY"
-      ? Array.from(
-          new Set(
-            recurrence.daysOfWeek
-              .map(Number)
-              .filter(
-                (day) =>
-                  Number.isInteger(day) &&
-                  day >= 0 &&
-                  day <= 6,
-              ),
-          ),
-        ).sort((first, second) => {
-          const firstOrder =
-            first === 0 ? 7 : first;
+function buildCreatePayload(
+  input: SaveServicePlanInput,
+) {
+  validateInput(input);
 
-          const secondOrder =
-            second === 0 ? 7 : second;
-
-          return firstOrder - secondOrder;
-        })
-      : null;
-
-  if (
-    recurrence.frequencyType ===
-      "WEEKLY" &&
-    normalizedDaysOfWeek?.length === 0
-  ) {
-    throw new Error(
-      "Selecione ao menos um dia válido da semana.",
-    );
-  }
+  const recurrence = input.recurrence;
 
   return {
     customerId:
@@ -387,123 +417,192 @@ function validateInput(
     customerAddressId:
       input.customerAddressId,
 
-    title,
+    title:
+      input.title.trim(),
 
     description:
       input.description?.trim() || "",
 
     startDate:
-      normalizedStartDate,
+      toApiDate(input.startDate),
 
     endDate:
-      normalizedEndDate,
+      toApiDate(input.endDate),
+
+    totalAmount:
+      Number(input.totalAmount),
 
     checklistTemplateId:
-      input.checklistTemplateId || null,
+      input.checklistTemplateId ||
+      null,
 
     measurementTemplateId:
-      input.measurementTemplateId || null,
+      input.measurementTemplateId ||
+      null,
 
     preferredEmployeeUserId:
-      input.preferredEmployeeUserId || null,
+      input.preferredEmployeeUserId ||
+      null,
 
     recurrence: {
       frequencyType:
-        recurrence.frequencyType ===
-        "DAILY"
-          ? "Daily"
-          : recurrence.frequencyType ===
-              "MONTHLY"
-            ? "Monthly"
-            : "Weekly",
+        recurrence.frequencyType,
 
       intervalValue:
         recurrence.intervalValue,
 
       daysOfWeek:
-        normalizedDaysOfWeek,
+        recurrence.frequencyType ===
+        "WEEKLY"
+          ? normalizeDaysOfWeek(
+              recurrence.daysOfWeek,
+            )
+          : [],
 
       dayOfMonth:
         recurrence.frequencyType ===
         "MONTHLY"
-          ? recurrence.dayOfMonth
+          ? recurrence.dayOfMonth ??
+            null
           : null,
 
       generateDaysAhead:
-        recurrence.generateDaysAhead,
+        positiveInteger(
+          recurrence
+            .generateDaysAhead,
+          30,
+        ),
     },
   };
 }
 
-export async function listServicePlans(): Promise<
-  ServicePlan[]
-> {
-  const companyId = await getCompanyId();
+export async function listServicePlans(
+  filters?: {
+    status?: ServicePlanStatus;
+    customerId?: string;
+  },
+): Promise<ServicePlan[]> {
+  const companyId =
+    await getCompanyId();
 
-  const data = await mappaFetch<unknown>(
-    `/api/companies/${companyId}/service-plans`,
-  );
+  const searchParams =
+    new URLSearchParams();
+
+  if (filters?.status) {
+    searchParams.set(
+      "status",
+      toApiStatus(filters.status),
+    );
+  }
+
+  if (filters?.customerId) {
+    searchParams.set(
+      "customerId",
+      filters.customerId,
+    );
+  }
+
+  const query =
+    searchParams.toString();
+
+  const response =
+    await mappaFetch<unknown>(
+      `/api/companies/${companyId}/service-plans${
+        query ? `?${query}` : ""
+      }`,
+      {
+        method: "GET",
+        cache: "no-store",
+      },
+    );
 
   const summaries =
-    extractItems<ApiServicePlan>(data);
+    extractItems<ApiServicePlan>(
+      response,
+    );
 
-  const hydrated = await Promise.all(
-    summaries.map(async (summary) => {
-      try {
-        return await mappaFetch<ApiServicePlan>(
-          `/api/companies/${companyId}/service-plans/${summary.id}`,
-        );
-      } catch {
-        return summary;
-      }
-    }),
-  );
+  const hydrated =
+    await Promise.all(
+      summaries.map(
+        async (summary) => {
+          try {
+            const details =
+              await mappaFetch<ApiServicePlan>(
+                `/api/companies/${companyId}/service-plans/${summary.id}`,
+                {
+                  method: "GET",
+                  cache: "no-store",
+                },
+              );
 
-  return hydrated
-    .map(normalizePlan)
-    .sort((first, second) => {
-      const firstDate =
-        first.createdAt ||
-        first.startDate ||
-        "";
+            return {
+              ...summary,
+              ...details,
 
-      const secondDate =
-        second.createdAt ||
-        second.startDate ||
-        "";
+              customerId:
+                details.customerId ||
+                summary.customerId,
 
-      return secondDate.localeCompare(
-        firstDate,
-      );
-    });
+              customerName:
+                details.customerName ||
+                summary.customerName,
+
+              title:
+                details.title ||
+                summary.title,
+
+              status:
+                details.status ||
+                summary.status,
+
+              recurrence:
+                details.recurrence ||
+                summary.recurrence,
+            };
+          } catch {
+            return summary;
+          }
+        },
+      ),
+    );
+
+  return hydrated.map(normalizePlan);
 }
 
 export async function getServicePlanById(
   servicePlanId: string,
-) {
-  const companyId = await getCompanyId();
-
+): Promise<ServicePlan> {
   if (!servicePlanId) {
     throw new Error(
-      "ID do plano de serviço não informado.",
+      "Rotina não informada.",
     );
   }
 
-  const data =
+  const companyId =
+    await getCompanyId();
+
+  const response =
     await mappaFetch<ApiServicePlan>(
       `/api/companies/${companyId}/service-plans/${servicePlanId}`,
+      {
+        method: "GET",
+        cache: "no-store",
+      },
     );
 
-  return normalizePlan(data);
+  return normalizePlan(response);
 }
 
 export async function createServicePlan(
   input: SaveServicePlanInput,
-) {
-  const companyId = await getCompanyId();
-  const payload = validateInput(input);
+): Promise<ServicePlan> {
+  const companyId =
+    await getCompanyId();
 
-  const created =
+  const payload =
+    buildCreatePayload(input);
+
+  const response =
     await mappaFetch<ApiServicePlan>(
       `/api/companies/${companyId}/service-plans`,
       {
@@ -514,83 +613,46 @@ export async function createServicePlan(
 
   revalidatePath("/service-plans");
   revalidatePath("/workorders");
+  revalidatePath(
+    "/workorders/customer-approval",
+  );
   revalidatePath("/workorders/approved");
   revalidatePath("/routes/builder");
-  revalidatePath("/routes/dashboard");
 
-  return normalizePlan(created);
+  return normalizePlan(response);
 }
 
 export async function updateServicePlanStatus(
-  params: {
-    servicePlanId: string;
-    status: ServicePlanStatus;
-  },
-) {
-  const companyId = await getCompanyId();
-
-  if (!params.servicePlanId) {
+  servicePlanId: string,
+  status: "ACTIVE" | "PAUSED",
+): Promise<ServicePlan> {
+  if (!servicePlanId) {
     throw new Error(
-      "ID do plano de serviço não informado.",
+      "Rotina não informada.",
     );
   }
 
-  if (
-    params.status !== "ACTIVE" &&
-    params.status !== "PAUSED"
-  ) {
-    throw new Error(
-      "O plano só pode ser ativado ou pausado por esta tela.",
-    );
-  }
+  const companyId =
+    await getCompanyId();
 
-  const updated =
+  const response =
     await mappaFetch<ApiServicePlan>(
-      `/api/companies/${companyId}/service-plans/${params.servicePlanId}/status`,
+      `/api/companies/${companyId}/service-plans/${servicePlanId}/status`,
       {
         method: "PATCH",
         body: JSON.stringify({
           status:
-            params.status === "PAUSED"
-              ? "Paused"
-              : "Active",
+            status === "ACTIVE"
+              ? "Active"
+              : "Paused",
         }),
       },
     );
 
   revalidatePath("/service-plans");
-
-  return normalizePlan(updated);
-}
-
-export async function generateServicePlanOrders(
-  servicePlanId: string,
-) {
-  const companyId = await getCompanyId();
-
-  if (!servicePlanId) {
-    throw new Error(
-      "ID do plano de serviço não informado.",
-    );
-  }
-
-  const result = await mappaFetch<{
-    ordersGenerated?: number | null;
-  }>(
-    `/api/companies/${companyId}/service-plans/${servicePlanId}/generate-orders`,
-    {
-      method: "POST",
-    },
-  );
-
-  revalidatePath("/service-plans");
   revalidatePath("/workorders");
   revalidatePath("/workorders/approved");
   revalidatePath("/routes/builder");
-  revalidatePath("/routes/dashboard");
 
-  return {
-    ordersGenerated:
-      Number(result?.ordersGenerated ?? 0),
-  };
+  return normalizePlan(response);
 }

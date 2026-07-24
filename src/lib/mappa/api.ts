@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
 const API_URL =
   process.env.API_URL ||
@@ -6,119 +7,347 @@ const API_URL =
   "http://localhost:5264";
 
 type ApiError = {
-  errors?: any;
+  errors?: unknown;
   detail?: string;
   title?: string;
   message?: string;
 };
 
-export async function getAuthFromCookies() {
-  const cookieStore = await cookies();
+type AuthCookies = {
+  token: string;
+  companyId: string;
+};
 
-  const token = cookieStore.get("mappa_access_token")?.value;
-  const companyId = cookieStore.get("mappa_company_id")?.value;
+type SessionReason =
+  | "session-required"
+  | "company-required"
+  | "session-expired";
 
-  if (!token) throw new Error("Token não encontrado. Faça login novamente.");
-  if (!companyId) throw new Error("Empresa não encontrada. Faça login novamente.");
+function redirectToSessionLogout(
+  reason: SessionReason,
+): never {
+  redirect(
+    `/api/auth/session-expired?reason=${encodeURIComponent(
+      reason,
+    )}`,
+  );
+}
 
-  return { token, companyId };
+export async function getAuthFromCookies(): Promise<AuthCookies> {
+  const cookieStore =
+    await cookies();
+
+  const token =
+    cookieStore.get(
+      "mappa_access_token",
+    )?.value;
+
+  const companyId =
+    cookieStore.get(
+      "mappa_company_id",
+    )?.value;
+
+  if (!token) {
+    redirectToSessionLogout(
+      "session-required",
+    );
+  }
+
+  if (!companyId) {
+    redirectToSessionLogout(
+      "company-required",
+    );
+  }
+
+  return {
+    token,
+    companyId,
+  };
 }
 
 export async function getCompanyId() {
-  const { companyId } = await getAuthFromCookies();
+  const { companyId } =
+    await getAuthFromCookies();
+
   return companyId;
 }
 
-function formatValidationErrors(errors: any) {
-  if (!errors) return "";
+function formatValidationErrors(
+  errors: unknown,
+) {
+  if (!errors) {
+    return "";
+  }
 
   if (Array.isArray(errors)) {
     return errors
-      .map((item) => item?.message || item?.errorMessage || JSON.stringify(item))
+      .map((item) => {
+        if (
+          typeof item === "object" &&
+          item !== null
+        ) {
+          const record =
+            item as Record<
+              string,
+              unknown
+            >;
+
+          const message =
+            record.message ||
+            record.errorMessage;
+
+          if (
+            typeof message ===
+            "string"
+          ) {
+            return message;
+          }
+        }
+
+        if (
+          typeof item === "string"
+        ) {
+          return item;
+        }
+
+        try {
+          return JSON.stringify(item);
+        } catch {
+          return String(item);
+        }
+      })
       .filter(Boolean)
       .join(" | ");
   }
 
-  if (typeof errors === "object") {
-    return Object.entries(errors)
-      .map(([field, messages]) => {
-        if (Array.isArray(messages)) return `${field}: ${messages.join(", ")}`;
-        if (typeof messages === "string") return `${field}: ${messages}`;
-        return `${field}: ${JSON.stringify(messages)}`;
-      })
+  if (
+    typeof errors === "object"
+  ) {
+    return Object.entries(
+      errors as Record<
+        string,
+        unknown
+      >,
+    )
+      .map(
+        ([
+          field,
+          messages,
+        ]) => {
+          if (
+            Array.isArray(messages)
+          ) {
+            return `${field}: ${messages.join(
+              ", ",
+            )}`;
+          }
+
+          if (
+            typeof messages ===
+            "string"
+          ) {
+            return `${field}: ${messages}`;
+          }
+
+          try {
+            return `${field}: ${JSON.stringify(
+              messages,
+            )}`;
+          } catch {
+            return `${field}: ${String(
+              messages,
+            )}`;
+          }
+        },
+      )
       .join(" | ");
   }
 
   return String(errors);
 }
 
-export function parseApiError(status: number, text: string) {
-  if (status === 401) return "Sessão expirada ou usuário sem autorização. Faça login novamente.";
-  if (status === 403) return "Acesso negado. Esta ação exige permissão de administrador da empresa.";
-
-  const lowerText = String(text || "").toLowerCase();
-
-  if (lowerText.includes("dateonly") || lowerText.includes("cannot be used as a parameter value")) {
-    return "Erro no backend com campo DateOnly. O front enviou a data, mas o backend ainda precisa converter antes de gravar.";
+export function parseApiError(
+  status: number,
+  text: string,
+) {
+  if (status === 403) {
+    return (
+      "Acesso negado. Esta ação exige " +
+      "permissão de administrador da empresa."
+    );
   }
 
-  if (lowerText.includes("relation") || lowerText.includes("does not exist")) {
-    return "Erro no backend/banco: alguma tabela esperada não existe no banco atual. Recrie o volume do Postgres local ou rode o script SQL atualizado.";
+  const lowerText = String(
+    text || "",
+  ).toLowerCase();
+
+  if (
+    lowerText.includes(
+      "dateonly",
+    ) ||
+    lowerText.includes(
+      "cannot be used as a parameter value",
+    )
+  ) {
+    return (
+      "Erro no backend com campo DateOnly. " +
+      "O backend precisa converter a data " +
+      "antes de gravar."
+    );
+  }
+
+  if (
+    lowerText.includes(
+      "relation",
+    ) ||
+    lowerText.includes(
+      "does not exist",
+    )
+  ) {
+    return (
+      "Erro no backend ou banco de dados: " +
+      "uma estrutura esperada não foi encontrada."
+    );
   }
 
   try {
-    const error = JSON.parse(text) as ApiError;
-    const validationDetails = formatValidationErrors(error?.errors);
+    const error =
+      JSON.parse(
+        text,
+      ) as ApiError;
+
+    const validationDetails =
+      formatValidationErrors(
+        error.errors,
+      );
+
     const message =
       validationDetails ||
-      error?.detail ||
-      error?.title ||
-      error?.message ||
+      error.detail ||
+      error.title ||
+      error.message ||
       JSON.stringify(error);
 
     return `Erro ${status}: ${message}`;
   } catch {
-    return `Erro ${status}: ${text || "Falha na API."}`;
+    return (
+      `Erro ${status}: ` +
+      `${
+        text ||
+        "Falha na API."
+      }`
+    );
   }
 }
 
-export async function mappaFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const { token } = await getAuthFromCookies();
+export async function mappaFetch<T>(
+  path: string,
+  options?: RequestInit,
+): Promise<T> {
+  const { token } =
+    await getAuthFromCookies();
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    cache: "no-store",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...(options?.headers || {}),
+  const response = await fetch(
+    `${API_URL}${path}`,
+    {
+      ...options,
+
+      cache: "no-store",
+
+      headers: {
+        "Content-Type":
+          "application/json",
+
+        Authorization:
+          `Bearer ${token}`,
+
+        ...(options?.headers ||
+          {}),
+      },
     },
-  });
+  );
 
-  const text = await response.text();
+  if (response.status === 401) {
+    redirectToSessionLogout(
+      "session-expired",
+    );
+  }
 
-  if (!response.ok) throw new Error(parseApiError(response.status, text));
-  if (response.status === 204 || !text) return null as T;
+  const text =
+    await response.text();
 
-  return JSON.parse(text) as T;
+  if (!response.ok) {
+    throw new Error(
+      parseApiError(
+        response.status,
+        text,
+      ),
+    );
+  }
+
+  if (
+    response.status === 204 ||
+    !text
+  ) {
+    return null as T;
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(
+      "A API retornou uma resposta inválida.",
+    );
+  }
 }
 
-export function extractItems<T>(payload: any): T[] {
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.items)) return payload.items;
-  if (Array.isArray(payload?.data)) return payload.data;
-  if (Array.isArray(payload?.templates)) return payload.templates;
-  if (Array.isArray(payload?.measurementFields)) return payload.measurementFields;
-  if (Array.isArray(payload?.measurementTemplates)) return payload.measurementTemplates;
-  if (Array.isArray(payload?.servicePlans)) return payload.servicePlans;
-  if (Array.isArray(payload?.plans)) return payload.plans;
-  if (Array.isArray(payload?.routes)) return payload.routes;
-  if (Array.isArray(payload?.serviceOrders)) return payload.serviceOrders;
-  if (Array.isArray(payload?.orders)) return payload.orders;
-  if (Array.isArray(payload?.customers)) return payload.customers;
-  if (Array.isArray(payload?.employees)) return payload.employees;
-  if (Array.isArray(payload?.fields)) return payload.fields;
-  if (Array.isArray(payload?.checklistTemplates)) return payload.checklistTemplates;
+export function extractItems<T>(
+  payload: unknown,
+): T[] {
+  if (Array.isArray(payload)) {
+    return payload as T[];
+  }
+
+  if (
+    typeof payload !== "object" ||
+    payload === null
+  ) {
+    return [];
+  }
+
+  const record =
+    payload as Record<
+      string,
+      unknown
+    >;
+
+  const possibleKeys = [
+    "items",
+    "data",
+    "templates",
+    "measurementFields",
+    "measurementTemplates",
+    "servicePlans",
+    "plans",
+    "routes",
+    "serviceOrders",
+    "orders",
+    "customers",
+    "employees",
+    "fields",
+    "checklistTemplates",
+  ];
+
+  for (
+    const key of possibleKeys
+  ) {
+    const value =
+      record[key];
+
+    if (Array.isArray(value)) {
+      return value as T[];
+    }
+  }
 
   return [];
 }
