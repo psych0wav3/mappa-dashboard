@@ -1,16 +1,26 @@
 declare module "react-input-mask" {
   import * as React from "react";
 
+  interface InputMaskSelection {
+    start: number;
+    end: number;
+  }
+
+  interface InputMaskState {
+    value: string;
+    selection: InputMaskSelection | null;
+  }
+
   export interface InputMaskProps
     extends React.InputHTMLAttributes<HTMLInputElement> {
-    mask?: string;
+    mask: string;
     maskPlaceholder?: string | null;
     alwaysShowMask?: boolean;
     beforeMaskedValueChange?: (
-      newState: { value: string; selection: any },
-      oldState: { value: string; selection: any },
-      userInput: string
-    ) => { value: string; selection: any };
+      newState: InputMaskState,
+      oldState: InputMaskState,
+      userInput: string | null,
+    ) => InputMaskState;
   }
 
   export default class InputMask extends React.Component<InputMaskProps> {}
