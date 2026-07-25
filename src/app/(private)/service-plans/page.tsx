@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 
 export const metadata: Metadata = {
-  title: "Planos de Serviço — Aqua Mappa",
+  title: "Rotina de Atendimento — Aqua Mappa",
 };
 
 export default async function ServicePlansPage() {

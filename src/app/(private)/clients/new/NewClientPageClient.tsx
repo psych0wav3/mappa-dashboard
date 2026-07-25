@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useTransition } from "react";
-
+import { useRouter } from "next/navigation";
 import {
   Eye,
   EyeOff,
@@ -11,12 +11,13 @@ import {
   MapPin,
   UserRound,
 } from "lucide-react";
-
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { createClient } from "@/app/(private)/clients/actions";
 
+import FormField from "@/components/form-layout/FormField";
+import FormInfoBox from "@/components/form-layout/FormInfoBox";
+import FormSection from "@/components/form-layout/FormSection";
 import FormActionBar from "@/components/ui/FormActionBar";
 import { Input } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/MaskedInput";
@@ -57,16 +58,11 @@ function onlyDigits(value: string) {
   return value.replace(/\D+/g, "");
 }
 
-async function fetchViaCep(
-  zipCode: string,
-) {
-  const digits =
-    onlyDigits(zipCode);
+async function fetchViaCep(zipCode: string) {
+  const digits = onlyDigits(zipCode);
 
   if (digits.length !== 8) {
-    throw new Error(
-      "O CEP deve possuir 8 dígitos.",
-    );
+    throw new Error("O CEP deve possuir 8 dígitos.");
   }
 
   const response = await fetch(
@@ -74,109 +70,36 @@ async function fetchViaCep(
   );
 
   if (!response.ok) {
-    throw new Error(
-      "Não foi possível consultar o CEP.",
-    );
+    throw new Error("Não foi possível consultar o CEP.");
   }
 
   const data = await response.json();
 
   if (data?.erro) {
-    throw new Error(
-      "CEP não encontrado.",
-    );
+    throw new Error("CEP não encontrado.");
   }
 
   return {
-    street:
-      data.logradouro || "",
-
-    neighborhood:
-      data.bairro || "",
-
-    city:
-      data.localidade || "",
-
-    state:
-      data.uf || "",
+    street: data.logradouro || "",
+    neighborhood: data.bairro || "",
+    city: data.localidade || "",
+    state: data.uf || "",
   };
 }
 
-function FieldLabel({
-  children,
-  required = false,
-}: {
-  children: React.ReactNode;
-  required?: boolean;
-}) {
-  return (
-    <label className="mb-1.5 block text-sm font-semibold text-slate-700">
-      {children}
-
-      {required && (
-        <span className="ml-1 text-red-500">
-          *
-        </span>
-      )}
-    </label>
-  );
-}
-
-function SectionHeader({
-  icon,
-  title,
-  description,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="mb-5 flex items-start gap-3">
-      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
-        {icon}
-      </div>
-
-      <div>
-        <h2 className="font-bold text-slate-950">
-          {title}
-        </h2>
-
-        <p className="mt-0.5 text-sm leading-5 text-slate-500">
-          {description}
-        </p>
-      </div>
-    </div>
-  );
-}
-
 export default function NewClientPageClient() {
-  const router =
-    useRouter();
+  const router = useRouter();
 
-  const [
-    form,
-    setForm,
-  ] = React.useState<FormState>(
-    initialState,
-  );
+  const [form, setForm] =
+    React.useState<FormState>(initialState);
 
-  const [
-    showPassword,
-    setShowPassword,
-  ] = React.useState(false);
+  const [showPassword, setShowPassword] =
+    React.useState(false);
 
-  const [
-    errorMessage,
-    setErrorMessage,
-  ] = React.useState<
-    string | null
-  >(null);
+  const [errorMessage, setErrorMessage] =
+    React.useState<string | null>(null);
 
-  const [
-    pending,
-    startTransition,
-  ] = useTransition();
+  const [pending, startTransition] = useTransition();
 
   const canSubmit =
     form.name.trim().length >= 2 &&
@@ -187,9 +110,7 @@ export default function NewClientPageClient() {
     form.state.trim().length === 2 &&
     !pending;
 
-  function updateField<
-    Key extends keyof FormState,
-  >(
+  function updateField<Key extends keyof FormState>(
     field: Key,
     value: FormState[Key],
   ) {
@@ -200,29 +121,21 @@ export default function NewClientPageClient() {
   }
 
   async function handleZipCodeBlur() {
-    const digits =
-      onlyDigits(
-        form.zipCode,
-      );
+    const digits = onlyDigits(form.zipCode);
 
     if (!digits) {
       return;
     }
 
     try {
-      const address =
-        await fetchViaCep(
-          digits,
-        );
+      const address = await fetchViaCep(digits);
 
       setForm((current) => ({
         ...current,
         ...address,
       }));
 
-      toast.success(
-        "Endereço preenchido pelo CEP.",
-      );
+      toast.success("Endereço preenchido pelo CEP.");
     } catch (error) {
       toast.error(
         error instanceof Error
@@ -233,8 +146,7 @@ export default function NewClientPageClient() {
   }
 
   function handleSubmit(
-    event:
-      React.FormEvent<HTMLFormElement>,
+    event: React.FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
 
@@ -247,48 +159,22 @@ export default function NewClientPageClient() {
         setErrorMessage(null);
 
         await createClient({
-          name:
-            form.name,
-
-          email:
-            form.email,
-
-          password:
-            form.password,
-
-          phone:
-            form.phone,
-
-          document:
-            form.document,
+          name: form.name,
+          email: form.email,
+          password: form.password,
+          phone: form.phone,
+          document: form.document,
 
           address: {
-            zipCode:
-              form.zipCode,
-
-            street:
-              form.street,
-
-            number:
-              form.number,
-
-            complement:
-              form.complement,
-
-            neighborhood:
-              form.neighborhood,
-
-            city:
-              form.city,
-
-            state:
-              form.state,
-
-            latitude:
-              null,
-
-            longitude:
-              null,
+            zipCode: form.zipCode,
+            street: form.street,
+            number: form.number,
+            complement: form.complement,
+            neighborhood: form.neighborhood,
+            city: form.city,
+            state: form.state,
+            latitude: null,
+            longitude: null,
           },
         });
 
@@ -296,10 +182,7 @@ export default function NewClientPageClient() {
           "Cliente cadastrado com sucesso.",
         );
 
-        router.push(
-          "/clients",
-        );
-
+        router.push("/clients");
         router.refresh();
       } catch (error) {
         const message =
@@ -307,13 +190,8 @@ export default function NewClientPageClient() {
             ? error.message
             : "Não foi possível cadastrar o cliente.";
 
-        setErrorMessage(
-          message,
-        );
-
-        toast.error(
-          message,
-        );
+        setErrorMessage(message);
+        toast.error(message);
       }
     });
   }
@@ -331,9 +209,7 @@ export default function NewClientPageClient() {
       return;
     }
 
-    router.push(
-      "/clients",
-    );
+    router.push("/clients");
   }
 
   return (
@@ -342,115 +218,104 @@ export default function NewClientPageClient() {
       className="space-y-5 pb-28"
     >
       {errorMessage && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div
+          role="alert"
+          className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700"
+        >
           {errorMessage}
         </div>
       )}
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <SectionHeader
-          icon={
-            <UserRound className="h-5 w-5" />
-          }
-          title="Identificação do cliente"
-          description="Informe os dados principais do responsável ou da empresa."
-        />
-
+      <FormSection
+        icon={UserRound}
+        title="Identificação do cliente"
+        description="Informe os dados principais do responsável ou da empresa."
+      >
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <FieldLabel required>
-              Nome completo ou razão social
-            </FieldLabel>
-
+          <FormField
+            htmlFor="client-name"
+            label="Nome completo ou razão social"
+            required
+            className="sm:col-span-2"
+          >
             <Input
-              value={
-                form.name
-              }
+              id="client-name"
+              value={form.name}
               onChange={(event) =>
                 updateField(
                   "name",
                   event.target.value,
                 )
               }
-              placeholder="Ex.: Magno Nascimento ou Piscinas Azul Ltda."
+              placeholder="Ex.: João da Silva ou Piscinas Azul Ltda."
               className="h-11 rounded-xl"
               disabled={pending}
             />
-          </div>
+          </FormField>
 
-          <div>
-            <FieldLabel>
-              CPF ou CNPJ
-            </FieldLabel>
-
+          <FormField
+            htmlFor="client-document"
+            label="CPF ou CNPJ"
+            optional
+            description="O sistema enviará somente os números para a API."
+          >
             <Input
-              value={
-                form.document
-              }
+              id="client-document"
+              value={form.document}
               onChange={(event) =>
                 updateField(
                   "document",
                   event.target.value,
                 )
               }
-              placeholder="Informe somente se necessário"
+              placeholder="xxx.xxx.xxx-xx ou xx.xxx.xxx/xxxx-xx"
               className="h-11 rounded-xl"
               disabled={pending}
             />
+          </FormField>
 
-            <p className="mt-1.5 text-xs text-slate-400">
-              O sistema enviará
-              somente os números para
-              a API.
-            </p>
-          </div>
-
-          <div>
-            <FieldLabel>
-              Telefone
-            </FieldLabel>
-
+          <FormField
+            htmlFor="client-phone"
+            label="Telefone"
+            optional
+          >
             <MaskedInput
+              id="client-phone"
               mask="(99) 99999-9999"
-              value={
-                form.phone
-              }
+              value={form.phone}
               onChange={(event) =>
                 updateField(
                   "phone",
                   event.target.value,
                 )
               }
+              placeholder="(00) 00000-0000"
               className="h-11 rounded-xl"
               disabled={pending}
             />
-          </div>
+          </FormField>
         </div>
-      </section>
+      </FormSection>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <SectionHeader
-          icon={
-            <KeyRound className="h-5 w-5" />
-          }
-          title="Acesso ao aplicativo"
-          description="Essas informações serão utilizadas pelo cliente para acessar o app."
-        />
-
+      <FormSection
+        icon={KeyRound}
+        title="Acesso ao aplicativo"
+        description="Essas informações serão utilizadas pelo cliente para acessar o aplicativo."
+      >
         <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <FieldLabel required>
-              E-mail de acesso
-            </FieldLabel>
-
+          <FormField
+            htmlFor="client-email"
+            label="E-mail de acesso"
+            required
+          >
             <div className="relative">
               <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
               <Input
+                id="client-email"
                 type="email"
-                value={
-                  form.email
-                }
+                autoComplete="email"
+                value={form.email}
                 onChange={(event) =>
                   updateField(
                     "email",
@@ -462,30 +327,33 @@ export default function NewClientPageClient() {
                 disabled={pending}
               />
             </div>
-          </div>
+          </FormField>
 
-          <div>
-            <FieldLabel required>
-              Senha inicial
-            </FieldLabel>
-
+          <FormField
+            htmlFor="client-password"
+            label="Senha inicial"
+            required
+            description="A senha deve possuir pelo menos 6 caracteres."
+          >
             <div className="relative">
+              <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+
               <Input
+                id="client-password"
                 type={
                   showPassword
                     ? "text"
                     : "password"
                 }
-                value={
-                  form.password
-                }
+                autoComplete="new-password"
+                value={form.password}
                 onChange={(event) =>
                   updateField(
                     "password",
                     event.target.value,
                   )
                 }
-                className="h-11 rounded-xl pr-11"
+                className="h-11 rounded-xl px-10"
                 disabled={pending}
               />
 
@@ -494,8 +362,7 @@ export default function NewClientPageClient() {
                 className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={() =>
                   setShowPassword(
-                    (current) =>
-                      !current,
+                    (current) => !current,
                   )
                 }
                 disabled={pending}
@@ -512,99 +379,91 @@ export default function NewClientPageClient() {
                 )}
               </button>
             </div>
-
-            <p className="mt-1.5 text-xs text-slate-400">
-              Mínimo de 6
-              caracteres.
-            </p>
-          </div>
+          </FormField>
         </div>
-      </section>
+      </FormSection>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <SectionHeader
-          icon={
-            <MapPin className="h-5 w-5" />
-          }
-          title="Endereço principal da piscina"
-          description="Este endereço será utilizado automaticamente nas ordens, planos recorrentes e rotas."
-        />
-
+      <FormSection
+        icon={MapPin}
+        title="Endereço principal da piscina"
+        description="Este endereço será utilizado automaticamente nas ordens, rotinas de atendimento e rotas."
+      >
         <div className="grid gap-4 sm:grid-cols-12">
-          <div className="sm:col-span-3">
-            <FieldLabel>
-              CEP
-            </FieldLabel>
-
+          <FormField
+            htmlFor="client-zip-code"
+            label="CEP"
+            optional
+            className="sm:col-span-3"
+          >
             <MaskedInput
+              id="client-zip-code"
               mask="99999-999"
-              value={
-                form.zipCode
-              }
+              value={form.zipCode}
               onChange={(event) =>
                 updateField(
                   "zipCode",
                   event.target.value,
                 )
               }
-              onBlur={
-                handleZipCodeBlur
-              }
+              onBlur={handleZipCodeBlur}
+              placeholder="00000-000"
               className="h-11 rounded-xl"
               disabled={pending}
             />
-          </div>
+          </FormField>
 
-          <div className="sm:col-span-7">
-            <FieldLabel required>
-              Cidade
-            </FieldLabel>
-
+          <FormField
+            htmlFor="client-city"
+            label="Cidade"
+            required
+            className="sm:col-span-7"
+          >
             <Input
-              value={
-                form.city
-              }
+              id="client-city"
+              value={form.city}
               onChange={(event) =>
                 updateField(
                   "city",
                   event.target.value,
                 )
               }
+              placeholder="Ex.: São Paulo"
               className="h-11 rounded-xl"
               disabled={pending}
             />
-          </div>
+          </FormField>
 
-          <div className="sm:col-span-2">
-            <FieldLabel required>
-              UF
-            </FieldLabel>
-
+          <FormField
+            htmlFor="client-state"
+            label="UF"
+            required
+            className="sm:col-span-2"
+          >
             <Input
+              id="client-state"
               maxLength={2}
-              value={
-                form.state
-              }
+              value={form.state}
               onChange={(event) =>
                 updateField(
                   "state",
                   event.target.value.toUpperCase(),
                 )
               }
-              className="h-11 rounded-xl text-center"
+              placeholder="SP"
+              className="h-11 rounded-xl text-center uppercase"
               disabled={pending}
             />
-          </div>
+          </FormField>
 
-          <div className="sm:col-span-8">
-            <FieldLabel required>
-              Endereço
-            </FieldLabel>
-
+          <FormField
+            htmlFor="client-street"
+            label="Endereço"
+            required
+            className="sm:col-span-8"
+          >
             <Input
-              value={
-                form.street
-              }
+              id="client-street"
+              value={form.street}
               onChange={(event) =>
                 updateField(
                   "street",
@@ -615,57 +474,59 @@ export default function NewClientPageClient() {
               className="h-11 rounded-xl"
               disabled={pending}
             />
-          </div>
+          </FormField>
 
-          <div className="sm:col-span-4">
-            <FieldLabel>
-              Número
-            </FieldLabel>
-
+          <FormField
+            htmlFor="client-number"
+            label="Número"
+            optional
+            className="sm:col-span-4"
+          >
             <Input
-              value={
-                form.number
-              }
+              id="client-number"
+              value={form.number}
               onChange={(event) =>
                 updateField(
                   "number",
                   event.target.value,
                 )
               }
+              placeholder="Ex.: 125"
               className="h-11 rounded-xl"
               disabled={pending}
             />
-          </div>
+          </FormField>
 
-          <div className="sm:col-span-6">
-            <FieldLabel>
-              Bairro
-            </FieldLabel>
-
+          <FormField
+            htmlFor="client-neighborhood"
+            label="Bairro"
+            optional
+            className="sm:col-span-6"
+          >
             <Input
-              value={
-                form.neighborhood
-              }
+              id="client-neighborhood"
+              value={form.neighborhood}
               onChange={(event) =>
                 updateField(
                   "neighborhood",
                   event.target.value,
                 )
               }
+              placeholder="Ex.: Centro"
               className="h-11 rounded-xl"
               disabled={pending}
             />
-          </div>
+          </FormField>
 
-          <div className="sm:col-span-6">
-            <FieldLabel>
-              Complemento
-            </FieldLabel>
-
+          <FormField
+            htmlFor="client-complement"
+            label="Complemento"
+            optional
+            className="sm:col-span-6"
+          >
             <Input
-              value={
-                form.complement
-              }
+              id="client-complement"
+              value={form.complement}
               onChange={(event) =>
                 updateField(
                   "complement",
@@ -676,20 +537,17 @@ export default function NewClientPageClient() {
               className="h-11 rounded-xl"
               disabled={pending}
             />
-          </div>
+          </FormField>
         </div>
 
-        <div className="mt-5 flex items-start gap-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-800">
-          <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
-
-          <p className="leading-6">
-            Outros endereços ou
-            piscinas poderão ser
-            adicionados depois, nos
-            detalhes do cliente.
-          </p>
-        </div>
-      </section>
+        <FormInfoBox
+          icon={MapPin}
+          className="mt-5"
+        >
+          Outros endereços ou piscinas poderão ser adicionados
+          depois, nos detalhes do cliente.
+        </FormInfoBox>
+      </FormSection>
 
       <FormActionBar
         primaryLabel="Criar cliente"

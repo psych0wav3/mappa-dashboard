@@ -800,16 +800,6 @@ export default function NewWorkOrderClient({
             title="Itens e valores"
             description="Informe o valor da mão de obra e acrescente produtos, materiais ou serviços adicionais."
           />
-
-          <div className="rounded-xl border border-sky-100 bg-sky-50 px-4 py-2.5 text-right">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-sky-600">
-              Total da OS
-            </div>
-
-            <div className="mt-0.5 text-lg font-bold text-sky-900">
-              {formatCurrency(totalAmount)}
-            </div>
-          </div>
         </div>
 
         <div className="mt-5 hidden overflow-hidden rounded-2xl border border-slate-200 lg:block">

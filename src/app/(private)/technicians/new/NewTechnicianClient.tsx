@@ -13,6 +13,10 @@ import {
 } from "lucide-react";
 
 import { createTechnician } from "@/app/(private)/technicians/actions";
+
+import FormField from "@/components/form-layout/FormField";
+import FormInfoBox from "@/components/form-layout/FormInfoBox";
+import FormSection from "@/components/form-layout/FormSection";
 import FormActionBar from "@/components/ui/FormActionBar";
 import { Input } from "@/components/ui/input";
 
@@ -51,21 +55,24 @@ export default function NewTechnicianClient() {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("123456");
   const [phone, setPhone] = React.useState("");
-  const [showPassword, setShowPassword] = React.useState(false);
-  const [submitting, setSubmitting] = React.useState(false);
-  const [errorMessage, setErrorMessage] = React.useState<string | null>(
-    null,
-  );
+  const [showPassword, setShowPassword] =
+    React.useState(false);
+
+  const [submitting, setSubmitting] =
+    React.useState(false);
+
+  const [errorMessage, setErrorMessage] =
+    React.useState<string | null>(null);
 
   const normalizedPhone = normalizePhone(phone);
 
   const isNameValid = name.trim().length >= 2;
 
-  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-    email.trim(),
-  );
+  const isEmailValid =
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
-  const isPasswordValid = password.trim().length >= 6;
+  const isPasswordValid =
+    password.trim().length >= 6;
 
   const isPhoneValid =
     !normalizedPhone ||
@@ -94,7 +101,9 @@ export default function NewTechnicianClient() {
 
       await createTechnician({
         name: name.trim(),
-        email: email.trim().toLocaleLowerCase("pt-BR"),
+        email: email
+          .trim()
+          .toLocaleLowerCase("pt-BR"),
         password: password.trim(),
         phone: normalizedPhone || undefined,
       });
@@ -138,40 +147,29 @@ export default function NewTechnicianClient() {
       {errorMessage && (
         <div
           role="alert"
-          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700"
+          className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700"
         >
           {errorMessage}
         </div>
       )}
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <div className="mb-5 flex items-start gap-3">
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
-            <UserRound className="h-4 w-4" />
-          </div>
-
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900">
-              Identificação
-            </h2>
-
-            <p className="mt-0.5 text-xs leading-5 text-slate-500">
-              Informe os dados principais do profissional.
-            </p>
-          </div>
-        </div>
-
+      <FormSection
+        icon={UserRound}
+        title="Identificação"
+        description="Informe os dados principais do profissional."
+      >
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <label
-              htmlFor="technician-name"
-              className="mb-2 block text-xs font-semibold text-slate-700"
-            >
-              Nome completo
-
-              <span className="ml-1 text-red-500">*</span>
-            </label>
-
+          <FormField
+            htmlFor="technician-name"
+            label="Nome completo"
+            required
+            error={
+              name.length > 0 && !isNameValid
+                ? "Informe o nome completo do técnico."
+                : undefined
+            }
+            className="sm:col-span-2"
+          >
             <div className="relative">
               <UserRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
@@ -180,33 +178,29 @@ export default function NewTechnicianClient() {
                 type="text"
                 autoComplete="name"
                 value={name}
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) =>
+                  setName(event.target.value)
+                }
                 placeholder="Ex.: Lucas Richter"
                 className="h-11 rounded-xl pl-10"
-                aria-invalid={name.length > 0 && !isNameValid}
+                aria-invalid={
+                  name.length > 0 && !isNameValid
+                }
                 disabled={submitting}
               />
             </div>
+          </FormField>
 
-            {name.length > 0 && !isNameValid && (
-              <p className="mt-1.5 text-xs text-red-600">
-                Informe o nome completo do técnico.
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label
-              htmlFor="technician-phone"
-              className="mb-2 block text-xs font-semibold text-slate-700"
-            >
-              Telefone
-
-              <span className="ml-1 font-normal text-slate-400">
-                opcional
-              </span>
-            </label>
-
+          <FormField
+            htmlFor="technician-phone"
+            label="Telefone"
+            optional
+            error={
+              phone.length > 0 && !isPhoneValid
+                ? "Informe um telefone com DDD."
+                : undefined
+            }
+          >
             <div className="relative">
               <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
@@ -216,61 +210,48 @@ export default function NewTechnicianClient() {
                 autoComplete="tel"
                 value={phone}
                 onChange={(event) =>
-                  setPhone(formatPhone(event.target.value))
+                  setPhone(
+                    formatPhone(event.target.value),
+                  )
                 }
                 placeholder="(00) 00000-0000"
                 className="h-11 rounded-xl pl-10"
-                aria-invalid={phone.length > 0 && !isPhoneValid}
+                aria-invalid={
+                  phone.length > 0 && !isPhoneValid
+                }
                 disabled={submitting}
               />
             </div>
+          </FormField>
 
-            {phone.length > 0 && !isPhoneValid && (
-              <p className="mt-1.5 text-xs text-red-600">
-                Informe um telefone com DDD.
-              </p>
-            )}
-          </div>
-
-          <div className="flex h-11 self-end items-center rounded-xl border border-sky-100 bg-sky-50 px-4">
-            <ShieldCheck className="mr-3 h-4 w-4 shrink-0 text-sky-700" />
-
-            <p className="text-xs text-sky-800">
-              O profissional será cadastrado e poderá acessar o APP.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <div className="mb-5 flex items-start gap-3">
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
-            <KeyRound className="h-4 w-4" />
-          </div>
-
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900">
-              Acesso ao aplicativo
-            </h2>
-
-            <p className="mt-0.5 text-xs leading-5 text-slate-500">
-              Crie as credenciais iniciais que serão usadas pelo
-              técnico.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label
-              htmlFor="technician-email"
-              className="mb-2 block text-xs font-semibold text-slate-700"
+          <div className="self-end">
+            <FormInfoBox
+              icon={ShieldCheck}
+              compact
             >
-              E-mail de acesso
+              O profissional será cadastrado e poderá acessar o
+              aplicativo.
+            </FormInfoBox>
+          </div>
+        </div>
+      </FormSection>
 
-              <span className="ml-1 text-red-500">*</span>
-            </label>
-
+      <FormSection
+        icon={KeyRound}
+        title="Acesso ao aplicativo"
+        description="Crie as credenciais iniciais que serão usadas pelo técnico."
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField
+            htmlFor="technician-email"
+            label="E-mail de acesso"
+            required
+            error={
+              email.length > 0 && !isEmailValid
+                ? "Informe um endereço de e-mail válido."
+                : undefined
+            }
+          >
             <div className="relative">
               <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
@@ -279,37 +260,41 @@ export default function NewTechnicianClient() {
                 type="email"
                 autoComplete="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) =>
+                  setEmail(event.target.value)
+                }
                 placeholder="tecnico@email.com"
                 className="h-11 rounded-xl pl-10"
-                aria-invalid={email.length > 0 && !isEmailValid}
+                aria-invalid={
+                  email.length > 0 && !isEmailValid
+                }
                 disabled={submitting}
               />
             </div>
+          </FormField>
 
-            {email.length > 0 && !isEmailValid && (
-              <p className="mt-1.5 text-xs text-red-600">
-                Informe um endereço de e-mail válido.
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label
-              htmlFor="technician-password"
-              className="mb-2 block text-xs font-semibold text-slate-700"
-            >
-              Senha inicial
-
-              <span className="ml-1 text-red-500">*</span>
-            </label>
-
+          <FormField
+            htmlFor="technician-password"
+            label="Senha inicial"
+            required
+            description="A senha deve possuir pelo menos 6 caracteres."
+            error={
+              password.length > 0 &&
+              !isPasswordValid
+                ? "Informe uma senha com pelo menos 6 caracteres."
+                : undefined
+            }
+          >
             <div className="relative">
               <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
               <Input
                 id="technician-password"
-                type={showPassword ? "text" : "password"}
+                type={
+                  showPassword
+                    ? "text"
+                    : "password"
+                }
                 autoComplete="new-password"
                 value={password}
                 onChange={(event) =>
@@ -317,7 +302,8 @@ export default function NewTechnicianClient() {
                 }
                 className="h-11 rounded-xl px-10"
                 aria-invalid={
-                  password.length > 0 && !isPasswordValid
+                  password.length > 0 &&
+                  !isPasswordValid
                 }
                 disabled={submitting}
               />
@@ -325,12 +311,16 @@ export default function NewTechnicianClient() {
               <button
                 type="button"
                 onClick={() =>
-                  setShowPassword((current) => !current)
+                  setShowPassword(
+                    (current) => !current,
+                  )
                 }
                 disabled={submitting}
                 className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
                 aria-label={
-                  showPassword ? "Ocultar senha" : "Mostrar senha"
+                  showPassword
+                    ? "Ocultar senha"
+                    : "Mostrar senha"
                 }
               >
                 {showPassword ? (
@@ -340,22 +330,18 @@ export default function NewTechnicianClient() {
                 )}
               </button>
             </div>
-
-            <p className="mt-1.5 text-xs text-slate-400">
-              A senha deve possuir pelo menos 6 caracteres.
-            </p>
-          </div>
+          </FormField>
         </div>
 
-        <div className="mt-5 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-          <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
-
-          <p className="text-xs leading-5 text-amber-800">
-            Oriente o técnico a alterar a senha inicial após o
-            primeiro acesso ao aplicativo.
-          </p>
-        </div>
-      </section>
+        <FormInfoBox
+          icon={KeyRound}
+          variant="warning"
+          className="mt-5"
+        >
+          Oriente o técnico a alterar a senha inicial após o
+          primeiro acesso ao aplicativo.
+        </FormInfoBox>
+      </FormSection>
 
       <FormActionBar
         primaryLabel="Criar técnico"
