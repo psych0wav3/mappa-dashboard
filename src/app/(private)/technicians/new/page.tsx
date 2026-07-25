@@ -27,10 +27,8 @@ export default function NewTechnicianPage() {
               </h1>
 
               <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
-                Cadastre um profissional que
-                poderá acessar o aplicativo,
-                executar atendimentos e receber
-                rotas.
+                Cadastre um novo integrante da equipe técnica 
+                e prepare seu acesso para a rotina operacional da empresa.
               </p>
             </div>
           </div>

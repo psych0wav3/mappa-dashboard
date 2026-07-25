@@ -11,7 +11,6 @@ import {
   Hammer,
   Package,
   Plus,
-  Save,
   Search,
   Trash2,
   UserRound,
@@ -20,6 +19,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
+import FormActionBar from "@/components/ui/FormActionBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -111,10 +111,7 @@ const SERVICE_TYPES: ServiceTypeOption[] = [
   },
 ];
 
-const ITEM_TYPE_LABELS: Record<
-  ChargeItemType,
-  string
-> = {
+const ITEM_TYPE_LABELS: Record<ChargeItemType, string> = {
   LABOR: "Mão de obra",
   PRODUCT: "Produto",
   MATERIAL: "Material",
@@ -129,9 +126,7 @@ function createId() {
     return crypto.randomUUID();
   }
 
-  return `${Date.now()}-${Math.random()
-    .toString(16)
-    .slice(2)}`;
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function createLaborItem(): ChargeItem {
@@ -160,9 +155,7 @@ function todayIso() {
   const now = new Date();
   const timezoneOffset = now.getTimezoneOffset();
 
-  return new Date(
-    now.getTime() - timezoneOffset * 60_000,
-  )
+  return new Date(now.getTime() - timezoneOffset * 60_000)
     .toISOString()
     .slice(0, 10);
 }
@@ -174,18 +167,10 @@ function parseMoney(value: string) {
     return 0;
   }
 
-  let normalized = cleanValue.replace(
-    /[^\d,.-]/g,
-    "",
-  );
+  let normalized = cleanValue.replace(/[^\d,.-]/g, "");
 
-  if (
-    normalized.includes(",") &&
-    normalized.includes(".")
-  ) {
-    normalized = normalized
-      .replace(/\./g, "")
-      .replace(",", ".");
+  if (normalized.includes(",") && normalized.includes(".")) {
+    normalized = normalized.replace(/\./g, "").replace(",", ".");
   } else if (normalized.includes(",")) {
     normalized = normalized.replace(",", ".");
   }
@@ -202,35 +187,18 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
-function formatDate(value: string) {
-  if (!value) {
-    return "Não informada";
-  }
-
-  const [year, month, day] = value.split("-");
-
-  if (!year || !month || !day) {
-    return value;
-  }
-
-  return `${day}/${month}/${year}`;
-}
-
 function serviceTypeLabel(type: ServiceType) {
   return (
     SERVICE_TYPES.find(
-      (serviceType) =>
-        serviceType.value === type,
+      (serviceType) => serviceType.value === type,
     )?.label || "Serviço avulso"
   );
 }
 
 function itemTotal(item: ChargeItem) {
   return (
-    Math.max(
-      1,
-      Number(item.quantity || 1),
-    ) * parseMoney(item.unitPrice)
+    Math.max(1, Number(item.quantity || 1)) *
+    parseMoney(item.unitPrice)
   );
 }
 
@@ -275,66 +243,50 @@ export default function NewWorkOrderClient({
 }) {
   const router = useRouter();
 
-  const [pending, startTransition] =
-    React.useTransition();
+  const [pending, startTransition] = React.useTransition();
 
   const [serviceType, setServiceType] =
-    React.useState<ServiceType>(
-      "TECHNICAL_VISIT",
-    );
+    React.useState<ServiceType>("TECHNICAL_VISIT");
 
-  const [customerId, setCustomerId] =
-    React.useState("");
-
-  const [title, setTitle] =
-    React.useState("Visita técnica");
-
-  const [description, setDescription] =
-    React.useState("");
-
+  const [customerId, setCustomerId] = React.useState("");
+  const [title, setTitle] = React.useState("Visita técnica");
+  const [description, setDescription] = React.useState("");
   const [scheduledDate, setScheduledDate] =
     React.useState(todayIso());
 
-  const [items, setItems] = React.useState<
-    ChargeItem[]
-  >(() => [createLaborItem()]);
+  const [items, setItems] = React.useState<ChargeItem[]>(() => [
+    createLaborItem(),
+  ]);
 
   const selectedCustomer = React.useMemo(
     () =>
-      customers.find(
-        (customer) =>
-          customer.id === customerId,
-      ) || null,
+      customers.find((customer) => customer.id === customerId) ||
+      null,
     [customers, customerId],
   );
 
-  const selectedServiceType =
-    React.useMemo(
-      () =>
-        SERVICE_TYPES.find(
-          (option) =>
-            option.value === serviceType,
-        ) || SERVICE_TYPES[0],
-      [serviceType],
-    );
+  const selectedServiceType = React.useMemo(
+    () =>
+      SERVICE_TYPES.find(
+        (option) => option.value === serviceType,
+      ) || SERVICE_TYPES[0],
+    [serviceType],
+  );
 
-  const SelectedServiceIcon =
-    selectedServiceType.icon;
+  const SelectedServiceIcon = selectedServiceType.icon;
 
   const totalAmount = React.useMemo(
     () =>
       items.reduce(
-        (total, item) =>
-          total + itemTotal(item),
+        (total, item) => total + itemTotal(item),
         0,
       ),
     [items],
   );
 
-  const additionalItemsCount =
-    items.filter(
-      (item) => !item.locked,
-    ).length;
+  const additionalItemsCount = items.filter(
+    (item) => !item.locked,
+  ).length;
 
   const hasValidItems = React.useMemo(() => {
     if (items.length === 0) {
@@ -342,9 +294,7 @@ export default function NewWorkOrderClient({
     }
 
     const hasLaborItem = items.some(
-      (item) =>
-        item.type === "LABOR" &&
-        item.locked,
+      (item) => item.type === "LABOR" && item.locked,
     );
 
     if (!hasLaborItem) {
@@ -352,13 +302,8 @@ export default function NewWorkOrderClient({
     }
 
     return items.every((item) => {
-      const quantity = Number(
-        item.quantity,
-      );
-
-      const unitPrice = parseMoney(
-        item.unitPrice,
-      );
+      const quantity = Number(item.quantity);
+      const unitPrice = parseMoney(item.unitPrice);
 
       return (
         item.description.trim().length > 0 &&
@@ -384,8 +329,7 @@ export default function NewWorkOrderClient({
     nextServiceType: ServiceType,
   ) {
     const nextOption = SERVICE_TYPES.find(
-      (item) =>
-        item.value === nextServiceType,
+      (item) => item.value === nextServiceType,
     );
 
     setServiceType(nextServiceType);
@@ -394,16 +338,13 @@ export default function NewWorkOrderClient({
       return;
     }
 
-    const currentDefaultTitles =
-      SERVICE_TYPES.map(
-        (item) => item.defaultTitle,
-      ).filter(Boolean);
+    const currentDefaultTitles = SERVICE_TYPES.map(
+      (item) => item.defaultTitle,
+    ).filter(Boolean);
 
     if (
       !title.trim() ||
-      currentDefaultTitles.includes(
-        title.trim(),
-      )
+      currentDefaultTitles.includes(title.trim())
     ) {
       setTitle(nextOption.defaultTitle);
     }
@@ -435,9 +376,7 @@ export default function NewWorkOrderClient({
   function removeItem(itemId: string) {
     setItems((current) =>
       current.filter(
-        (item) =>
-          item.id !== itemId ||
-          item.locked,
+        (item) => item.id !== itemId || item.locked,
       ),
     );
   }
@@ -452,9 +391,7 @@ export default function NewWorkOrderClient({
     }
 
     const laborItem = items.find(
-      (item) =>
-        item.type === "LABOR" &&
-        item.locked,
+      (item) => item.type === "LABOR" && item.locked,
     );
 
     if (!laborItem) {
@@ -497,9 +434,7 @@ export default function NewWorkOrderClient({
         return false;
       }
 
-      const unitPrice = parseMoney(
-        item.unitPrice,
-      );
+      const unitPrice = parseMoney(item.unitPrice);
 
       if (
         !Number.isFinite(unitPrice) ||
@@ -533,10 +468,9 @@ export default function NewWorkOrderClient({
   }
 
   function buildFinalDescription() {
-    const serviceTypeText =
-      `Tipo de atendimento: ${serviceTypeLabel(
-        serviceType,
-      )}.`;
+    const serviceTypeText = `Tipo de atendimento: ${serviceTypeLabel(
+      serviceType,
+    )}.`;
 
     const itemsText = items
       .map((item, index) => {
@@ -545,10 +479,7 @@ export default function NewWorkOrderClient({
           Number(item.quantity || 1),
         );
 
-        const unitPrice = parseMoney(
-          item.unitPrice,
-        );
-
+        const unitPrice = parseMoney(item.unitPrice);
         const total = itemTotal(item);
 
         return [
@@ -556,12 +487,8 @@ export default function NewWorkOrderClient({
             ITEM_TYPE_LABELS[item.type]
           } — ${item.description.trim()}`,
           `Quantidade: ${quantity}`,
-          `Valor unitário: ${formatCurrency(
-            unitPrice,
-          )}`,
-          `Subtotal: ${formatCurrency(
-            total,
-          )}`,
+          `Valor unitário: ${formatCurrency(unitPrice)}`,
+          `Subtotal: ${formatCurrency(total)}`,
         ].join(" | ");
       })
       .join("\n");
@@ -569,9 +496,7 @@ export default function NewWorkOrderClient({
     const chargesText = [
       "Itens da ordem de serviço:",
       itemsText,
-      `Total da OS: ${formatCurrency(
-        totalAmount,
-      )}`,
+      `Total da OS: ${formatCurrency(totalAmount)}`,
     ].join("\n");
 
     const notes = description.trim();
@@ -579,9 +504,7 @@ export default function NewWorkOrderClient({
     return [
       serviceTypeText,
       chargesText,
-      notes
-        ? `Observações:\n${notes}`
-        : "",
+      notes ? `Observações:\n${notes}` : "",
     ]
       .filter(Boolean)
       .join("\n\n");
@@ -589,9 +512,7 @@ export default function NewWorkOrderClient({
 
   function handleSubmit() {
     if (!selectedCustomer) {
-      toast.error(
-        "Selecione o cliente/piscina.",
-      );
+      toast.error("Selecione o cliente/piscina.");
 
       return;
     }
@@ -615,9 +536,7 @@ export default function NewWorkOrderClient({
     }
 
     if (!scheduledDate) {
-      toast.error(
-        "Informe a data agendada.",
-      );
+      toast.error("Informe a data agendada.");
 
       return;
     }
@@ -634,25 +553,17 @@ export default function NewWorkOrderClient({
       return;
     }
 
-    const finalDescription =
-      buildFinalDescription();
+    const finalDescription = buildFinalDescription();
 
     startTransition(async () => {
       try {
         await createAdminWorkOrder({
-          customerId:
-            selectedCustomer.id,
-
+          customerId: selectedCustomer.id,
           customerAddressId:
             selectedCustomer.customerAddressId,
-
           title: cleanTitle,
-
-          description:
-            finalDescription,
-
+          description: finalDescription,
           scheduledDate,
-
           totalAmount,
         });
 
@@ -660,10 +571,7 @@ export default function NewWorkOrderClient({
           "Ordem de serviço criada e enviada para aguardando rota.",
         );
 
-        router.push(
-          "/workorders/approved",
-        );
-
+        router.push("/workorders/approved");
         router.refresh();
       } catch (error) {
         toast.error(
@@ -675,8 +583,39 @@ export default function NewWorkOrderClient({
     });
   }
 
+  function handleFormSubmit(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+
+    if (pending) {
+      return;
+    }
+
+    handleSubmit();
+  }
+
+  function handleBack() {
+    if (pending) {
+      return;
+    }
+
+    router.back();
+  }
+
+  function handleCancel() {
+    if (pending) {
+      return;
+    }
+
+    router.push("/workorders");
+  }
+
   return (
-    <div className="mx-auto max-w-7xl space-y-5 pb-10">
+    <form
+      onSubmit={handleFormSubmit}
+      className="mx-auto max-w-7xl space-y-5 pb-28"
+    >
       <header className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-col gap-5 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -691,9 +630,9 @@ export default function NewWorkOrderClient({
             </h1>
 
             <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
-              Cadastre reparos, visitas técnicas,
-              trocas de areia, entregas de produtos
-              e outros serviços pontuais.
+              Cadastre reparos, visitas técnicas, trocas de
+              areia, entregas de produtos e outros serviços
+              pontuais.
             </p>
           </div>
         </div>
@@ -709,9 +648,7 @@ export default function NewWorkOrderClient({
 
         <div className="mt-4 grid gap-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
           {SERVICE_TYPES.map((option) => {
-            const selected =
-              option.value === serviceType;
-
+            const selected = option.value === serviceType;
             const Icon = option.icon;
 
             return (
@@ -719,9 +656,7 @@ export default function NewWorkOrderClient({
                 key={option.value}
                 type="button"
                 onClick={() =>
-                  handleServiceTypeChange(
-                    option.value,
-                  )
+                  handleServiceTypeChange(option.value)
                 }
                 aria-pressed={selected}
                 className={`group relative flex min-h-[96px] flex-col items-center justify-center gap-2 rounded-xl border px-3 py-3 text-center transition-all duration-200 ${
@@ -785,22 +720,23 @@ export default function NewWorkOrderClient({
 
         <div className="mt-5 grid gap-5 lg:grid-cols-2">
           <div>
-            <label className="mb-2 block text-xs font-semibold text-slate-700">
+            <label
+              htmlFor="work-order-customer"
+              className="mb-2 block text-xs font-semibold text-slate-700"
+            >
               Cliente/Piscina
 
-              <span className="ml-1 text-red-500">
-                *
-              </span>
+              <span className="ml-1 text-red-500">*</span>
             </label>
 
             <select
+              id="work-order-customer"
               value={customerId}
               onChange={(event) =>
-                setCustomerId(
-                  event.target.value,
-                )
+                setCustomerId(event.target.value)
               }
-              className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+              disabled={pending}
+              className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <option value="">
                 Selecione um cliente...
@@ -810,9 +746,7 @@ export default function NewWorkOrderClient({
                 <option
                   key={customer.id}
                   value={customer.id}
-                  disabled={
-                    !customer.hasValidAddress
-                  }
+                  disabled={!customer.hasValidAddress}
                 >
                   {customer.name}
 
@@ -835,21 +769,24 @@ export default function NewWorkOrderClient({
           </div>
 
           <div>
-            <label className="mb-2 block text-xs font-semibold text-slate-700">
+            <label
+              htmlFor="work-order-title"
+              className="mb-2 block text-xs font-semibold text-slate-700"
+            >
               Título da OS
 
-              <span className="ml-1 text-red-500">
-                *
-              </span>
+              <span className="ml-1 text-red-500">*</span>
             </label>
 
             <Input
+              id="work-order-title"
               value={title}
               onChange={(event) =>
                 setTitle(event.target.value)
               }
               placeholder="Ex.: Reparo da bomba da piscina"
               className="h-11 rounded-xl"
+              disabled={pending}
             />
           </div>
         </div>
@@ -927,7 +864,7 @@ export default function NewWorkOrderClient({
                   <td className="px-4 py-3">
                     <select
                       value={item.type}
-                      disabled={item.locked}
+                      disabled={item.locked || pending}
                       onChange={(event) =>
                         updateItem(item.id, {
                           type: event.target
@@ -958,7 +895,7 @@ export default function NewWorkOrderClient({
                     <div className="relative">
                       <Input
                         value={item.description}
-                        disabled={item.locked}
+                        disabled={item.locked || pending}
                         onChange={(event) =>
                           updateItem(item.id, {
                             description:
@@ -983,14 +920,13 @@ export default function NewWorkOrderClient({
                       min={1}
                       step={1}
                       value={item.quantity}
-                      disabled={item.locked}
+                      disabled={item.locked || pending}
                       onChange={(event) =>
                         updateItem(item.id, {
                           quantity: Math.max(
                             1,
                             Number(
-                              event.target
-                                .value || 1,
+                              event.target.value || 1,
                             ),
                           ),
                         })
@@ -1015,6 +951,7 @@ export default function NewWorkOrderClient({
                           })
                         }
                         placeholder="0,00"
+                        disabled={pending}
                         className={`h-10 rounded-lg pl-9 ${
                           item.unitPrice.trim() &&
                           parseMoney(
@@ -1086,7 +1023,6 @@ export default function NewWorkOrderClient({
                 <div className="text-xs text-slate-500">
                   Mão de obra +{" "}
                   {additionalItemsCount}{" "}
-
                   {additionalItemsCount === 1
                     ? "adicional"
                     : "adicionais"}
@@ -1157,7 +1093,7 @@ export default function NewWorkOrderClient({
 
                   <select
                     value={item.type}
-                    disabled={item.locked}
+                    disabled={item.locked || pending}
                     onChange={(event) =>
                       updateItem(item.id, {
                         type: event.target
@@ -1191,7 +1127,7 @@ export default function NewWorkOrderClient({
 
                   <Input
                     value={item.description}
-                    disabled={item.locked}
+                    disabled={item.locked || pending}
                     onChange={(event) =>
                       updateItem(item.id, {
                         description:
@@ -1212,14 +1148,13 @@ export default function NewWorkOrderClient({
                     min={1}
                     step={1}
                     value={item.quantity}
-                    disabled={item.locked}
+                    disabled={item.locked || pending}
                     onChange={(event) =>
                       updateItem(item.id, {
                         quantity: Math.max(
                           1,
                           Number(
-                            event.target.value ||
-                              1,
+                            event.target.value || 1,
                           ),
                         ),
                       })
@@ -1243,6 +1178,7 @@ export default function NewWorkOrderClient({
                       })
                     }
                     placeholder="0,00"
+                    disabled={pending}
                     className={`h-10 rounded-lg ${
                       item.unitPrice.trim() &&
                       parseMoney(
@@ -1261,9 +1197,7 @@ export default function NewWorkOrderClient({
                 </span>
 
                 <span className="text-base font-bold text-slate-900">
-                  {formatCurrency(
-                    itemTotal(item),
-                  )}
+                  {formatCurrency(itemTotal(item))}
                 </span>
               </div>
             </div>
@@ -1293,112 +1227,65 @@ export default function NewWorkOrderClient({
 
         <div className="mt-5 grid gap-5 lg:grid-cols-[280px_1fr]">
           <div>
-            <label className="mb-2 block text-xs font-semibold text-slate-700">
+            <label
+              htmlFor="work-order-date"
+              className="mb-2 block text-xs font-semibold text-slate-700"
+            >
               Data agendada
 
-              <span className="ml-1 text-red-500">
-                *
-              </span>
+              <span className="ml-1 text-red-500">*</span>
             </label>
 
             <Input
+              id="work-order-date"
               type="date"
               value={scheduledDate}
               onChange={(event) =>
-                setScheduledDate(
-                  event.target.value,
-                )
+                setScheduledDate(event.target.value)
               }
               className="h-11 rounded-xl"
+              disabled={pending}
             />
           </div>
 
           <div>
-            <label className="mb-2 block text-xs font-semibold text-slate-700">
+            <label
+              htmlFor="work-order-description"
+              className="mb-2 block text-xs font-semibold text-slate-700"
+            >
               Descrição e observações
             </label>
 
             <Textarea
+              id="work-order-description"
               value={description}
               onChange={(event) =>
-                setDescription(
-                  event.target.value,
-                )
+                setDescription(event.target.value)
               }
               placeholder="Ex.: Bomba apresentando ruído. Verificar rolamento, registrar diagnóstico e enviar orçamento."
               rows={6}
               className="min-h-[148px] resize-y rounded-xl"
+              disabled={pending}
             />
 
             <p className="mt-2 text-xs leading-5 text-slate-400">
-              Registre problemas relatados, peças
-              necessárias, instruções para o técnico
-              e outras informações importantes.
+              Registre problemas relatados, peças necessárias,
+              instruções para o técnico e outras informações
+              importantes.
             </p>
           </div>
         </div>
       </section>
 
-      <div className="sticky bottom-4 z-20 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur sm:px-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.back()}
-            disabled={pending}
-            className="rounded-xl"
-          >
-            Voltar
-          </Button>
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="hidden text-right md:block">
-              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                Total da ordem
-              </div>
-
-              <div className="text-base font-bold text-slate-900">
-                {formatCurrency(totalAmount)}
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() =>
-                  router.push("/workorders")
-                }
-                disabled={pending}
-                className="flex-1 rounded-xl sm:flex-none"
-              >
-                Cancelar
-              </Button>
-
-              <Button
-                type="button"
-                className="btn-brand flex-1 rounded-xl px-6 text-white sm:flex-none"
-                onClick={handleSubmit}
-                disabled={
-                  pending ||
-                  !isFormValid
-                }
-                title={
-                  !isFormValid
-                    ? "Preencha cliente, título, data e valores dos itens."
-                    : "Criar ordem de serviço"
-                }
-              >
-                <Save className="mr-2 h-4 w-4" />
-
-                {pending
-                  ? "Criando OS..."
-                  : "Criar ordem"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      <FormActionBar
+        primaryLabel="Criar ordem"
+        loadingLabel="Criando OS..."
+        pending={pending}
+        disabled={!isFormValid}
+        onBack={handleBack}
+        onCancel={handleCancel}
+        submitType="submit"
+      />
+    </form>
   );
 }

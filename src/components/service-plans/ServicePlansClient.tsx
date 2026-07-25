@@ -3,7 +3,6 @@
 import * as React from "react";
 
 import {
-  ArrowLeft,
   CalendarClock,
   Plus,
 } from "lucide-react";
@@ -58,13 +57,17 @@ export default function ServicePlansClient({
   checklistTemplates,
   measurementTemplates,
 }: ServicePlansClientProps) {
-  const [pending, startTransition] =
-    React.useTransition();
+  const [
+    pending,
+    startTransition,
+  ] = React.useTransition();
 
-  const [plans, setPlans] =
-    React.useState<ServicePlan[]>(
-      initialPlans,
-    );
+  const [
+    plans,
+    setPlans,
+  ] = React.useState<
+    ServicePlan[]
+  >(initialPlans);
 
   const [
     searchQuery,
@@ -127,7 +130,8 @@ export default function ServicePlansClient({
     React.useMemo(() => {
       return plans.filter(
         (plan) =>
-          plan.status === "ACTIVE",
+          plan.status ===
+          "ACTIVE",
       ).length;
     }, [plans]);
 
@@ -135,7 +139,8 @@ export default function ServicePlansClient({
     React.useMemo(() => {
       return plans.filter(
         (plan) =>
-          plan.status === "PAUSED",
+          plan.status ===
+          "PAUSED",
       ).length;
     }, [plans]);
 
@@ -157,12 +162,15 @@ export default function ServicePlansClient({
               [
                 plan.title,
                 plan.description,
+
                 getPlanCustomerName(
                   plan,
                 ),
+
                 statusLabel(
                   plan.status,
                 ),
+
                 recurrenceLabel(
                   plan,
                 ),
@@ -379,41 +387,27 @@ export default function ServicePlansClient({
     return (
       <div className="mx-auto max-w-7xl space-y-5 pb-8">
         <header className="rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
-                <CalendarClock className="h-5 w-5" />
-              </div>
-
-              <div>
-                <div className="mb-2 inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
-                  Atendimento recorrente
-                </div>
-
-                <h1 className="text-xl font-bold tracking-tight text-slate-950">
-                  Nova Rotina de Atendimento
-                </h1>
-
-                <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
-                  Configure o atendimento
-                  recorrente que será
-                  enviado ao cliente para
-                  aprovação.
-                </p>
-              </div>
+          <div className="flex items-center gap-4">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
+              <CalendarClock className="h-5 w-5" />
             </div>
 
-            <Button
-              type="button"
-              variant="outline"
-              className="h-10 rounded-xl px-4"
-              onClick={closeForm}
-              disabled={pending}
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
+            <div>
+              <div className="mb-2 inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+                Atendimento recorrente
+              </div>
 
-              Voltar
-            </Button>
+              <h1 className="text-xl font-bold tracking-tight text-slate-950">
+                Nova Rotina de Atendimento
+              </h1>
+
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
+                Configure o atendimento
+                recorrente que será
+                enviado ao cliente para
+                aprovação.
+              </p>
+            </div>
           </div>
         </header>
 
@@ -521,7 +515,9 @@ export default function ServicePlansClient({
         filteredPlans={
           filteredPlans
         }
-        searchQuery={searchQuery}
+        searchQuery={
+          searchQuery
+        }
         pending={pending}
         getCustomerName={
           getPlanCustomerName
@@ -532,7 +528,9 @@ export default function ServicePlansClient({
         onClearSearch={() =>
           setSearchQuery("")
         }
-        onCreateFirst={openForm}
+        onCreateFirst={
+          openForm
+        }
         onStatusChange={
           handleStatusChange
         }

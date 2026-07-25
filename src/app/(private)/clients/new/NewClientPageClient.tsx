@@ -2,24 +2,22 @@
 
 import * as React from "react";
 import { useTransition } from "react";
+
 import {
-  Building2,
   Eye,
   EyeOff,
   KeyRound,
-  Loader2,
   Mail,
   MapPin,
-  Phone,
-  Save,
   UserRound,
 } from "lucide-react";
+
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { createClient } from "@/app/(private)/clients/actions";
 
-import { Button } from "@/components/ui/button";
+import FormActionBar from "@/components/ui/FormActionBar";
 import { Input } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/MaskedInput";
 
@@ -90,11 +88,17 @@ async function fetchViaCep(
   }
 
   return {
-    street: data.logradouro || "",
+    street:
+      data.logradouro || "",
+
     neighborhood:
       data.bairro || "",
-    city: data.localidade || "",
-    state: data.uf || "",
+
+    city:
+      data.localidade || "",
+
+    state:
+      data.uf || "",
   };
 }
 
@@ -147,21 +151,32 @@ function SectionHeader({
 }
 
 export default function NewClientPageClient() {
-  const router = useRouter();
+  const router =
+    useRouter();
 
-  const [form, setForm] =
-    React.useState<FormState>(
-      initialState,
-    );
+  const [
+    form,
+    setForm,
+  ] = React.useState<FormState>(
+    initialState,
+  );
 
-  const [showPassword, setShowPassword] =
-    React.useState(false);
+  const [
+    showPassword,
+    setShowPassword,
+  ] = React.useState(false);
 
-  const [errorMessage, setErrorMessage] =
-    React.useState<string | null>(null);
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] = React.useState<
+    string | null
+  >(null);
 
-  const [pending, startTransition] =
-    useTransition();
+  const [
+    pending,
+    startTransition,
+  ] = useTransition();
 
   const canSubmit =
     form.name.trim().length >= 2 &&
@@ -185,9 +200,10 @@ export default function NewClientPageClient() {
   }
 
   async function handleZipCodeBlur() {
-    const digits = onlyDigits(
-      form.zipCode,
-    );
+    const digits =
+      onlyDigits(
+        form.zipCode,
+      );
 
     if (!digits) {
       return;
@@ -195,7 +211,9 @@ export default function NewClientPageClient() {
 
     try {
       const address =
-        await fetchViaCep(digits);
+        await fetchViaCep(
+          digits,
+        );
 
       setForm((current) => ({
         ...current,
@@ -215,7 +233,8 @@ export default function NewClientPageClient() {
   }
 
   function handleSubmit(
-    event: React.FormEvent,
+    event:
+      React.FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
 
@@ -228,25 +247,48 @@ export default function NewClientPageClient() {
         setErrorMessage(null);
 
         await createClient({
-          name: form.name,
-          email: form.email,
-          password: form.password,
-          phone: form.phone,
-          document: form.document,
+          name:
+            form.name,
+
+          email:
+            form.email,
+
+          password:
+            form.password,
+
+          phone:
+            form.phone,
+
+          document:
+            form.document,
 
           address: {
             zipCode:
               form.zipCode,
-            street: form.street,
-            number: form.number,
+
+            street:
+              form.street,
+
+            number:
+              form.number,
+
             complement:
               form.complement,
+
             neighborhood:
               form.neighborhood,
-            city: form.city,
-            state: form.state,
-            latitude: null,
-            longitude: null,
+
+            city:
+              form.city,
+
+            state:
+              form.state,
+
+            latitude:
+              null,
+
+            longitude:
+              null,
           },
         });
 
@@ -254,7 +296,10 @@ export default function NewClientPageClient() {
           "Cliente cadastrado com sucesso.",
         );
 
-        router.push("/clients");
+        router.push(
+          "/clients",
+        );
+
         router.refresh();
       } catch (error) {
         const message =
@@ -262,16 +307,39 @@ export default function NewClientPageClient() {
             ? error.message
             : "Não foi possível cadastrar o cliente.";
 
-        setErrorMessage(message);
-        toast.error(message);
+        setErrorMessage(
+          message,
+        );
+
+        toast.error(
+          message,
+        );
       }
     });
+  }
+
+  function handleBack() {
+    if (pending) {
+      return;
+    }
+
+    router.back();
+  }
+
+  function handleCancel() {
+    if (pending) {
+      return;
+    }
+
+    router.push(
+      "/clients",
+    );
   }
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-5"
+      className="space-y-5 pb-28"
     >
       {errorMessage && (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -295,7 +363,9 @@ export default function NewClientPageClient() {
             </FieldLabel>
 
             <Input
-              value={form.name}
+              value={
+                form.name
+              }
               onChange={(event) =>
                 updateField(
                   "name",
@@ -304,6 +374,7 @@ export default function NewClientPageClient() {
               }
               placeholder="Ex.: Magno Nascimento ou Piscinas Azul Ltda."
               className="h-11 rounded-xl"
+              disabled={pending}
             />
           </div>
 
@@ -313,7 +384,9 @@ export default function NewClientPageClient() {
             </FieldLabel>
 
             <Input
-              value={form.document}
+              value={
+                form.document
+              }
               onChange={(event) =>
                 updateField(
                   "document",
@@ -322,10 +395,13 @@ export default function NewClientPageClient() {
               }
               placeholder="Informe somente se necessário"
               className="h-11 rounded-xl"
+              disabled={pending}
             />
 
             <p className="mt-1.5 text-xs text-slate-400">
-              O sistema enviará somente os números para a API.
+              O sistema enviará
+              somente os números para
+              a API.
             </p>
           </div>
 
@@ -336,7 +412,9 @@ export default function NewClientPageClient() {
 
             <MaskedInput
               mask="(99) 99999-9999"
-              value={form.phone}
+              value={
+                form.phone
+              }
               onChange={(event) =>
                 updateField(
                   "phone",
@@ -344,6 +422,7 @@ export default function NewClientPageClient() {
                 )
               }
               className="h-11 rounded-xl"
+              disabled={pending}
             />
           </div>
         </div>
@@ -369,7 +448,9 @@ export default function NewClientPageClient() {
 
               <Input
                 type="email"
-                value={form.email}
+                value={
+                  form.email
+                }
                 onChange={(event) =>
                   updateField(
                     "email",
@@ -378,6 +459,7 @@ export default function NewClientPageClient() {
                 }
                 placeholder="cliente@email.com"
                 className="h-11 rounded-xl pl-10"
+                disabled={pending}
               />
             </div>
           </div>
@@ -394,7 +476,9 @@ export default function NewClientPageClient() {
                     ? "text"
                     : "password"
                 }
-                value={form.password}
+                value={
+                  form.password
+                }
                 onChange={(event) =>
                   updateField(
                     "password",
@@ -402,17 +486,19 @@ export default function NewClientPageClient() {
                   )
                 }
                 className="h-11 rounded-xl pr-11"
+                disabled={pending}
               />
 
               <button
                 type="button"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={() =>
                   setShowPassword(
                     (current) =>
                       !current,
                   )
                 }
+                disabled={pending}
                 aria-label={
                   showPassword
                     ? "Ocultar senha"
@@ -428,7 +514,8 @@ export default function NewClientPageClient() {
             </div>
 
             <p className="mt-1.5 text-xs text-slate-400">
-              Mínimo de 6 caracteres.
+              Mínimo de 6
+              caracteres.
             </p>
           </div>
         </div>
@@ -451,7 +538,9 @@ export default function NewClientPageClient() {
 
             <MaskedInput
               mask="99999-999"
-              value={form.zipCode}
+              value={
+                form.zipCode
+              }
               onChange={(event) =>
                 updateField(
                   "zipCode",
@@ -462,6 +551,7 @@ export default function NewClientPageClient() {
                 handleZipCodeBlur
               }
               className="h-11 rounded-xl"
+              disabled={pending}
             />
           </div>
 
@@ -471,7 +561,9 @@ export default function NewClientPageClient() {
             </FieldLabel>
 
             <Input
-              value={form.city}
+              value={
+                form.city
+              }
               onChange={(event) =>
                 updateField(
                   "city",
@@ -479,6 +571,7 @@ export default function NewClientPageClient() {
                 )
               }
               className="h-11 rounded-xl"
+              disabled={pending}
             />
           </div>
 
@@ -489,7 +582,9 @@ export default function NewClientPageClient() {
 
             <Input
               maxLength={2}
-              value={form.state}
+              value={
+                form.state
+              }
               onChange={(event) =>
                 updateField(
                   "state",
@@ -497,6 +592,7 @@ export default function NewClientPageClient() {
                 )
               }
               className="h-11 rounded-xl text-center"
+              disabled={pending}
             />
           </div>
 
@@ -506,7 +602,9 @@ export default function NewClientPageClient() {
             </FieldLabel>
 
             <Input
-              value={form.street}
+              value={
+                form.street
+              }
               onChange={(event) =>
                 updateField(
                   "street",
@@ -515,6 +613,7 @@ export default function NewClientPageClient() {
               }
               placeholder="Rua, avenida ou estrada"
               className="h-11 rounded-xl"
+              disabled={pending}
             />
           </div>
 
@@ -524,7 +623,9 @@ export default function NewClientPageClient() {
             </FieldLabel>
 
             <Input
-              value={form.number}
+              value={
+                form.number
+              }
               onChange={(event) =>
                 updateField(
                   "number",
@@ -532,6 +633,7 @@ export default function NewClientPageClient() {
                 )
               }
               className="h-11 rounded-xl"
+              disabled={pending}
             />
           </div>
 
@@ -551,6 +653,7 @@ export default function NewClientPageClient() {
                 )
               }
               className="h-11 rounded-xl"
+              disabled={pending}
             />
           </div>
 
@@ -560,7 +663,9 @@ export default function NewClientPageClient() {
             </FieldLabel>
 
             <Input
-              value={form.complement}
+              value={
+                form.complement
+              }
               onChange={(event) =>
                 updateField(
                   "complement",
@@ -569,6 +674,7 @@ export default function NewClientPageClient() {
               }
               placeholder="Casa, bloco, referência..."
               className="h-11 rounded-xl"
+              disabled={pending}
             />
           </div>
         </div>
@@ -577,61 +683,23 @@ export default function NewClientPageClient() {
           <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
 
           <p className="leading-6">
-            Outros endereços ou piscinas poderão ser adicionados depois, nos
+            Outros endereços ou
+            piscinas poderão ser
+            adicionados depois, nos
             detalhes do cliente.
           </p>
         </div>
       </section>
 
-      <div className="sticky bottom-0 z-20 -mx-4 border-t border-slate-200 bg-white/95 px-4 py-4 shadow-[0_-8px_24px_rgba(15,23,42,0.05)] backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <Button
-            type="button"
-            variant="outline"
-            className="rounded-xl"
-            onClick={() =>
-              router.back()
-            }
-            disabled={pending}
-          >
-            Voltar
-          </Button>
-
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="flex-1 rounded-xl sm:flex-none"
-              onClick={() =>
-                router.push(
-                  "/clients",
-                )
-              }
-              disabled={pending}
-            >
-              Cancelar
-            </Button>
-
-            <Button
-              type="submit"
-              className="btn-brand flex-1 rounded-xl px-6 text-white sm:flex-none"
-              disabled={!canSubmit}
-            >
-              {pending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Criando...
-                </>
-              ) : (
-                <>
-                  <Save className="mr-2 h-4 w-4" />
-                  Criar cliente
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-      </div>
+      <FormActionBar
+        primaryLabel="Criar cliente"
+        loadingLabel="Criando cliente..."
+        pending={pending}
+        disabled={!canSubmit}
+        onBack={handleBack}
+        onCancel={handleCancel}
+        submitType="submit"
+      />
     </form>
   );
 }
