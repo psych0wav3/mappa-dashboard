@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 import {
   Mail,
   CreditCard,
-  MessagesSquare,
   Link2,
   Quote,
   Megaphone,

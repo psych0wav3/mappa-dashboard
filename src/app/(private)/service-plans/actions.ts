@@ -40,6 +40,7 @@ export type ServicePlan = {
   description?: string | null;
   startDate?: string | null;
   endDate?: string | null;
+  totalAmount?: number | null;
   status: ServicePlanStatus;
   createdAt?: string | null;
   recurrence: ServicePlanRecurrence;
@@ -65,6 +66,7 @@ type ApiServicePlan = {
   description?: string | null;
   startDate?: string | null;
   endDate?: string | null;
+  totalAmount?: number | null;
   status?: string | null;
   createdAt?: string | null;
   recurrence?: ApiRecurrence | null;
@@ -210,8 +212,9 @@ function normalizeDaysOfWeek(
             day <= 7,
         ),
     ),
-  ).sort((first, second) =>
-    first - second,
+  ).sort(
+    (first, second) =>
+      first - second,
   );
 }
 
@@ -257,6 +260,12 @@ function normalizePlan(
 
     endDate:
       plan.endDate ?? null,
+
+    totalAmount:
+      typeof plan.totalAmount === "number" &&
+      Number.isFinite(plan.totalAmount)
+        ? plan.totalAmount
+        : null,
 
     status:
       normalizeStatus(plan.status),

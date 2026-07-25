@@ -1,6 +1,8 @@
 // src/app/(private)/quickstart/page.tsx
+
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+
 import QuickStart from "@/components/quickstart/QuickStart";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +10,6 @@ export const fetchCache = "force-no-store";
 
 export default async function QuickStartPage() {
   const cookieStore = await cookies();
-
   const token = cookieStore.get("mappa_access_token")?.value;
 
   if (!token) {
@@ -66,14 +67,14 @@ export default async function QuickStartPage() {
         href: "/routes/dashboard",
       },
     },
-  ] as const;
+  ];
 
   return (
     <div className="min-h-screen bg-neutral-50 px-4 py-6 sm:px-6 lg:px-8">
       <QuickStart
         titulo="Siga o caminho rápido para dominar o Aqua Mappa"
         subtitulo="Complete estes passos para começar a operar em minutos."
-        passos={passos as any}
+        passos={passos}
         storageKey="quickstart:aqua-mappa"
         classe="mx-auto max-w-5xl"
       />

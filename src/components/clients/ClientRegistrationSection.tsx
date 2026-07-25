@@ -1,8 +1,6 @@
 "use client";
 
 import {
-  BadgeCheck,
-  BadgeX,
   Building2,
   Fingerprint,
   UserRound,

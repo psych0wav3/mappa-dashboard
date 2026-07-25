@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Waves, Phone, ChevronDown, MonitorCog, Wrench, Users, CreditCard } from "lucide-react";
+import { Phone, ChevronDown, MonitorCog, Wrench, Users, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 

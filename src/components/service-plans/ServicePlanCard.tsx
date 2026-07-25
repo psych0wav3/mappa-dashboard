@@ -99,14 +99,10 @@ export function ServicePlanCard({
           <div
             className={[
               "inline-flex min-h-10 shrink-0 items-center justify-center rounded-full px-4 text-sm font-semibold",
-              rightStatusClassName(
-                plan.status,
-              ),
+              rightStatusClassName(plan.status),
             ].join(" ")}
           >
-            {rightStatusLabel(
-              plan.status,
-            )}
+            {rightStatusLabel(plan.status)}
           </div>
         </div>
 
@@ -124,9 +120,7 @@ export function ServicePlanCard({
               <Clock3 className="h-3.5 w-3.5" />
             }
             label="Recorrência"
-            value={recurrenceLabel(
-              plan,
-            )}
+            value={recurrenceLabel(plan)}
           />
 
           <InfoBlock
@@ -150,8 +144,7 @@ export function ServicePlanCard({
           />
         </div>
 
-        {(canPause ||
-          canActivate) && (
+        {(canPause || canActivate) && (
           <div className="mt-5 flex flex-wrap justify-end gap-3">
             {canPause && (
               <Button
@@ -196,17 +189,13 @@ export function ServicePlanCard({
       <div
         className={[
           "flex items-start gap-2 px-5 py-4 text-sm sm:px-6",
-          footerClassName(
-            plan.status,
-          ),
+          footerClassName(plan.status),
         ].join(" ")}
       >
         <Info className="mt-0.5 h-4 w-4 shrink-0" />
 
         <p className="leading-6">
-          {footerMessage(
-            plan.status,
-          )}
+          {footerMessage(plan.status)}
         </p>
       </div>
     </article>

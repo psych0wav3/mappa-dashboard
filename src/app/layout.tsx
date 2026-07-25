@@ -1,54 +1,110 @@
-//src/app/layout.tsx
+import type { CSSProperties, ReactNode } from "react";
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Script from "next/script";
-import "./globals.css";
 import { Toaster } from "sonner";
-import { cookies } from "next/headers"; // ⬅️ novo
+
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Aqua Mappa Dashboard",
   description: "Gestão de rotas e visitas",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  // ⬇️ SSR já sabe se estava colapsado (1) ou não (0)
-  const cookieStore = cookies();
-  const collapsedFromCookie = cookieStore.get("sb-collapsed")?.value === "1";
+type RootLayoutProps = {
+  children: ReactNode;
+};
+
+type RootStyle = CSSProperties & {
+  "--sidebar-w": string;
+};
+
+export default async function RootLayout({
+  children,
+}: RootLayoutProps) {
+  const cookieStore = await cookies();
+
+  const collapsedFromCookie =
+    cookieStore.get("sb-collapsed")?.value === "1";
+
   const initialDesktopWidth = collapsedFromCookie ? 80 : 280;
+
+  const rootStyle: RootStyle = {
+    "--sidebar-w": `${initialDesktopWidth}px`,
+  };
 
   return (
     <html
       lang="pt-BR"
-      // Define um valor inicial coerente com o último estado no desktop
-      style={{ ["--sidebar-w" as any]: `${initialDesktopWidth}px` }}
+      style={rootStyle}
+      suppressHydrationWarning
     >
       <head>
-        {/* Corrige em runtime (mobile = 0 e eventual divergência com cookie) ANTES da hidratação */}
-        <Script id="sidebar-width-init" strategy="beforeInteractive">
+        <Script
+          id="sidebar-width-init"
+          strategy="beforeInteractive"
+        >
           {`
             (function () {
               try {
-                var isDesktop = window.matchMedia('(min-width: 1024px)').matches;
-                var collapsedLS = false;
-                try { collapsedLS = JSON.parse(localStorage.getItem('sidebar:collapsed') || 'false'); } catch (_){}
+                var isDesktop = window
+                  .matchMedia("(min-width: 1024px)")
+                  .matches;
 
-                // Preferimos cookie para o 1º HTML, mas se LS divergir, o runtime prevalece.
-                var cookieMatch = document.cookie.match(/(?:^|; )sb-collapsed=(\\d)/);
-                var collapsedCK = cookieMatch ? cookieMatch[1] === '1' : null;
+                var collapsedLS = null;
 
-                var collapsed = (collapsedLS != null ? collapsedLS
-                                  : (collapsedCK != null ? collapsedCK : false));
+                try {
+                  var storedValue = localStorage.getItem(
+                    "sidebar:collapsed"
+                  );
 
-                var width = isDesktop ? (collapsed ? 80 : 280) : 0;
-                document.documentElement.style.setProperty('--sidebar-w', width + 'px');
-              } catch (_) {}
+                  collapsedLS =
+                    storedValue !== null
+                      ? JSON.parse(storedValue)
+                      : null;
+                } catch (_) {
+                  collapsedLS = null;
+                }
+
+                var cookieMatch = document.cookie.match(
+                  /(?:^|; )sb-collapsed=(\\d)/
+                );
+
+                var collapsedCK = cookieMatch
+                  ? cookieMatch[1] === "1"
+                  : null;
+
+                var collapsed =
+                  collapsedLS !== null
+                    ? collapsedLS
+                    : collapsedCK !== null
+                      ? collapsedCK
+                      : false;
+
+                var width = isDesktop
+                  ? collapsed
+                    ? 80
+                    : 280
+                  : 0;
+
+                document.documentElement.style.setProperty(
+                  "--sidebar-w",
+                  width + "px"
+                );
+              } catch (_) {
+                // Mantém o valor inicial definido no servidor.
+              }
             })();
           `}
         </Script>
       </head>
 
-      <body className="bg-neutral-50" suppressHydrationWarning>
+      <body
+        className="bg-neutral-50"
+        suppressHydrationWarning
+      >
         {children}
+
         <Toaster richColors position="top-right" />
       </body>
     </html>

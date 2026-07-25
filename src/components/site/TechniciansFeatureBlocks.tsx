@@ -7,8 +7,6 @@ import {
   CheckSquare,
   Contact,
   FlaskConical,
-  Calculator,
-  PlugZap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 

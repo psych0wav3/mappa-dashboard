@@ -9,7 +9,6 @@ import {
   ArrowUp,
   CalendarDays,
   CheckCircle2,
-  ChevronRight,
   CircleDollarSign,
   ClipboardList,
   GripVertical,
@@ -257,40 +256,40 @@ function SelectedStopCard({
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-9 w-9 rounded-xl"
-            onClick={onMoveUp}
-            disabled={isFirst}
-            title="Mover para cima"
-          >
-            <ArrowUp className="h-4 w-4" />
-          </Button>
+<Button
+  type="button"
+  variant="outline"
+  size="sm"
+  className="h-9 w-9 rounded-xl"
+  onClick={onMoveUp}
+  disabled={isFirst}
+  title="Mover para cima"
+>
+  <ArrowUp className="h-4 w-4" />
+</Button>
 
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-9 w-9 rounded-xl"
-            onClick={onMoveDown}
-            disabled={isLast}
-            title="Mover para baixo"
-          >
-            <ArrowDown className="h-4 w-4" />
-          </Button>
+<Button
+  type="button"
+  variant="outline"
+  size="sm"
+  className="h-9 w-9 rounded-xl"
+  onClick={onMoveDown}
+  disabled={isLast}
+  title="Mover para baixo"
+>
+  <ArrowDown className="h-4 w-4" />
+</Button>
 
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-9 w-9 rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
-            onClick={onRemove}
-            title="Remover da rota"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+<Button
+  type="button"
+  variant="outline"
+  size="sm"
+  className="h-9 w-9 rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+  onClick={onRemove}
+  title="Remover da rota"
+>
+  <Trash2 className="h-4 w-4" />
+</Button>
         </div>
       </div>
     </article>

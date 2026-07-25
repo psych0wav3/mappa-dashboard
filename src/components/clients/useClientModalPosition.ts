@@ -57,7 +57,8 @@ function isPossibleTopBar(element: HTMLElement) {
 
   const rect = element.getBoundingClientRect();
 
-  const startsAtTop = rect.top >= -2 && rect.top <= 2;
+  const startsAtTop =
+    rect.top >= -2 && rect.top <= 2;
 
   const reasonableHeight =
     rect.height >= 48 && rect.height <= 100;
@@ -65,7 +66,11 @@ function isPossibleTopBar(element: HTMLElement) {
   const wideEnough =
     rect.width >= window.innerWidth * 0.45;
 
-  return startsAtTop && reasonableHeight && wideEnough;
+  return (
+    startsAtTop &&
+    reasonableHeight &&
+    wideEnough
+  );
 }
 
 function getSidebarRightEdge() {
@@ -82,10 +87,13 @@ function getSidebarRightEdge() {
 
   for (const selector of selectors) {
     const elements = Array.from(
-      document.querySelectorAll<HTMLElement>(selector),
+      document.querySelectorAll<HTMLElement>(
+        selector,
+      ),
     );
 
-    const sidebar = elements.find(isPossibleSidebar);
+    const sidebar =
+      elements.find(isPossibleSidebar);
 
     if (sidebar) {
       return Math.max(
@@ -95,10 +103,11 @@ function getSidebarRightEdge() {
     }
   }
 
-  const elementsAtLeft = document.elementsFromPoint(
-    10,
-    Math.round(window.innerHeight / 2),
-  );
+  const elementsAtLeft =
+    document.elementsFromPoint(
+      10,
+      Math.round(window.innerHeight / 2),
+    );
 
   const candidates = elementsAtLeft
     .filter(
@@ -106,14 +115,19 @@ function getSidebarRightEdge() {
         element instanceof HTMLElement,
     )
     .filter(isPossibleSidebar)
-    .map((element) => element.getBoundingClientRect())
+    .map((element) =>
+      element.getBoundingClientRect(),
+    )
     .sort(
       (first, second) =>
         second.width - first.width,
     );
 
   if (candidates.length > 0) {
-    return Math.max(0, candidates[0].right);
+    return Math.max(
+      0,
+      candidates[0].right,
+    );
   }
 
   return 0;
@@ -129,26 +143,34 @@ function getTopBarBottomEdge() {
 
   for (const selector of selectors) {
     const elements = Array.from(
-      document.querySelectorAll<HTMLElement>(selector),
+      document.querySelectorAll<HTMLElement>(
+        selector,
+      ),
     );
 
     const candidates = elements
       .filter(isPossibleTopBar)
-      .map((element) => element.getBoundingClientRect())
+      .map((element) =>
+        element.getBoundingClientRect(),
+      )
       .sort(
         (first, second) =>
           second.width - first.width,
       );
 
     if (candidates.length > 0) {
-      return Math.max(0, candidates[0].bottom);
+      return Math.max(
+        0,
+        candidates[0].bottom,
+      );
     }
   }
 
-  const elementsAtTop = document.elementsFromPoint(
-    Math.round(window.innerWidth / 2),
-    20,
-  );
+  const elementsAtTop =
+    document.elementsFromPoint(
+      Math.round(window.innerWidth / 2),
+      20,
+    );
 
   const candidates = elementsAtTop
     .filter(
@@ -156,14 +178,19 @@ function getTopBarBottomEdge() {
         element instanceof HTMLElement,
     )
     .filter(isPossibleTopBar)
-    .map((element) => element.getBoundingClientRect())
+    .map((element) =>
+      element.getBoundingClientRect(),
+    )
     .sort(
       (first, second) =>
         second.width - first.width,
     );
 
   if (candidates.length > 0) {
-    return Math.max(0, candidates[0].bottom);
+    return Math.max(
+      0,
+      candidates[0].bottom,
+    );
   }
 
   return DEFAULT_TOP_BAR_HEIGHT;
@@ -208,10 +235,11 @@ function calculateModalPosition(): ModalPosition {
     availableWidth,
   );
 
-  const remainingHorizontalSpace = Math.max(
-    0,
-    availableWidth - width,
-  );
+  const remainingHorizontalSpace =
+    Math.max(
+      0,
+      availableWidth - width,
+    );
 
   const requestedTop =
     topBarBottom + verticalMargin;
@@ -219,10 +247,13 @@ function calculateModalPosition(): ModalPosition {
   const bottom = verticalMargin;
 
   const availableHeight =
-    viewportHeight - requestedTop - bottom;
+    viewportHeight -
+    requestedTop -
+    bottom;
 
   const top =
-    availableHeight >= MINIMUM_MODAL_HEIGHT
+    availableHeight >=
+    MINIMUM_MODAL_HEIGHT
       ? requestedTop
       : Math.max(
           verticalMargin,
@@ -245,11 +276,14 @@ export default function useClientModalPosition(
   open: boolean,
 ) {
   const [position, setPosition] =
-    React.useState<ModalPosition | null>(null);
+    React.useState<ModalPosition | null>(
+      null,
+    );
 
-  const updatePosition = React.useCallback(() => {
-    setPosition(calculateModalPosition());
-  }, []);
+  const updatePosition =
+    React.useCallback(() => {
+      setPosition(calculateModalPosition());
+    }, []);
 
   React.useLayoutEffect(() => {
     if (!open) {
@@ -258,16 +292,17 @@ export default function useClientModalPosition(
     }
 
     let animationFrameId = 0;
-
-    let intervalId:
-      | ReturnType<typeof window.setInterval>
-      | null = null;
+    let intervalId: number | null = null;
 
     function scheduleUpdate() {
-      window.cancelAnimationFrame(animationFrameId);
+      window.cancelAnimationFrame(
+        animationFrameId,
+      );
 
       animationFrameId =
-        window.requestAnimationFrame(updatePosition);
+        window.requestAnimationFrame(
+          updatePosition,
+        );
     }
 
     scheduleUpdate();
@@ -292,20 +327,24 @@ export default function useClientModalPosition(
       scheduleUpdate,
     );
 
-    const mutationObserver = new MutationObserver(
-      scheduleUpdate,
-    );
+    const mutationObserver =
+      new MutationObserver(
+        scheduleUpdate,
+      );
 
-    mutationObserver.observe(document.body, {
-      attributes: true,
-      subtree: true,
-      attributeFilter: [
-        "class",
-        "style",
-        "data-state",
-        "data-collapsed",
-      ],
-    });
+    mutationObserver.observe(
+      document.body,
+      {
+        attributes: true,
+        subtree: true,
+        attributeFilter: [
+          "class",
+          "style",
+          "data-state",
+          "data-collapsed",
+        ],
+      },
+    );
 
     return () => {
       window.cancelAnimationFrame(
@@ -329,21 +368,20 @@ export default function useClientModalPosition(
     };
   }, [open, updatePosition]);
 
-  const style =
-    React.useMemo<
-      React.CSSProperties | undefined
-    >(() => {
-      if (!position) {
-        return undefined;
-      }
+  const style = React.useMemo<
+    React.CSSProperties | undefined
+  >(() => {
+    if (!position) {
+      return undefined;
+    }
 
-      return {
-        top: position.top,
-        bottom: position.bottom,
-        left: position.left,
-        width: position.width,
-      };
-    }, [position]);
+    return {
+      top: position.top,
+      bottom: position.bottom,
+      left: position.left,
+      width: position.width,
+    };
+  }, [position]);
 
   return {
     position,

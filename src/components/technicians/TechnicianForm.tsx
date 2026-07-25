@@ -421,9 +421,7 @@ export default function TechnicianForm({
 
     let animationFrameId = 0;
 
-    let intervalId:
-      | ReturnType<typeof window.setInterval>
-      | null = null;
+    let intervalId: number | null = null;
 
     function schedulePositionUpdate() {
       window.cancelAnimationFrame(

@@ -17,6 +17,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+
 import {
   createChecklistTemplate,
   deleteChecklistTemplate,
@@ -46,6 +47,24 @@ function makeId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string" &&
+    error.message
+  ) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 function itemTypeLabel(type: ChecklistItemType) {
   const map: Record<ChecklistItemType, string> = {
     BOOLEAN: "Sim/Não",
@@ -67,7 +86,9 @@ function defaultItem(order: number): DraftItem {
   };
 }
 
-function templateToDraftItems(template: ChecklistTemplate): DraftItem[] {
+function templateToDraftItems(
+  template: ChecklistTemplate,
+): DraftItem[] {
   if (!template.items.length) {
     return [defaultItem(1)];
   }
@@ -90,7 +111,9 @@ function ConfirmationModal({
   onClose: () => void;
   onConfirm: () => void;
 }) {
-  if (!state) return null;
+  if (!state) {
+    return null;
+  }
 
   const isDelete = state.type === "DELETE";
 
@@ -100,7 +123,9 @@ function ConfirmationModal({
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-base font-semibold text-slate-900">
-              {isDelete ? "Excluir checklist?" : "Desativar checklist?"}
+              {isDelete
+                ? "Excluir checklist?"
+                : "Desativar checklist?"}
             </h2>
 
             <p className="mt-2 text-sm text-slate-600">
@@ -115,6 +140,7 @@ function ConfirmationModal({
             onClick={onClose}
             disabled={pending}
             className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            aria-label="Fechar modal"
           >
             <X className="h-5 w-5" />
           </button>
@@ -127,7 +153,8 @@ function ConfirmationModal({
 
           <div className="mt-1 text-xs text-slate-500">
             {state.template.items.length} item
-            {state.template.items.length === 1 ? "" : "s"} configurado
+            {state.template.items.length === 1 ? "" : "s"}{" "}
+            configurado
             {state.template.items.length === 1 ? "" : "s"}
           </div>
         </div>
@@ -173,16 +200,21 @@ export default function ChecklistTemplatesClient({
 }) {
   const [pending, startTransition] = React.useTransition();
 
-  const [templates, setTemplates] = React.useState(initialTemplates);
+  const [templates, setTemplates] =
+    React.useState(initialTemplates);
+
   const [showForm, setShowForm] = React.useState(false);
+
   const [editingTemplate, setEditingTemplate] =
     React.useState<ChecklistTemplate | null>(null);
+
   const [confirmModal, setConfirmModal] =
     React.useState<ConfirmModalState>(null);
 
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [isActive, setIsActive] = React.useState(true);
+
   const [items, setItems] = React.useState<DraftItem[]>([
     {
       ...defaultItem(1),
@@ -232,7 +264,10 @@ export default function ChecklistTemplatesClient({
   }
 
   function addItem() {
-    setItems((current) => [...current, defaultItem(current.length + 1)]);
+    setItems((current) => [
+      ...current,
+      defaultItem(current.length + 1),
+    ]);
   }
 
   function removeItem(localId: string) {
@@ -246,23 +281,44 @@ export default function ChecklistTemplatesClient({
     );
   }
 
-  function updateItem(localId: string, patch: Partial<DraftItem>) {
+  function updateItem(
+    localId: string,
+    patch: Partial<DraftItem>,
+  ) {
     setItems((current) =>
       current.map((item) =>
-        item.localId === localId ? { ...item, ...patch } : item,
+        item.localId === localId
+          ? {
+              ...item,
+              ...patch,
+            }
+          : item,
       ),
     );
   }
 
-  function moveItem(localId: string, direction: "up" | "down") {
+  function moveItem(
+    localId: string,
+    direction: "up" | "down",
+  ) {
     setItems((current) => {
-      const index = current.findIndex((item) => item.localId === localId);
+      const index = current.findIndex(
+        (item) => item.localId === localId,
+      );
 
-      if (index === -1) return current;
+      if (index === -1) {
+        return current;
+      }
 
-      const nextIndex = direction === "up" ? index - 1 : index + 1;
+      const nextIndex =
+        direction === "up" ? index - 1 : index + 1;
 
-      if (nextIndex < 0 || nextIndex >= current.length) return current;
+      if (
+        nextIndex < 0 ||
+        nextIndex >= current.length
+      ) {
+        return current;
+      }
 
       const copy = [...current];
 
@@ -302,83 +358,114 @@ export default function ChecklistTemplatesClient({
     }
 
     if (cleanItems.length === 0) {
-      toast.error("Adicione pelo menos um item ao checklist.");
+      toast.error(
+        "Adicione pelo menos um item ao checklist.",
+      );
       return;
     }
 
     startTransition(async () => {
       try {
         if (editingTemplate) {
-          const updated = await updateChecklistTemplate({
-            templateId: editingTemplate.id,
-            input: {
+          const updated =
+            await updateChecklistTemplate({
+              templateId: editingTemplate.id,
+              input: {
+                name: cleanName,
+                description,
+                isActive,
+                items: cleanItems,
+              },
+            });
+
+          setTemplates((current) =>
+            current.map((template) =>
+              template.id === updated.id
+                ? updated
+                : template,
+            ),
+          );
+
+          toast.success(
+            "Checklist atualizado com sucesso.",
+          );
+        } else {
+          const created =
+            await createChecklistTemplate({
               name: cleanName,
               description,
               isActive,
               items: cleanItems,
-            },
-          });
+            });
 
-          setTemplates((current) =>
-            current.map((template) =>
-              template.id === updated.id ? updated : template,
-            ),
+          setTemplates((current) => [
+            created,
+            ...current,
+          ]);
+
+          toast.success(
+            "Checklist criado com sucesso.",
           );
-
-          toast.success("Checklist atualizado com sucesso.");
-        } else {
-          const created = await createChecklistTemplate({
-            name: cleanName,
-            description,
-            isActive,
-            items: cleanItems,
-          });
-
-          setTemplates((current) => [created, ...current]);
-
-          toast.success("Checklist criado com sucesso.");
         }
 
         resetForm();
         setShowForm(false);
-      } catch (error: any) {
+      } catch (error: unknown) {
         toast.error(
-          error?.message ||
-            (editingTemplate
+          getErrorMessage(
+            error,
+            editingTemplate
               ? "Erro ao atualizar checklist."
-              : "Erro ao criar checklist."),
+              : "Erro ao criar checklist.",
+          ),
         );
       }
     });
   }
 
-  function activateTemplate(template: ChecklistTemplate) {
+  function activateTemplate(
+    template: ChecklistTemplate,
+  ) {
     startTransition(async () => {
       try {
-        const updated = await updateChecklistTemplateStatus({
-          templateId: template.id,
-          isActive: true,
-        });
+        const updated =
+          await updateChecklistTemplateStatus({
+            templateId: template.id,
+            isActive: true,
+          });
 
         setTemplates((current) =>
-          current.map((item) => (item.id === updated.id ? updated : item)),
+          current.map((item) =>
+            item.id === updated.id ? updated : item,
+          ),
         );
 
-        toast.success("Checklist ativado com sucesso.");
-      } catch (error: any) {
-        toast.error(error?.message || "Erro ao ativar checklist.");
+        toast.success(
+          "Checklist ativado com sucesso.",
+        );
+      } catch (error: unknown) {
+        toast.error(
+          getErrorMessage(
+            error,
+            "Erro ao ativar checklist.",
+          ),
+        );
       }
     });
   }
 
-  function confirmDeactivate(template: ChecklistTemplate) {
+  function confirmDeactivate(
+    template: ChecklistTemplate,
+  ) {
     setConfirmModal({
       type: "DEACTIVATE",
       template,
     });
   }
 
-  function confirmDelete(template: ChecklistTemplate) {
+  function confirmDelete(
+    template: ChecklistTemplate,
+  ) {
     setConfirmModal({
       type: "DELETE",
       template,
@@ -386,43 +473,67 @@ export default function ChecklistTemplatesClient({
   }
 
   function handleConfirmModalAction() {
-    if (!confirmModal) return;
+    if (!confirmModal) {
+      return;
+    }
 
     const modalState = confirmModal;
 
     startTransition(async () => {
       try {
         if (modalState.type === "DEACTIVATE") {
-          const updated = await updateChecklistTemplateStatus({
-            templateId: modalState.template.id,
-            isActive: false,
-          });
+          const updated =
+            await updateChecklistTemplateStatus({
+              templateId: modalState.template.id,
+              isActive: false,
+            });
 
           setTemplates((current) =>
-            current.map((item) => (item.id === updated.id ? updated : item)),
+            current.map((item) =>
+              item.id === updated.id
+                ? updated
+                : item,
+            ),
           );
 
-          toast.success("Checklist desativado com sucesso.");
+          toast.success(
+            "Checklist desativado com sucesso.",
+          );
         }
 
         if (modalState.type === "DELETE") {
-          await deleteChecklistTemplate(modalState.template.id);
-
-          setTemplates((current) =>
-            current.filter((item) => item.id !== modalState.template.id),
+          await deleteChecklistTemplate(
+            modalState.template.id,
           );
 
-          if (editingTemplate?.id === modalState.template.id) {
+          setTemplates((current) =>
+            current.filter(
+              (item) =>
+                item.id !== modalState.template.id,
+            ),
+          );
+
+          if (
+            editingTemplate?.id ===
+            modalState.template.id
+          ) {
             resetForm();
             setShowForm(false);
           }
 
-          toast.success("Checklist excluído com sucesso.");
+          toast.success(
+            "Checklist excluído com sucesso.",
+          );
         }
 
         setConfirmModal(null);
-      } catch (error: any) {
-        toast.error(error?.message || "Não foi possível concluir a ação.");
+      } catch (error: unknown) {
+        toast.error(
+          getErrorMessage(
+            error,
+            "Não foi possível concluir a ação.",
+          ),
+        );
       }
     });
   }
@@ -442,8 +553,10 @@ export default function ChecklistTemplatesClient({
             <h1 className="text-lg font-semibold text-slate-900">
               Checklists de Serviço
             </h1>
+
             <p className="mt-1 text-sm text-slate-500">
-              Configure o que o técnico precisa executar e confirmar no app.
+              Configure o que o técnico precisa executar e
+              confirmar no app.
             </p>
           </div>
 
@@ -471,11 +584,14 @@ export default function ChecklistTemplatesClient({
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-sm font-semibold text-slate-900">
-                {isEditing ? "Editar checklist" : "Novo checklist"}
+                {isEditing
+                  ? "Editar checklist"
+                  : "Novo checklist"}
               </h2>
+
               <p className="text-xs text-slate-500">
-                Este template será usado pelo app do técnico para orientar a
-                execução.
+                Este template será usado pelo app do
+                técnico para orientar a execução.
               </p>
             </div>
 
@@ -491,9 +607,12 @@ export default function ChecklistTemplatesClient({
               <label className="mb-1 block text-xs font-semibold text-slate-700">
                 Nome
               </label>
+
               <Input
                 value={name}
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) =>
+                  setName(event.target.value)
+                }
                 placeholder="Ex.: Checklist padrão de limpeza de piscina"
               />
             </div>
@@ -502,15 +621,22 @@ export default function ChecklistTemplatesClient({
               <label className="mb-1 block text-xs font-semibold text-slate-700">
                 Status
               </label>
+
               <select
-                value={isActive ? "ACTIVE" : "INACTIVE"}
+                value={
+                  isActive ? "ACTIVE" : "INACTIVE"
+                }
                 onChange={(event) =>
-                  setIsActive(event.target.value === "ACTIVE")
+                  setIsActive(
+                    event.target.value === "ACTIVE",
+                  )
                 }
                 className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-sky-400"
               >
                 <option value="ACTIVE">Ativo</option>
-                <option value="INACTIVE">Inativo</option>
+                <option value="INACTIVE">
+                  Inativo
+                </option>
               </select>
             </div>
 
@@ -518,9 +644,12 @@ export default function ChecklistTemplatesClient({
               <label className="mb-1 block text-xs font-semibold text-slate-700">
                 Descrição
               </label>
+
               <Input
                 value={description}
-                onChange={(event) => setDescription(event.target.value)}
+                onChange={(event) =>
+                  setDescription(event.target.value)
+                }
                 placeholder="Ex.: Usado para limpeza recorrente e avulsa."
               />
             </div>
@@ -556,7 +685,9 @@ export default function ChecklistTemplatesClient({
                   <Input
                     value={item.label}
                     onChange={(event) =>
-                      updateItem(item.localId, { label: event.target.value })
+                      updateItem(item.localId, {
+                        label: event.target.value,
+                      })
                     }
                     placeholder="Ex.: Aspirou a piscina?"
                   />
@@ -565,27 +696,44 @@ export default function ChecklistTemplatesClient({
                     value={item.itemType}
                     onChange={(event) =>
                       updateItem(item.localId, {
-                        itemType: event.target.value as ChecklistItemType,
+                        itemType: event.target
+                          .value as ChecklistItemType,
                       })
                     }
                     className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-sky-400"
                   >
-                    <option value="BOOLEAN">Sim/Não</option>
-                    <option value="TEXT">Texto</option>
-                    <option value="NUMBER">Número</option>
+                    <option value="BOOLEAN">
+                      Sim/Não
+                    </option>
+                    <option value="TEXT">
+                      Texto
+                    </option>
+                    <option value="NUMBER">
+                      Número
+                    </option>
                   </select>
 
                   <select
-                    value={item.isRequired ? "REQUIRED" : "OPTIONAL"}
+                    value={
+                      item.isRequired
+                        ? "REQUIRED"
+                        : "OPTIONAL"
+                    }
                     onChange={(event) =>
                       updateItem(item.localId, {
-                        isRequired: event.target.value === "REQUIRED",
+                        isRequired:
+                          event.target.value ===
+                          "REQUIRED",
                       })
                     }
                     className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-sky-400"
                   >
-                    <option value="REQUIRED">Obrigatório</option>
-                    <option value="OPTIONAL">Opcional</option>
+                    <option value="REQUIRED">
+                      Obrigatório
+                    </option>
+                    <option value="OPTIONAL">
+                      Opcional
+                    </option>
                   </select>
 
                   <div className="flex items-center justify-end gap-1">
@@ -594,7 +742,9 @@ export default function ChecklistTemplatesClient({
                       variant="outline"
                       size="sm"
                       disabled={index === 0}
-                      onClick={() => moveItem(item.localId, "up")}
+                      onClick={() =>
+                        moveItem(item.localId, "up")
+                      }
                     >
                       ↑
                     </Button>
@@ -603,8 +753,15 @@ export default function ChecklistTemplatesClient({
                       type="button"
                       variant="outline"
                       size="sm"
-                      disabled={index === items.length - 1}
-                      onClick={() => moveItem(item.localId, "down")}
+                      disabled={
+                        index === items.length - 1
+                      }
+                      onClick={() =>
+                        moveItem(
+                          item.localId,
+                          "down",
+                        )
+                      }
                     >
                       ↓
                     </Button>
@@ -614,7 +771,9 @@ export default function ChecklistTemplatesClient({
                       variant="outline"
                       size="sm"
                       className="border-red-200 text-red-600 hover:bg-red-50"
-                      onClick={() => removeItem(item.localId)}
+                      onClick={() =>
+                        removeItem(item.localId)
+                      }
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -644,6 +803,7 @@ export default function ChecklistTemplatesClient({
               disabled={pending}
             >
               <Save className="mr-2 h-4 w-4" />
+
               {pending
                 ? "Salvando..."
                 : isEditing
@@ -657,12 +817,15 @@ export default function ChecklistTemplatesClient({
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="mb-3 flex items-center gap-2">
           <ClipboardCheck className="h-4 w-4 text-sky-600" />
+
           <div>
             <h2 className="text-sm font-semibold text-slate-900">
               Templates cadastrados
             </h2>
+
             <p className="text-xs text-slate-500">
-              Templates ativos aparecem para novas OS e para o app do técnico.
+              Templates ativos aparecem para novas OS e
+              para o app do técnico.
             </p>
           </div>
         </div>
@@ -687,12 +850,16 @@ export default function ChecklistTemplatesClient({
                           : "border-slate-200 bg-slate-50 text-slate-500"
                       }`}
                     >
-                      {template.isActive ? "Ativo" : "Inativo"}
+                      {template.isActive
+                        ? "Ativo"
+                        : "Inativo"}
                     </span>
 
                     <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700">
                       {template.items.length} item
-                      {template.items.length === 1 ? "" : "s"}
+                      {template.items.length === 1
+                        ? ""
+                        : "s"}
                     </span>
                   </div>
 
@@ -708,9 +875,11 @@ export default function ChecklistTemplatesClient({
                     <Button
                       type="button"
                       size="sm"
-                      onClick={() => confirmDeactivate(template)}
+                      onClick={() =>
+                        confirmDeactivate(template)
+                      }
                       disabled={pending}
-                      className="h-9 w-9 p-0 bg-amber-500 text-white hover:bg-amber-600"
+                      className="h-9 w-9 bg-amber-500 p-0 text-white hover:bg-amber-600"
                       title="Desativar checklist"
                     >
                       <Power className="h-4 w-4" />
@@ -719,9 +888,11 @@ export default function ChecklistTemplatesClient({
                     <Button
                       type="button"
                       size="sm"
-                      onClick={() => activateTemplate(template)}
+                      onClick={() =>
+                        activateTemplate(template)
+                      }
                       disabled={pending}
-                      className="h-9 w-9 p-0 bg-emerald-600 text-white hover:bg-emerald-700"
+                      className="h-9 w-9 bg-emerald-600 p-0 text-white hover:bg-emerald-700"
                       title="Ativar checklist"
                     >
                       <Power className="h-4 w-4" />
@@ -732,7 +903,9 @@ export default function ChecklistTemplatesClient({
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => openEditForm(template)}
+                    onClick={() =>
+                      openEditForm(template)
+                    }
                     disabled={pending}
                     className="h-9 w-9 p-0"
                     title="Editar checklist"
@@ -744,9 +917,11 @@ export default function ChecklistTemplatesClient({
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => confirmDelete(template)}
+                    onClick={() =>
+                      confirmDelete(template)
+                    }
                     disabled={pending}
-                    className="h-9 w-9 p-0 border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-600"
+                    className="h-9 w-9 border-slate-200 p-0 text-slate-500 hover:bg-red-50 hover:text-red-600"
                     title="Excluir checklist"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -757,11 +932,15 @@ export default function ChecklistTemplatesClient({
               <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                 {template.items.map((item) => (
                   <div
-                    key={item.id || `${template.id}-${item.displayOrder}`}
+                    key={
+                      item.id ||
+                      `${template.id}-${item.displayOrder}`
+                    }
                     className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
                   >
                     <div className="flex items-start gap-2">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
+
                       <div className="min-w-0">
                         <div className="truncate text-sm font-medium text-slate-800">
                           {item.label}
@@ -769,11 +948,15 @@ export default function ChecklistTemplatesClient({
 
                         <div className="mt-1 flex flex-wrap gap-1.5 text-[11px]">
                           <span className="rounded-full bg-white px-2 py-0.5 text-slate-600 ring-1 ring-slate-200">
-                            {itemTypeLabel(item.itemType)}
+                            {itemTypeLabel(
+                              item.itemType,
+                            )}
                           </span>
 
                           <span className="rounded-full bg-white px-2 py-0.5 text-slate-600 ring-1 ring-slate-200">
-                            {item.isRequired ? "Obrigatório" : "Opcional"}
+                            {item.isRequired
+                              ? "Obrigatório"
+                              : "Opcional"}
                           </span>
                         </div>
                       </div>
@@ -793,6 +976,7 @@ export default function ChecklistTemplatesClient({
           {templates.length === 0 && (
             <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center">
               <ListChecks className="mx-auto h-8 w-8 text-slate-400" />
+
               <p className="mt-2 text-sm text-slate-500">
                 Nenhum checklist cadastrado ainda.
               </p>
