@@ -12,6 +12,7 @@ import type {
 import { Button } from "@/components/ui/button";
 
 import WorkOrderDataTable from "./WorkOrderDataTable";
+import WorkOrderDetailsModal from "./details/WorkOrderDetailsModal";
 
 import {
   filterWorkOrders,
@@ -24,6 +25,49 @@ type WorkOrderTableProps = {
   initialScheduledDate?: string;
   created?: boolean;
 };
+
+function scheduledDateTimestamp(
+  order: WorkOrderListItem,
+) {
+  const scheduledDate =
+    order.scheduledDate?.slice(0, 10);
+
+  if (!scheduledDate) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  const timestamp = new Date(
+    `${scheduledDate}T00:00:00`,
+  ).getTime();
+
+  return Number.isFinite(timestamp)
+    ? timestamp
+    : Number.POSITIVE_INFINITY;
+}
+
+function sortWorkOrdersByScheduledDate(
+  orders: WorkOrderListItem[],
+) {
+  return [...orders].sort(
+    (firstOrder, secondOrder) => {
+      const dateDifference =
+        scheduledDateTimestamp(firstOrder) -
+        scheduledDateTimestamp(secondOrder);
+
+      if (dateDifference !== 0) {
+        return dateDifference;
+      }
+
+      return firstOrder.title.localeCompare(
+        secondOrder.title,
+        "pt-BR",
+        {
+          sensitivity: "base",
+        },
+      );
+    },
+  );
+}
 
 export default function WorkOrderTable({
   initialData = [],
@@ -43,6 +87,14 @@ export default function WorkOrderTable({
 
   const [search, setSearch] =
     React.useState("");
+
+  const [detailsOpen, setDetailsOpen] =
+    React.useState(false);
+
+  const [selectedOrder, setSelectedOrder] =
+    React.useState<WorkOrderListItem | null>(
+      null,
+    );
 
   React.useEffect(() => {
     setRows(
@@ -67,11 +119,12 @@ export default function WorkOrderTable({
   }, [created, router]);
 
   const filteredRows =
-    React.useMemo(() => {
-      let result = filterWorkOrders(
-        rows,
-        search,
-      );
+    React.useMemo<WorkOrderListItem[]>(() => {
+      let result: WorkOrderListItem[] =
+        filterWorkOrders(
+          rows,
+          search,
+        );
 
       if (initialStatus.trim()) {
         const expectedStatus =
@@ -80,7 +133,9 @@ export default function WorkOrderTable({
           );
 
         result = result.filter(
-          (order) =>
+          (
+            order: WorkOrderListItem,
+          ) =>
             normalizeWorkOrderStatus(
               order.status,
             ) === expectedStatus,
@@ -91,7 +146,9 @@ export default function WorkOrderTable({
         initialScheduledDate.trim()
       ) {
         result = result.filter(
-          (order) =>
+          (
+            order: WorkOrderListItem,
+          ) =>
             order.scheduledDate?.slice(
               0,
               10,
@@ -100,7 +157,9 @@ export default function WorkOrderTable({
         );
       }
 
-      return result;
+      return sortWorkOrdersByScheduledDate(
+        result,
+      );
     }, [
       initialScheduledDate,
       initialStatus,
@@ -111,39 +170,85 @@ export default function WorkOrderTable({
   function handleOpenDetails(
     order: WorkOrderListItem,
   ) {
-    router.push(
-      `/workorders/${order.id}`,
+    setSelectedOrder(order);
+    setDetailsOpen(true);
+  }
+
+  function handleDetailsOpenChange(
+    open: boolean,
+  ) {
+    setDetailsOpen(open);
+
+    if (!open) {
+      window.setTimeout(() => {
+        setSelectedOrder(null);
+      }, 150);
+    }
+  }
+
+  function handleOrderUpdated(
+    updated: WorkOrderListItem,
+  ) {
+    setRows((current) =>
+      current.map((order) =>
+        order.id === updated.id
+          ? {
+              ...order,
+              ...updated,
+            }
+          : order,
+      ),
     );
+
+    setSelectedOrder(updated);
   }
 
   return (
-    <WorkOrderDataTable
-      orders={filteredRows}
-      search={search}
-      onSearchChange={setSearch}
-      searchPlaceholder="Buscar cliente, serviço, status ou endereço..."
-      resultLabel={`${filteredRows.length} ${
-        filteredRows.length === 1
-          ? "ordem encontrada"
-          : "ordens encontradas"
-      }`}
-      emptyTitle="Nenhuma ordem encontrada"
-      emptyDescription="Não existem ordens correspondentes aos filtros ou à pesquisa atual."
-      renderAction={(order) => (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-8 whitespace-nowrap rounded-lg px-3 text-xs"
-          onClick={() =>
-            handleOpenDetails(order)
-          }
-        >
-          <Eye className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+    <>
+      <WorkOrderDataTable
+        orders={filteredRows}
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Buscar cliente, serviço ou status..."
+        resultLabel={`${filteredRows.length} ${
+          filteredRows.length === 1
+            ? "ordem encontrada"
+            : "ordens encontradas"
+        }`}
+        emptyTitle="Nenhuma ordem encontrada"
+        emptyDescription="Não existem ordens correspondentes aos filtros ou à pesquisa atual."
+        renderAction={(
+          order: WorkOrderListItem,
+        ) => (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 whitespace-nowrap rounded-lg px-3 text-xs"
+            onClick={() =>
+              handleOpenDetails(order)
+            }
+          >
+            <Eye className="mr-1.5 h-3.5 w-3.5 shrink-0" />
 
-          Detalhes
-        </Button>
-      )}
-    />
+            Detalhes
+          </Button>
+        )}
+      />
+
+      <WorkOrderDetailsModal
+        open={detailsOpen}
+        orderId={
+          selectedOrder?.id || null
+        }
+        initialOrder={selectedOrder}
+        onOpenChange={
+          handleDetailsOpenChange
+        }
+        onOrderUpdated={
+          handleOrderUpdated
+        }
+      />
+    </>
   );
 }

@@ -17,7 +17,6 @@ import { Input } from "@/components/ui/input";
 
 import {
   formatWorkOrderDate,
-  formatWorkOrderMoney,
   workOrderStatusClassName,
   workOrderStatusDotClassName,
   workOrderStatusLabel,
@@ -96,6 +95,28 @@ function getPageNumbers(
     currentPage + 1,
     currentPage + 2,
   ];
+}
+
+function workOrderTypeLabel(
+  order: WorkOrderListItem,
+) {
+  const description = String(
+    order.description || "",
+  );
+
+  const typeMatch =
+    description.match(
+      /Tipo de atendimento:\s*([^\n.]+)\.?/i,
+    );
+
+  const type =
+    typeMatch?.[1]?.trim();
+
+  if (type) {
+    return type;
+  }
+
+  return "Serviço avulso";
 }
 
 export default function WorkOrderDataTable({
@@ -231,7 +252,7 @@ export default function WorkOrderDataTable({
             </p>
 
             <p className="mt-0.5 text-xs leading-5 text-slate-500">
-              Consulte e acompanhe os atendimentos cadastrados.
+              Ordens organizadas pela data mais próxima do atendimento.
             </p>
           </div>
 
@@ -288,41 +309,42 @@ export default function WorkOrderDataTable({
       ) : (
         <>
           <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[900px] table-fixed border-collapse">
+            <table className="w-full min-w-[920px] table-fixed border-collapse">
               <colgroup>
-                <col className="w-[29%]" />
-                <col className="w-[27%]" />
-                <col className="w-[12%]" />
-                <col className="w-[12%]" />
+                <col className="w-[13%]" />
+                <col className="w-[24%]" />
+                <col className="w-[16%]" />
+                <col className="w-[24%]" />
+
                 <col
                   className={
                     hasActions
-                      ? "w-[14%]"
-                      : "w-[20%]"
+                      ? "w-[15%]"
+                      : "w-[23%]"
                   }
                 />
 
                 {hasActions && (
-                  <col className="w-[6%]" />
+                  <col className="w-[8%]" />
                 )}
               </colgroup>
 
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
                   <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    OS / Serviço
-                  </th>
-
-                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    Cliente
-                  </th>
-
-                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                     Data
                   </th>
 
                   <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    Valor
+                    OS / Serviço
+                  </th>
+
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Tipo de OS
+                  </th>
+
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Cliente
                   </th>
 
                   <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -339,124 +361,110 @@ export default function WorkOrderDataTable({
 
               <tbody>
                 {paginatedOrders.map(
-                  (order) => (
-                    <React.Fragment
-                      key={order.id}
-                    >
-                      <tr className="border-b border-slate-100 transition hover:bg-sky-50/40">
-                        <td className="px-5 py-3.5">
-                          <div
-                            className="truncate text-sm font-semibold text-slate-900"
-                            title={order.title}
-                          >
-                            {order.title}
-                          </div>
+                  (order) => {
+                    const orderType =
+                      workOrderTypeLabel(
+                        order,
+                      );
 
-                          {order.description && (
+                    return (
+                      <React.Fragment
+                        key={order.id}
+                      >
+                        <tr className="border-b border-slate-100 transition hover:bg-sky-50/40">
+                          <td className="whitespace-nowrap px-5 py-3.5 text-sm font-medium text-slate-700">
+                            {formatWorkOrderDate(
+                              order.scheduledDate,
+                            )}
+                          </td>
+
+                          <td className="px-4 py-3.5">
                             <div
-                              className="mt-0.5 truncate text-xs text-slate-400"
+                              className="truncate text-sm font-semibold text-slate-900"
+                              title={order.title}
+                            >
+                              {order.title}
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3.5">
+                            <div
+                              className="truncate text-sm text-slate-600"
+                              title={orderType}
+                            >
+                              {orderType}
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3.5">
+                            <div
+                              className="truncate text-sm text-slate-700"
                               title={
-                                order.description
+                                order.customerName
                               }
                             >
                               {
-                                order.description
+                                order.customerName
                               }
                             </div>
-                          )}
-                        </td>
+                          </td>
 
-                        <td className="px-4 py-3.5">
-                          <div
-                            className="truncate text-sm text-slate-700"
-                            title={
-                              order.customerName
-                            }
-                          >
-                            {
-                              order.customerName
-                            }
-                          </div>
-
-                          {order.address && (
-                            <div
-                              className="mt-0.5 truncate text-xs text-slate-400"
-                              title={
-                                order.address
-                              }
-                            >
-                              {
-                                order.address
-                              }
-                            </div>
-                          )}
-                        </td>
-
-                        <td className="whitespace-nowrap px-4 py-3.5 text-sm text-slate-600">
-                          {formatWorkOrderDate(
-                            order.scheduledDate,
-                          )}
-                        </td>
-
-                        <td className="whitespace-nowrap px-4 py-3.5 text-sm font-medium text-slate-700">
-                          {formatWorkOrderMoney(
-                            order.totalAmount,
-                          )}
-                        </td>
-
-                        <td className="px-4 py-3.5">
-                          <span
-                            className={[
-                              "inline-flex min-h-7 max-w-full items-center gap-2 rounded-full border px-3 text-xs font-semibold",
-                              workOrderStatusClassName(
-                                order.status,
-                              ),
-                            ].join(" ")}
-                          >
+                          <td className="px-4 py-3.5">
                             <span
                               className={[
-                                "h-1.5 w-1.5 shrink-0 rounded-full",
-                                workOrderStatusDotClassName(
+                                "inline-flex min-h-7 max-w-full items-center gap-2 rounded-full border px-3 text-xs font-semibold",
+
+                                workOrderStatusClassName(
                                   order.status,
                                 ),
                               ].join(" ")}
-                            />
-
-                            <span className="truncate">
-                              {workOrderStatusLabel(
-                                order.status,
-                              )}
-                            </span>
-                          </span>
-                        </td>
-
-                        {hasActions && (
-                          <td className="px-5 py-3.5 text-right">
-                            {renderAction?.(
-                              order,
-                            )}
-                          </td>
-                        )}
-                      </tr>
-
-                      {expandedOrderId ===
-                        order.id &&
-                        renderExpandedRow && (
-                          <tr>
-                            <td
-                              colSpan={
-                                tableColumnCount
-                              }
-                              className="p-0"
                             >
-                              {renderExpandedRow(
+                              <span
+                                className={[
+                                  "h-1.5 w-1.5 shrink-0 rounded-full",
+
+                                  workOrderStatusDotClassName(
+                                    order.status,
+                                  ),
+                                ].join(" ")}
+                              />
+
+                              <span className="truncate">
+                                {workOrderStatusLabel(
+                                  order.status,
+                                )}
+                              </span>
+                            </span>
+                          </td>
+
+                          {hasActions && (
+                            <td className="px-5 py-3.5 text-right">
+                              {renderAction?.(
                                 order,
                               )}
                             </td>
-                          </tr>
-                        )}
-                    </React.Fragment>
-                  ),
+                          )}
+                        </tr>
+
+                        {expandedOrderId ===
+                          order.id &&
+                          renderExpandedRow && (
+                            <tr>
+                              <td
+                                colSpan={
+                                  tableColumnCount
+                                }
+                                className="p-0"
+                              >
+                                {renderExpandedRow(
+                                  order,
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                      </React.Fragment>
+                    );
+                  },
                 )}
               </tbody>
             </table>
@@ -464,104 +472,85 @@ export default function WorkOrderDataTable({
 
           <div className="divide-y divide-slate-100 md:hidden">
             {paginatedOrders.map(
-              (order) => (
-                <article
-                  key={order.id}
-                  className="space-y-3 px-4 py-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h3 className="truncate text-sm font-semibold text-slate-900">
-                        {order.title}
-                      </h3>
+              (order) => {
+                const orderType =
+                  workOrderTypeLabel(
+                    order,
+                  );
 
-                      <p className="mt-1 truncate text-xs text-slate-500">
-                        {
-                          order.customerName
-                        }
-                      </p>
-                    </div>
+                return (
+                  <article
+                    key={order.id}
+                    className="space-y-3 px-4 py-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-sky-700">
+                          {formatWorkOrderDate(
+                            order.scheduledDate,
+                          )}
+                        </p>
 
-                    <span
-                      className={[
-                        "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold",
-                        workOrderStatusClassName(
-                          order.status,
-                        ),
-                      ].join(" ")}
-                    >
+                        <h3 className="mt-1 truncate text-sm font-semibold text-slate-900">
+                          {order.title}
+                        </h3>
+
+                        <p className="mt-1 truncate text-xs font-medium text-slate-600">
+                          {orderType}
+                        </p>
+
+                        <p className="mt-1 truncate text-xs text-slate-500">
+                          {
+                            order.customerName
+                          }
+                        </p>
+                      </div>
+
                       <span
                         className={[
-                          "h-1.5 w-1.5 rounded-full",
-                          workOrderStatusDotClassName(
+                          "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold",
+
+                          workOrderStatusClassName(
                             order.status,
                           ),
                         ].join(" ")}
-                      />
+                      >
+                        <span
+                          className={[
+                            "h-1.5 w-1.5 rounded-full",
 
-                      {workOrderStatusLabel(
-                        order.status,
-                      )}
-                    </span>
-                  </div>
+                            workOrderStatusDotClassName(
+                              order.status,
+                            ),
+                          ].join(" ")}
+                        />
 
-                  {order.description && (
-                    <p className="line-clamp-2 text-xs leading-5 text-slate-400">
-                      {order.description}
-                    </p>
-                  )}
-
-                  {order.address && (
-                    <p className="line-clamp-2 text-xs leading-5 text-slate-400">
-                      {order.address}
-                    </p>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    <div>
-                      <div className="text-slate-400">
-                        Data
-                      </div>
-
-                      <div className="mt-1 font-medium text-slate-700">
-                        {formatWorkOrderDate(
-                          order.scheduledDate,
+                        {workOrderStatusLabel(
+                          order.status,
                         )}
-                      </div>
+                      </span>
                     </div>
 
-                    <div>
-                      <div className="text-slate-400">
-                        Valor
-                      </div>
-
-                      <div className="mt-1 font-medium text-slate-700">
-                        {formatWorkOrderMoney(
-                          order.totalAmount,
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {renderAction && (
-                    <div className="flex justify-end">
-                      {renderAction(
-                        order,
-                      )}
-                    </div>
-                  )}
-
-                  {expandedOrderId ===
-                    order.id &&
-                    renderExpandedRow && (
-                      <div>
-                        {renderExpandedRow(
+                    {renderAction && (
+                      <div className="flex justify-end">
+                        {renderAction(
                           order,
                         )}
                       </div>
                     )}
-                </article>
-              ),
+
+                    {expandedOrderId ===
+                      order.id &&
+                      renderExpandedRow && (
+                        <div>
+                          {renderExpandedRow(
+                            order,
+                          )}
+                        </div>
+                      )}
+                  </article>
+                );
+              },
             )}
           </div>
 
@@ -650,6 +639,7 @@ export default function WorkOrderDataTable({
                     }
                     className={[
                       "grid h-8 min-w-8 place-items-center rounded-lg px-2 text-xs font-semibold transition",
+
                       pageNumber ===
                       currentPage
                         ? "bg-sky-600 text-white"

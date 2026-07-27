@@ -667,7 +667,7 @@ export default function NewWorkOrderClient({
         );
 
         router.push(
-          "/workorders/approved",
+          "/workorders?created=1"
         );
 
         router.refresh();
