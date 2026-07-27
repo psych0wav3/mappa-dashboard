@@ -336,8 +336,8 @@ function SidebarContent({
   const workorderItems = useMemo(
     () => [
       {
-        href: "/workorders/new",
-        label: "Nova OS Avulsa",
+        href: "/workorders",
+        label: "Ordens de Serviço",
       },
       {
         href: "/workorders/pricing",
@@ -353,10 +353,6 @@ function SidebarContent({
       {
         href: "/workorders/approved",
         label: "Prontas para Rota",
-      },
-      {
-        href: "/workorders",
-        label: "Todas as OS",
       },
     ],
     [],

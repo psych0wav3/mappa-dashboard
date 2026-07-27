@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Eye,
@@ -9,6 +8,7 @@ import {
   KeyRound,
   Mail,
   MapPin,
+  ShieldCheck,
   UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -17,7 +17,7 @@ import { createClient } from "@/app/(private)/clients/actions";
 
 import FormField from "@/components/form-layout/FormField";
 import FormInfoBox from "@/components/form-layout/FormInfoBox";
-import FormSection from "@/components/form-layout/FormSection";
+import StepFormSection from "@/components/form-layout/StepFormSection";
 import FormActionBar from "@/components/ui/FormActionBar";
 import { Input } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/MaskedInput";
@@ -36,6 +36,14 @@ type FormState = {
   neighborhood: string;
   city: string;
   state: string;
+};
+
+type ViaCepResponse = {
+  erro?: boolean;
+  logradouro?: string;
+  bairro?: string;
+  localidade?: string;
+  uf?: string;
 };
 
 const initialState: FormState = {
@@ -58,6 +66,72 @@ function onlyDigits(value: string) {
   return value.replace(/\D+/g, "");
 }
 
+function normalizeDocument(value: string) {
+  return onlyDigits(value).slice(0, 14);
+}
+
+function formatDocument(value: string) {
+  const digits = normalizeDocument(value);
+
+  if (digits.length <= 11) {
+    if (digits.length <= 3) {
+      return digits;
+    }
+
+    if (digits.length <= 6) {
+      return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+    }
+
+    if (digits.length <= 9) {
+      return `${digits.slice(0, 3)}.${digits.slice(
+        3,
+        6,
+      )}.${digits.slice(6)}`;
+    }
+
+    return `${digits.slice(0, 3)}.${digits.slice(
+      3,
+      6,
+    )}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+  }
+
+  if (digits.length <= 2) {
+    return digits;
+  }
+
+  if (digits.length <= 5) {
+    return `${digits.slice(0, 2)}.${digits.slice(2)}`;
+  }
+
+  if (digits.length <= 8) {
+    return `${digits.slice(0, 2)}.${digits.slice(
+      2,
+      5,
+    )}.${digits.slice(5)}`;
+  }
+
+  if (digits.length <= 12) {
+    return `${digits.slice(0, 2)}.${digits.slice(
+      2,
+      5,
+    )}.${digits.slice(5, 8)}/${digits.slice(8)}`;
+  }
+
+  return `${digits.slice(0, 2)}.${digits.slice(
+    2,
+    5,
+  )}.${digits.slice(5, 8)}/${digits.slice(
+    8,
+    12,
+  )}-${digits.slice(12)}`;
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+    value.trim(),
+  );
+}
+
 async function fetchViaCep(zipCode: string) {
   const digits = onlyDigits(zipCode);
 
@@ -73,9 +147,9 @@ async function fetchViaCep(zipCode: string) {
     throw new Error("Não foi possível consultar o CEP.");
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as ViaCepResponse;
 
-  if (data?.erro) {
+  if (data.erro) {
     throw new Error("CEP não encontrado.");
   }
 
@@ -96,19 +170,66 @@ export default function NewClientPageClient() {
   const [showPassword, setShowPassword] =
     React.useState(false);
 
+  const [pending, startTransition] =
+    React.useTransition();
+
+  const [searchingZipCode, setSearchingZipCode] =
+    React.useState(false);
+
   const [errorMessage, setErrorMessage] =
     React.useState<string | null>(null);
 
-  const [pending, startTransition] = useTransition();
+  const normalizedDocument = normalizeDocument(
+    form.document,
+  );
+
+  const normalizedPhone = onlyDigits(form.phone);
+
+  const normalizedZipCode = onlyDigits(form.zipCode);
+
+  const isNameValid =
+    form.name.trim().length >= 2;
+
+  const isDocumentValid =
+    normalizedDocument.length === 0 ||
+    normalizedDocument.length === 11 ||
+    normalizedDocument.length === 14;
+
+  const isPhoneValid =
+    normalizedPhone.length === 0 ||
+    normalizedPhone.length === 10 ||
+    normalizedPhone.length === 11;
+
+  const isEmailValid = isValidEmail(form.email);
+
+  const isPasswordValid =
+    form.password.trim().length >= 6;
+
+  const isZipCodeValid =
+    normalizedZipCode.length === 0 ||
+    normalizedZipCode.length === 8;
+
+  const isStreetValid =
+    form.street.trim().length > 0;
+
+  const isCityValid =
+    form.city.trim().length > 0;
+
+  const isStateValid =
+    form.state.trim().length === 2;
 
   const canSubmit =
-    form.name.trim().length >= 2 &&
-    form.email.includes("@") &&
-    form.password.length >= 6 &&
-    form.street.trim().length > 0 &&
-    form.city.trim().length > 0 &&
-    form.state.trim().length === 2 &&
-    !pending;
+    isNameValid &&
+    isDocumentValid &&
+    isPhoneValid &&
+    isEmailValid &&
+    isPasswordValid &&
+    isZipCodeValid &&
+    isStreetValid &&
+    isCityValid &&
+    isStateValid &&
+    !pending &&
+    !searchingZipCode;
 
   function updateField<Key extends keyof FormState>(
     field: Key,
@@ -127,7 +248,15 @@ export default function NewClientPageClient() {
       return;
     }
 
+    if (digits.length !== 8) {
+      toast.error("O CEP deve possuir 8 dígitos.");
+
+      return;
+    }
+
     try {
+      setSearchingZipCode(true);
+
       const address = await fetchViaCep(digits);
 
       setForm((current) => ({
@@ -142,6 +271,8 @@ export default function NewClientPageClient() {
           ? error.message
           : "Não foi possível consultar o CEP.",
       );
+    } finally {
+      setSearchingZipCode(false);
     }
   }
 
@@ -159,20 +290,41 @@ export default function NewClientPageClient() {
         setErrorMessage(null);
 
         await createClient({
-          name: form.name,
-          email: form.email,
-          password: form.password,
-          phone: form.phone,
-          document: form.document,
+          name: form.name.trim(),
+
+          email: form.email
+            .trim()
+            .toLocaleLowerCase("pt-BR"),
+
+          password: form.password.trim(),
+
+          phone:
+            normalizedPhone || undefined,
+
+          document:
+            normalizedDocument || undefined,
 
           address: {
-            zipCode: form.zipCode,
-            street: form.street,
-            number: form.number,
-            complement: form.complement,
-            neighborhood: form.neighborhood,
-            city: form.city,
-            state: form.state,
+            zipCode:
+              normalizedZipCode || undefined,
+
+            street: form.street.trim(),
+
+            number:
+              form.number.trim() || undefined,
+
+            complement:
+              form.complement.trim() || undefined,
+
+            neighborhood:
+              form.neighborhood.trim() || undefined,
+
+            city: form.city.trim(),
+
+            state: form.state
+              .trim()
+              .toUpperCase(),
+
             latitude: null,
             longitude: null,
           },
@@ -182,7 +334,7 @@ export default function NewClientPageClient() {
           "Cliente cadastrado com sucesso.",
         );
 
-        router.push("/clients");
+        router.push("/clients?created=1");
         router.refresh();
       } catch (error) {
         const message =
@@ -197,7 +349,7 @@ export default function NewClientPageClient() {
   }
 
   function handleBack() {
-    if (pending) {
+    if (pending || searchingZipCode) {
       return;
     }
 
@@ -205,7 +357,7 @@ export default function NewClientPageClient() {
   }
 
   function handleCancel() {
-    if (pending) {
+    if (pending || searchingZipCode) {
       return;
     }
 
@@ -226,7 +378,8 @@ export default function NewClientPageClient() {
         </div>
       )}
 
-      <FormSection
+      <StepFormSection
+        step={1}
         icon={UserRound}
         title="Identificação do cliente"
         description="Informe os dados principais do responsável ou da empresa."
@@ -236,40 +389,66 @@ export default function NewClientPageClient() {
             htmlFor="client-name"
             label="Nome completo ou razão social"
             required
+            error={
+              form.name.length > 0 && !isNameValid
+                ? "Informe o nome completo ou a razão social."
+                : undefined
+            }
             className="sm:col-span-2"
           >
-            <Input
-              id="client-name"
-              value={form.name}
-              onChange={(event) =>
-                updateField(
-                  "name",
-                  event.target.value,
-                )
-              }
-              placeholder="Ex.: João da Silva ou Piscinas Azul Ltda."
-              className="h-11 rounded-xl"
-              disabled={pending}
-            />
+            <div className="relative">
+              <UserRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+
+              <Input
+                id="client-name"
+                type="text"
+                autoComplete="name"
+                value={form.name}
+                onChange={(event) =>
+                  updateField(
+                    "name",
+                    event.target.value,
+                  )
+                }
+                placeholder="Ex.: João da Silva ou Piscinas Azul Ltda."
+                className="h-11 rounded-xl pl-10"
+                aria-invalid={
+                  form.name.length > 0 &&
+                  !isNameValid
+                }
+                disabled={pending}
+              />
+            </div>
           </FormField>
 
           <FormField
             htmlFor="client-document"
             label="CPF ou CNPJ"
             optional
-            description="O sistema enviará somente os números para a API."
+            error={
+              form.document.length > 0 &&
+              !isDocumentValid
+                ? "Informe um CPF com 11 dígitos ou um CNPJ com 14 dígitos."
+                : undefined
+            }
           >
             <Input
               id="client-document"
+              type="text"
+              inputMode="numeric"
               value={form.document}
               onChange={(event) =>
                 updateField(
                   "document",
-                  event.target.value,
+                  formatDocument(event.target.value),
                 )
               }
-              placeholder="xxx.xxx.xxx-xx ou xx.xxx.xxx/xxxx-xx"
+              placeholder="000.000.000-00 ou 00.000.000/0000-00"
               className="h-11 rounded-xl"
+              aria-invalid={
+                form.document.length > 0 &&
+                !isDocumentValid
+              }
               disabled={pending}
             />
           </FormField>
@@ -278,6 +457,11 @@ export default function NewClientPageClient() {
             htmlFor="client-phone"
             label="Telefone"
             optional
+            error={
+              form.phone.length > 0 && !isPhoneValid
+                ? "Informe um telefone válido com DDD."
+                : undefined
+            }
           >
             <MaskedInput
               id="client-phone"
@@ -291,22 +475,42 @@ export default function NewClientPageClient() {
               }
               placeholder="(00) 00000-0000"
               className="h-11 rounded-xl"
+              aria-invalid={
+                form.phone.length > 0 &&
+                !isPhoneValid
+              }
               disabled={pending}
             />
           </FormField>
-        </div>
-      </FormSection>
 
-      <FormSection
+          <FormInfoBox
+            icon={ShieldCheck}
+            compact
+            className="sm:col-span-2"
+          >
+            O cliente será vinculado à empresa e poderá
+            acompanhar os atendimentos pelo aplicativo.
+          </FormInfoBox>
+        </div>
+      </StepFormSection>
+
+      <StepFormSection
+        step={2}
         icon={KeyRound}
         title="Acesso ao aplicativo"
-        description="Essas informações serão utilizadas pelo cliente para acessar o aplicativo."
+        description="Crie as credenciais iniciais que serão utilizadas pelo cliente."
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField
             htmlFor="client-email"
             label="E-mail de acesso"
             required
+            error={
+              form.email.length > 0 &&
+              !isEmailValid
+                ? "Informe um endereço de e-mail válido."
+                : undefined
+            }
           >
             <div className="relative">
               <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -324,6 +528,10 @@ export default function NewClientPageClient() {
                 }
                 placeholder="cliente@email.com"
                 className="h-11 rounded-xl pl-10"
+                aria-invalid={
+                  form.email.length > 0 &&
+                  !isEmailValid
+                }
                 disabled={pending}
               />
             </div>
@@ -334,6 +542,12 @@ export default function NewClientPageClient() {
             label="Senha inicial"
             required
             description="A senha deve possuir pelo menos 6 caracteres."
+            error={
+              form.password.length > 0 &&
+              !isPasswordValid
+                ? "Informe uma senha com pelo menos 6 caracteres."
+                : undefined
+            }
           >
             <div className="relative">
               <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -354,18 +568,22 @@ export default function NewClientPageClient() {
                   )
                 }
                 className="h-11 rounded-xl px-10"
+                aria-invalid={
+                  form.password.length > 0 &&
+                  !isPasswordValid
+                }
                 disabled={pending}
               />
 
               <button
                 type="button"
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={() =>
                   setShowPassword(
                     (current) => !current,
                   )
                 }
                 disabled={pending}
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
                 aria-label={
                   showPassword
                     ? "Ocultar senha"
@@ -381,18 +599,34 @@ export default function NewClientPageClient() {
             </div>
           </FormField>
         </div>
-      </FormSection>
 
-      <FormSection
+        <FormInfoBox
+          icon={KeyRound}
+          variant="warning"
+          className="mt-5"
+        >
+          Oriente o cliente a alterar a senha inicial após o
+          primeiro acesso ao aplicativo.
+        </FormInfoBox>
+      </StepFormSection>
+
+      <StepFormSection
+        step={3}
         icon={MapPin}
         title="Endereço principal da piscina"
-        description="Este endereço será utilizado automaticamente nas ordens, rotinas de atendimento e rotas."
+        description="Cadastre o endereço que será utilizado nas ordens de serviço, rotinas de atendimento e rotas."
       >
         <div className="grid gap-4 sm:grid-cols-12">
           <FormField
             htmlFor="client-zip-code"
             label="CEP"
             optional
+            error={
+              form.zipCode.length > 0 &&
+              !isZipCodeValid
+                ? "Informe um CEP com 8 dígitos."
+                : undefined
+            }
             className="sm:col-span-3"
           >
             <MaskedInput
@@ -408,7 +642,11 @@ export default function NewClientPageClient() {
               onBlur={handleZipCodeBlur}
               placeholder="00000-000"
               className="h-11 rounded-xl"
-              disabled={pending}
+              aria-invalid={
+                form.zipCode.length > 0 &&
+                !isZipCodeValid
+              }
+              disabled={pending || searchingZipCode}
             />
           </FormField>
 
@@ -416,10 +654,17 @@ export default function NewClientPageClient() {
             htmlFor="client-city"
             label="Cidade"
             required
+            error={
+              form.city.length > 0 && !isCityValid
+                ? "Informe a cidade."
+                : undefined
+            }
             className="sm:col-span-7"
           >
             <Input
               id="client-city"
+              type="text"
+              autoComplete="address-level2"
               value={form.city}
               onChange={(event) =>
                 updateField(
@@ -429,7 +674,11 @@ export default function NewClientPageClient() {
               }
               placeholder="Ex.: São Paulo"
               className="h-11 rounded-xl"
-              disabled={pending}
+              aria-invalid={
+                form.city.length > 0 &&
+                !isCityValid
+              }
+              disabled={pending || searchingZipCode}
             />
           </FormField>
 
@@ -437,21 +686,36 @@ export default function NewClientPageClient() {
             htmlFor="client-state"
             label="UF"
             required
+            error={
+              form.state.length > 0 &&
+              !isStateValid
+                ? "Informe a UF."
+                : undefined
+            }
             className="sm:col-span-2"
           >
             <Input
               id="client-state"
+              type="text"
+              autoComplete="address-level1"
               maxLength={2}
               value={form.state}
               onChange={(event) =>
                 updateField(
                   "state",
-                  event.target.value.toUpperCase(),
+                  event.target.value
+                    .replace(/[^a-zA-Z]/g, "")
+                    .toUpperCase()
+                    .slice(0, 2),
                 )
               }
               placeholder="SP"
               className="h-11 rounded-xl text-center uppercase"
-              disabled={pending}
+              aria-invalid={
+                form.state.length > 0 &&
+                !isStateValid
+              }
+              disabled={pending || searchingZipCode}
             />
           </FormField>
 
@@ -459,10 +723,18 @@ export default function NewClientPageClient() {
             htmlFor="client-street"
             label="Endereço"
             required
+            error={
+              form.street.length > 0 &&
+              !isStreetValid
+                ? "Informe o endereço."
+                : undefined
+            }
             className="sm:col-span-8"
           >
             <Input
               id="client-street"
+              type="text"
+              autoComplete="address-line1"
               value={form.street}
               onChange={(event) =>
                 updateField(
@@ -472,7 +744,11 @@ export default function NewClientPageClient() {
               }
               placeholder="Rua, avenida ou estrada"
               className="h-11 rounded-xl"
-              disabled={pending}
+              aria-invalid={
+                form.street.length > 0 &&
+                !isStreetValid
+              }
+              disabled={pending || searchingZipCode}
             />
           </FormField>
 
@@ -484,6 +760,8 @@ export default function NewClientPageClient() {
           >
             <Input
               id="client-number"
+              type="text"
+              autoComplete="address-line2"
               value={form.number}
               onChange={(event) =>
                 updateField(
@@ -505,6 +783,7 @@ export default function NewClientPageClient() {
           >
             <Input
               id="client-neighborhood"
+              type="text"
               value={form.neighborhood}
               onChange={(event) =>
                 updateField(
@@ -514,7 +793,7 @@ export default function NewClientPageClient() {
               }
               placeholder="Ex.: Centro"
               className="h-11 rounded-xl"
-              disabled={pending}
+              disabled={pending || searchingZipCode}
             />
           </FormField>
 
@@ -526,6 +805,7 @@ export default function NewClientPageClient() {
           >
             <Input
               id="client-complement"
+              type="text"
               value={form.complement}
               onChange={(event) =>
                 updateField(
@@ -533,7 +813,7 @@ export default function NewClientPageClient() {
                   event.target.value,
                 )
               }
-              placeholder="Casa, bloco, referência..."
+              placeholder="Casa, bloco, condomínio ou referência"
               className="h-11 rounded-xl"
               disabled={pending}
             />
@@ -544,10 +824,11 @@ export default function NewClientPageClient() {
           icon={MapPin}
           className="mt-5"
         >
-          Outros endereços ou piscinas poderão ser adicionados
-          depois, nos detalhes do cliente.
+          Este será o endereço principal da piscina. Outros
+          endereços poderão ser adicionados posteriormente nos
+          detalhes do cliente.
         </FormInfoBox>
-      </FormSection>
+      </StepFormSection>
 
       <FormActionBar
         primaryLabel="Criar cliente"

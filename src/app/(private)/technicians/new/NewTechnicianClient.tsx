@@ -16,7 +16,7 @@ import { createTechnician } from "@/app/(private)/technicians/actions";
 
 import FormField from "@/components/form-layout/FormField";
 import FormInfoBox from "@/components/form-layout/FormInfoBox";
-import FormSection from "@/components/form-layout/FormSection";
+import StepFormSection from "@/components/form-layout/StepFormSection";
 import FormActionBar from "@/components/ui/FormActionBar";
 import { Input } from "@/components/ui/input";
 
@@ -55,6 +55,7 @@ export default function NewTechnicianClient() {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("123456");
   const [phone, setPhone] = React.useState("");
+
   const [showPassword, setShowPassword] =
     React.useState(false);
 
@@ -71,11 +72,10 @@ export default function NewTechnicianClient() {
   const isEmailValid =
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
-  const isPasswordValid =
-    password.trim().length >= 6;
+  const isPasswordValid = password.trim().length >= 6;
 
   const isPhoneValid =
-    !normalizedPhone ||
+    normalizedPhone.length === 0 ||
     normalizedPhone.length === 10 ||
     normalizedPhone.length === 11;
 
@@ -116,7 +116,7 @@ export default function NewTechnicianClient() {
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Erro ao criar técnico.",
+          : "Não foi possível cadastrar o técnico.",
       );
 
       setSubmitting(false);
@@ -153,7 +153,8 @@ export default function NewTechnicianClient() {
         </div>
       )}
 
-      <FormSection
+      <StepFormSection
+        step={1}
         icon={UserRound}
         title="Identificação"
         description="Informe os dados principais do profissional."
@@ -197,7 +198,7 @@ export default function NewTechnicianClient() {
             optional
             error={
               phone.length > 0 && !isPhoneValid
-                ? "Informe um telefone com DDD."
+                ? "Informe um telefone válido com DDD."
                 : undefined
             }
           >
@@ -207,6 +208,7 @@ export default function NewTechnicianClient() {
               <Input
                 id="technician-phone"
                 type="tel"
+                inputMode="tel"
                 autoComplete="tel"
                 value={phone}
                 onChange={(event) =>
@@ -229,17 +231,19 @@ export default function NewTechnicianClient() {
               icon={ShieldCheck}
               compact
             >
-              O profissional será cadastrado e poderá acessar o
-              aplicativo.
+              O profissional será cadastrado com acesso ao
+              aplicativo para executar os atendimentos da
+              empresa.
             </FormInfoBox>
           </div>
         </div>
-      </FormSection>
+      </StepFormSection>
 
-      <FormSection
+      <StepFormSection
+        step={2}
         icon={KeyRound}
         title="Acesso ao aplicativo"
-        description="Crie as credenciais iniciais que serão usadas pelo técnico."
+        description="Crie as credenciais iniciais que serão utilizadas pelo técnico."
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField
@@ -279,8 +283,7 @@ export default function NewTechnicianClient() {
             required
             description="A senha deve possuir pelo menos 6 caracteres."
             error={
-              password.length > 0 &&
-              !isPasswordValid
+              password.length > 0 && !isPasswordValid
                 ? "Informe uma senha com pelo menos 6 caracteres."
                 : undefined
             }
@@ -341,7 +344,7 @@ export default function NewTechnicianClient() {
           Oriente o técnico a alterar a senha inicial após o
           primeiro acesso ao aplicativo.
         </FormInfoBox>
-      </FormSection>
+      </StepFormSection>
 
       <FormActionBar
         primaryLabel="Criar técnico"

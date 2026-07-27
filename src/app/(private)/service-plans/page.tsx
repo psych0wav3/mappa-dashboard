@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 
+import FormPage from "@/components/form-layout/FormPage";
 import ServicePlansClient from "@/components/service-plans/ServicePlansClient";
+
 import { listServicePlans } from "./actions";
 
 import {
@@ -14,7 +16,7 @@ export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 
 export const metadata: Metadata = {
-  title: "Rotina de Atendimento — Aqua Mappa",
+  title: "Rotinas de Atendimento — Aqua Mappa",
 };
 
 export default async function ServicePlansPage() {
@@ -33,18 +35,14 @@ export default async function ServicePlansPage() {
   ]);
 
   return (
-    <div className="min-h-screen bg-neutral-50 px-4 py-6 sm:px-6 lg:px-8">
+    <FormPage className="max-w-7xl">
       <ServicePlansClient
         initialPlans={plans}
         customers={customers}
         technicians={technicians}
-        checklistTemplates={
-          checklistTemplates
-        }
-        measurementTemplates={
-          measurementTemplates
-        }
+        checklistTemplates={checklistTemplates}
+        measurementTemplates={measurementTemplates}
       />
-    </div>
+    </FormPage>
   );
 }
