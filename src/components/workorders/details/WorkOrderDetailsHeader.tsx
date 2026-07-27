@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ClipboardList,
   X,
 } from "lucide-react";
 

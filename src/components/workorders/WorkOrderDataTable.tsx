@@ -29,6 +29,9 @@ const PAGE_SIZE_OPTIONS = [
 ] as const;
 
 type WorkOrderDataTableProps = {
+  title?: string;
+  description?: string;
+
   orders?: WorkOrderListItem[];
 
   search: string;
@@ -120,6 +123,8 @@ function workOrderTypeLabel(
 }
 
 export default function WorkOrderDataTable({
+  title,
+  description,
   orders = [],
   search,
   onSearchChange,
@@ -242,17 +247,25 @@ export default function WorkOrderDataTable({
       <header className="border-b border-slate-200 px-4 py-3 sm:px-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-800">
-              {resultLabel ||
-                `${totalItems} ${
-                  totalItems === 1
-                    ? "ordem encontrada"
-                    : "ordens encontradas"
-                }`}
-            </p>
+            {title ? (
+              <h2 className="text-sm font-semibold text-slate-800">
+                {title}
+              </h2>
+            ) : (
+              <p className="text-sm font-semibold text-slate-800">
+                {resultLabel ||
+                  `${totalItems} ${
+                    totalItems === 1
+                      ? "ordem encontrada"
+                      : "ordens encontradas"
+                  }`}
+              </p>
+            )}
 
             <p className="mt-0.5 text-xs leading-5 text-slate-500">
-              Ordens organizadas pela data mais próxima do atendimento.
+              {description ||
+                resultLabel ||
+                "Ordens organizadas pela data mais próxima do atendimento."}
             </p>
           </div>
 

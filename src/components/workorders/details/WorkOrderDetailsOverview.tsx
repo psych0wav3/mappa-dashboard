@@ -2,7 +2,6 @@
 
 import {
   CalendarDays,
-  CircleDollarSign,
   ClipboardList,
   MapPin,
   UserRound,
@@ -19,7 +18,6 @@ import type {
 
 import {
   formatWorkOrderDate,
-  formatWorkOrderMoney,
   workOrderStatusClassName,
   workOrderStatusDotClassName,
   workOrderStatusLabel,

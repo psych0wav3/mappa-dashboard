@@ -3,7 +3,6 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import {
-  BadgeCheck,
   CalendarDays,
   Calculator,
   Check,
@@ -501,8 +500,8 @@ export default function WorkOrderPricingModal({
           <Button
             type="button"
             variant="ghost"
-            size="icon"
-            className="h-9 w-9 shrink-0 rounded-xl text-slate-500"
+            size="sm"
+            className="h-9 w-9 shrink-0 rounded-xl p-0 text-slate-500"
             onClick={handleClose}
             disabled={pending}
             aria-label="Fechar"
