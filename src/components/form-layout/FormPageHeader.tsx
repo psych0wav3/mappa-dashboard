@@ -1,9 +1,5 @@
-import type {
-  LucideIcon,
-} from "lucide-react";
-import type {
-  ReactNode,
-} from "react";
+import type { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 
 type FormPageHeaderProps = {
   icon: LucideIcon;
@@ -25,13 +21,13 @@ export default function FormPageHeader({
   return (
     <header
       className={[
-        "overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm",
+        "rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6",
         className,
       ]
         .filter(Boolean)
         .join(" ")}
     >
-      <div className="flex flex-col gap-5 px-5 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-start gap-4">
           <div className="min-w-0">
             {badge && (

@@ -1,23 +1,15 @@
 "use client";
 
 import * as React from "react";
-
-import {
-  Eye,
-  Plus,
-} from "lucide-react";
-
-import {
-  useRouter,
-} from "next/navigation";
-
+import { Eye } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-
-import { Button } from "@/components/ui/button";
 
 import type {
   WorkOrderListItem,
 } from "@/app/(private)/workorders/actions";
+
+import { Button } from "@/components/ui/button";
 
 import WorkOrderDataTable from "./WorkOrderDataTable";
 
@@ -39,13 +31,9 @@ export default function WorkOrderTable({
   initialScheduledDate = "",
   created = false,
 }: WorkOrderTableProps) {
-  const router =
-    useRouter();
+  const router = useRouter();
 
-  const [
-    rows,
-    setRows,
-  ] = React.useState<
+  const [rows, setRows] = React.useState<
     WorkOrderListItem[]
   >(
     Array.isArray(initialData)
@@ -53,10 +41,8 @@ export default function WorkOrderTable({
       : [],
   );
 
-  const [
-    search,
-    setSearch,
-  ] = React.useState("");
+  const [search, setSearch] =
+    React.useState("");
 
   React.useEffect(() => {
     setRows(
@@ -75,28 +61,19 @@ export default function WorkOrderTable({
       "Ordem de serviço criada com sucesso.",
     );
 
-    router.replace(
-      "/workorders",
-      {
-        scroll: false,
-      },
-    );
-  }, [
-    created,
-    router,
-  ]);
+    router.replace("/workorders", {
+      scroll: false,
+    });
+  }, [created, router]);
 
   const filteredRows =
     React.useMemo(() => {
-      let result =
-        filterWorkOrders(
-          rows,
-          search,
-        );
+      let result = filterWorkOrders(
+        rows,
+        search,
+      );
 
-      if (
-        initialStatus.trim()
-      ) {
+      if (initialStatus.trim()) {
         const expectedStatus =
           normalizeWorkOrderStatus(
             initialStatus,
@@ -111,13 +88,14 @@ export default function WorkOrderTable({
       }
 
       if (
-        initialScheduledDate
-          .trim()
+        initialScheduledDate.trim()
       ) {
         result = result.filter(
           (order) =>
-            order.scheduledDate
-              ?.slice(0, 10) ===
+            order.scheduledDate?.slice(
+              0,
+              10,
+            ) ===
             initialScheduledDate,
         );
       }
@@ -140,48 +118,28 @@ export default function WorkOrderTable({
 
   return (
     <WorkOrderDataTable
-      title="Todas as Ordens de Serviço"
-      description={`${filteredRows.length} ${
-        filteredRows.length === 1
-          ? "ordem encontrada"
-          : "ordens encontradas"
-      }.`}
       orders={filteredRows}
       search={search}
       onSearchChange={setSearch}
-      searchPlaceholder="Buscar cliente, título, status ou endereço..."
+      searchPlaceholder="Buscar cliente, serviço, status ou endereço..."
+      resultLabel={`${filteredRows.length} ${
+        filteredRows.length === 1
+          ? "ordem encontrada"
+          : "ordens encontradas"
+      }`}
       emptyTitle="Nenhuma ordem encontrada"
       emptyDescription="Não existem ordens correspondentes aos filtros ou à pesquisa atual."
-      headerAction={
-        <Button
-          type="button"
-          className="btn-brand h-10 rounded-xl px-4 text-white"
-          onClick={() =>
-            router.push(
-              "/workorders/new",
-            )
-          }
-        >
-          <Plus className="mr-2 h-4 w-4" />
-
-          Nova OS
-        </Button>
-      }
-      renderAction={(
-        order,
-      ) => (
+      renderAction={(order) => (
         <Button
           type="button"
           variant="outline"
           size="sm"
-          className="h-8 rounded-lg px-3 text-xs"
+          className="h-8 whitespace-nowrap rounded-lg px-3 text-xs"
           onClick={() =>
-            handleOpenDetails(
-              order,
-            )
+            handleOpenDetails(order)
           }
         >
-          <Eye className="mr-1.5 h-3.5 w-3.5" />
+          <Eye className="mr-1.5 h-3.5 w-3.5 shrink-0" />
 
           Detalhes
         </Button>

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-
 import {
   ChevronLeft,
   ChevronRight,
@@ -10,11 +9,11 @@ import {
   X,
 } from "lucide-react";
 
-import { Input } from "@/components/ui/input";
-
 import type {
   WorkOrderListItem,
 } from "@/app/(private)/workorders/actions";
+
+import { Input } from "@/components/ui/input";
 
 import {
   formatWorkOrderDate,
@@ -31,9 +30,8 @@ const PAGE_SIZE_OPTIONS = [
 ] as const;
 
 type WorkOrderDataTableProps = {
-  title: string;
-  description: string;
   orders?: WorkOrderListItem[];
+
   search: string;
 
   onSearchChange: (
@@ -41,8 +39,11 @@ type WorkOrderDataTableProps = {
   ) => void;
 
   searchPlaceholder?: string;
+  resultLabel?: string;
+
   emptyTitle: string;
   emptyDescription: string;
+
   actionHeader?: string;
 
   renderAction?: (
@@ -67,19 +68,12 @@ function getPageNumbers(
       {
         length: totalPages,
       },
-      (_, index) =>
-        index + 1,
+      (_, index) => index + 1,
     );
   }
 
   if (currentPage <= 3) {
-    return [
-      1,
-      2,
-      3,
-      4,
-      5,
-    ];
+    return [1, 2, 3, 4, 5];
   }
 
   if (
@@ -105,13 +99,12 @@ function getPageNumbers(
 }
 
 export default function WorkOrderDataTable({
-  title,
-  description,
   orders = [],
   search,
   onSearchChange,
   searchPlaceholder =
     "Buscar cliente ou serviço...",
+  resultLabel,
   emptyTitle,
   emptyDescription,
   actionHeader = "Ações",
@@ -138,13 +131,12 @@ export default function WorkOrderDataTable({
   const totalItems =
     safeOrders.length;
 
-  const totalPages =
-    Math.max(
-      1,
-      Math.ceil(
-        totalItems / pageSize,
-      ),
-    );
+  const totalPages = Math.max(
+    1,
+    Math.ceil(
+      totalItems / pageSize,
+    ),
+  );
 
   React.useEffect(() => {
     setCurrentPage(1);
@@ -202,17 +194,22 @@ export default function WorkOrderDataTable({
       totalPages,
     );
 
+  const hasActions =
+    Boolean(renderAction);
+
+  const tableColumnCount =
+    hasActions ? 6 : 5;
+
   function changePage(
     nextPage: number,
   ) {
-    const safePage =
-      Math.min(
-        Math.max(
-          nextPage,
-          1,
-        ),
-        totalPages,
-      );
+    const safePage = Math.min(
+      Math.max(
+        nextPage,
+        1,
+      ),
+      totalPages,
+    );
 
     setCurrentPage(
       safePage,
@@ -221,25 +218,24 @@ export default function WorkOrderDataTable({
 
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <header className="border-b border-slate-200 px-5 py-4 sm:px-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
-              <ClipboardList className="h-4 w-4" />
-            </div>
+      <header className="border-b border-slate-200 px-4 py-3 sm:px-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-slate-800">
+              {resultLabel ||
+                `${totalItems} ${
+                  totalItems === 1
+                    ? "ordem encontrada"
+                    : "ordens encontradas"
+                }`}
+            </p>
 
-            <div>
-              <h2 className="text-base font-semibold text-slate-900">
-                {title}
-              </h2>
-
-              <p className="mt-0.5 text-xs text-slate-500">
-                {description}
-              </p>
-            </div>
+            <p className="mt-0.5 text-xs leading-5 text-slate-500">
+              Consulte e acompanhe os atendimentos cadastrados.
+            </p>
           </div>
 
-          <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto">
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
             <div className="relative w-full sm:min-w-80 lg:w-96">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
@@ -292,7 +288,25 @@ export default function WorkOrderDataTable({
       ) : (
         <>
           <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[980px] border-collapse">
+            <table className="w-full min-w-[900px] table-fixed border-collapse">
+              <colgroup>
+                <col className="w-[29%]" />
+                <col className="w-[27%]" />
+                <col className="w-[12%]" />
+                <col className="w-[12%]" />
+                <col
+                  className={
+                    hasActions
+                      ? "w-[14%]"
+                      : "w-[20%]"
+                  }
+                />
+
+                {hasActions && (
+                  <col className="w-[6%]" />
+                )}
+              </colgroup>
+
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
                   <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -315,9 +329,11 @@ export default function WorkOrderDataTable({
                     Status
                   </th>
 
-                  <th className="w-40 px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    {actionHeader}
-                  </th>
+                  {hasActions && (
+                    <th className="px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      {actionHeader}
+                    </th>
+                  )}
                 </tr>
               </thead>
 
@@ -328,13 +344,21 @@ export default function WorkOrderDataTable({
                       key={order.id}
                     >
                       <tr className="border-b border-slate-100 transition hover:bg-sky-50/40">
-                        <td className="max-w-72 px-5 py-3.5">
-                          <div className="truncate text-sm font-semibold text-slate-900">
+                        <td className="px-5 py-3.5">
+                          <div
+                            className="truncate text-sm font-semibold text-slate-900"
+                            title={order.title}
+                          >
                             {order.title}
                           </div>
 
                           {order.description && (
-                            <div className="mt-0.5 truncate text-xs text-slate-400">
+                            <div
+                              className="mt-0.5 truncate text-xs text-slate-400"
+                              title={
+                                order.description
+                              }
+                            >
                               {
                                 order.description
                               }
@@ -342,15 +366,25 @@ export default function WorkOrderDataTable({
                           )}
                         </td>
 
-                        <td className="max-w-64 px-4 py-3.5">
-                          <div className="truncate text-sm text-slate-700">
+                        <td className="px-4 py-3.5">
+                          <div
+                            className="truncate text-sm text-slate-700"
+                            title={
+                              order.customerName
+                            }
+                          >
                             {
                               order.customerName
                             }
                           </div>
 
                           {order.address && (
-                            <div className="mt-0.5 truncate text-xs text-slate-400">
+                            <div
+                              className="mt-0.5 truncate text-xs text-slate-400"
+                              title={
+                                order.address
+                              }
+                            >
                               {
                                 order.address
                               }
@@ -364,16 +398,16 @@ export default function WorkOrderDataTable({
                           )}
                         </td>
 
-                        <td className="whitespace-nowrap px-4 py-3.5 text-sm text-slate-600">
+                        <td className="whitespace-nowrap px-4 py-3.5 text-sm font-medium text-slate-700">
                           {formatWorkOrderMoney(
                             order.totalAmount,
                           )}
                         </td>
 
-                        <td className="whitespace-nowrap px-4 py-3.5">
+                        <td className="px-4 py-3.5">
                           <span
                             className={[
-                              "inline-flex h-7 items-center gap-2 rounded-full border px-3 text-xs font-semibold",
+                              "inline-flex min-h-7 max-w-full items-center gap-2 rounded-full border px-3 text-xs font-semibold",
                               workOrderStatusClassName(
                                 order.status,
                               ),
@@ -381,32 +415,28 @@ export default function WorkOrderDataTable({
                           >
                             <span
                               className={[
-                                "h-1.5 w-1.5 rounded-full",
+                                "h-1.5 w-1.5 shrink-0 rounded-full",
                                 workOrderStatusDotClassName(
                                   order.status,
                                 ),
-                              ].join(
-                                " ",
-                              )}
+                              ].join(" ")}
                             />
 
-                            {workOrderStatusLabel(
-                              order.status,
-                            )}
+                            <span className="truncate">
+                              {workOrderStatusLabel(
+                                order.status,
+                              )}
+                            </span>
                           </span>
                         </td>
 
-                        <td className="px-5 py-3.5 text-right">
-                          {renderAction ? (
-                            renderAction(
+                        {hasActions && (
+                          <td className="px-5 py-3.5 text-right">
+                            {renderAction?.(
                               order,
-                            )
-                          ) : (
-                            <span className="text-xs text-slate-400">
-                              —
-                            </span>
-                          )}
-                        </td>
+                            )}
+                          </td>
+                        )}
                       </tr>
 
                       {expandedOrderId ===
@@ -414,7 +444,9 @@ export default function WorkOrderDataTable({
                         renderExpandedRow && (
                           <tr>
                             <td
-                              colSpan={6}
+                              colSpan={
+                                tableColumnCount
+                              }
                               className="p-0"
                             >
                               {renderExpandedRow(
@@ -464,9 +496,7 @@ export default function WorkOrderDataTable({
                           workOrderStatusDotClassName(
                             order.status,
                           ),
-                        ].join(
-                          " ",
-                        )}
+                        ].join(" ")}
                       />
 
                       {workOrderStatusLabel(
@@ -474,6 +504,12 @@ export default function WorkOrderDataTable({
                       )}
                     </span>
                   </div>
+
+                  {order.description && (
+                    <p className="line-clamp-2 text-xs leading-5 text-slate-400">
+                      {order.description}
+                    </p>
+                  )}
 
                   {order.address && (
                     <p className="line-clamp-2 text-xs leading-5 text-slate-400">
@@ -535,17 +571,13 @@ export default function WorkOrderDataTable({
                 Mostrando{" "}
 
                 <strong className="font-semibold text-slate-700">
-                  {
-                    firstVisibleItem
-                  }
+                  {firstVisibleItem}
                 </strong>
 
                 {" "}a{" "}
 
                 <strong className="font-semibold text-slate-700">
-                  {
-                    lastVisibleItem
-                  }
+                  {lastVisibleItem}
                 </strong>
 
                 {" "}de{" "}
@@ -567,7 +599,7 @@ export default function WorkOrderDataTable({
                       ),
                     )
                   }
-                  className="h-8 rounded-lg border border-slate-300 bg-white px-2 text-xs font-medium text-slate-700 outline-none focus:border-sky-500"
+                  className="h-8 rounded-lg border border-slate-300 bg-white px-2 text-xs font-medium text-slate-700 outline-none transition focus:border-sky-500"
                 >
                   {PAGE_SIZE_OPTIONS.map(
                     (option) => (
@@ -595,7 +627,7 @@ export default function WorkOrderDataTable({
                   )
                 }
                 aria-label="Página anterior"
-                className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-40"
+                className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-sky-200 hover:text-sky-700 disabled:pointer-events-none disabled:opacity-40"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -610,12 +642,18 @@ export default function WorkOrderDataTable({
                         pageNumber,
                       )
                     }
+                    aria-current={
+                      pageNumber ===
+                      currentPage
+                        ? "page"
+                        : undefined
+                    }
                     className={[
-                      "grid h-8 min-w-8 place-items-center rounded-lg px-2 text-xs font-semibold",
+                      "grid h-8 min-w-8 place-items-center rounded-lg px-2 text-xs font-semibold transition",
                       pageNumber ===
                       currentPage
                         ? "bg-sky-600 text-white"
-                        : "border border-slate-200 bg-white text-slate-600",
+                        : "border border-slate-200 bg-white text-slate-600 hover:border-sky-200 hover:text-sky-700",
                     ].join(" ")}
                   >
                     {pageNumber}
@@ -635,7 +673,7 @@ export default function WorkOrderDataTable({
                   )
                 }
                 aria-label="Próxima página"
-                className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-40"
+                className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-sky-200 hover:text-sky-700 disabled:pointer-events-none disabled:opacity-40"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
