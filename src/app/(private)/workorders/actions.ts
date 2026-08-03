@@ -210,6 +210,23 @@ export type CreateAdminWorkOrderInput = {
   }>;
 };
 
+function sanitizeOptionalText(
+  value?: string | null,
+) {
+  const cleaned = String(value ?? "").trim();
+
+  // Server Actions às vezes serializam `undefined` como "$undefined".
+  if (
+    !cleaned ||
+    cleaned === "$undefined" ||
+    cleaned === "undefined"
+  ) {
+    return null;
+  }
+
+  return cleaned;
+}
+
 function toApiDate(value: string) {
   if (!value) {
     return "";
@@ -904,13 +921,13 @@ export async function createAdminWorkOrder(
     title: input.title.trim(),
 
     description:
-      input.description?.trim() || "",
+      sanitizeOptionalText(input.description) ||
+      "",
 
     scheduledDate:
       toApiDate(input.scheduledDate),
 
-    notes:
-      input.notes?.trim() || null,
+    notes: sanitizeOptionalText(input.notes),
 
     items,
 
