@@ -34,6 +34,7 @@ import WorkOrderDetailsPricingForm from "./WorkOrderDetailsPricingForm";
 
 import {
   parseWorkOrderDescription,
+  resolveWorkOrderItems,
 } from "./work-order-details.helpers";
 
 type WorkOrderDetailsModalProps = {
@@ -209,6 +210,21 @@ export default function WorkOrderDetailsModal({
       ],
     );
 
+  const resolvedItems =
+    React.useMemo(
+      () =>
+        order
+          ? resolveWorkOrderItems(
+              order,
+              parsedDescription,
+            )
+          : [],
+      [
+        order,
+        parsedDescription,
+      ],
+    );
+
   const isPendingPricing =
     Boolean(order) &&
     normalizeWorkOrderStatus(
@@ -326,7 +342,7 @@ export default function WorkOrderDetailsModal({
 
               <WorkOrderDetailsItems
                 items={
-                  parsedDescription.items
+                  resolvedItems
                 }
                 order={order}
               />

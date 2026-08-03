@@ -60,8 +60,18 @@ type ApiMeasurementTemplate = {
   fields?: unknown[] | null;
 };
 
+type ApiServiceOrderItem = {
+  id?: string | null;
+  type?: string | null;
+  description?: string | null;
+  quantity?: number | null;
+  unitPrice?: number | null;
+  subtotal?: number | null;
+};
+
 type ApiServiceOrder = {
   id: string;
+  orderNumber?: number | null;
   companyId?: string | null;
   customerId?: string | null;
   customerName?: string | null;
@@ -71,6 +81,8 @@ type ApiServiceOrder = {
   description?: string | null;
   scheduledDate?: string | null;
   totalAmount?: number | null;
+  pricingNotes?: string | null;
+  origin?: string | null;
   status?: string | null;
   openedByUserId?: string | null;
   openedByUserName?: string | null;
@@ -80,6 +92,7 @@ type ApiServiceOrder = {
   customerApprovedAt?: string | null;
   createdAt?: string | null;
   visits?: unknown[] | null;
+  items?: ApiServiceOrderItem[] | null;
 };
 
 export type WorkOrderCustomerOption = {
@@ -117,9 +130,27 @@ export type WorkOrderMeasurementTemplateOption = {
   fieldsCount: number;
 };
 
+export type WorkOrderPricingItemType =
+  | "LABOR"
+  | "MATERIAL"
+  | "PRODUCT"
+  | "SERVICE"
+  | "OTHER";
+
+export type WorkOrderItem = {
+  id?: string;
+  type: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+};
+
 export type WorkOrderListItem = {
   id: string;
   code?: string;
+  orderNumber?: number | null;
+  origin?: string | null;
   customerId: string;
   clientId?: string;
   technicianId?: string | null;
@@ -130,6 +161,7 @@ export type WorkOrderListItem = {
   description: string;
   scheduledDate: string;
   totalAmount: number;
+  pricingNotes?: string | null;
   amountCents?: number;
   status: string;
   createdAt?: string | null;
@@ -143,6 +175,7 @@ export type WorkOrderListItem = {
   finishedAt?: string | null;
   customerApprovedAt?: string | null;
   visits?: unknown[];
+  items?: WorkOrderItem[];
 
   client?: {
     firstName?: string | null;
@@ -159,6 +192,7 @@ export type PriceWorkOrderInput = {
   serviceOrderId: string;
   scheduledDate: string;
   totalAmount: number;
+  notes?: string;
 };
 
 export type CreateAdminWorkOrderInput = {
@@ -167,7 +201,13 @@ export type CreateAdminWorkOrderInput = {
   title: string;
   description: string;
   scheduledDate: string;
-  totalAmount: number;
+  notes?: string;
+  items: Array<{
+    type: WorkOrderPricingItemType;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+  }>;
 };
 
 function toApiDate(value: string) {
@@ -341,6 +381,43 @@ function getMainAddress(
   return null;
 }
 
+function normalizeWorkOrderItems(
+  items?: ApiServiceOrderItem[] | null,
+): WorkOrderItem[] {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  return items
+    .map((item) => {
+      const quantity = Number(
+        item.quantity || 0,
+      );
+      const unitPrice = Number(
+        item.unitPrice || 0,
+      );
+      const subtotal = Number(
+        item.subtotal ??
+          quantity * unitPrice,
+      );
+
+      return {
+        id: item.id || undefined,
+        type: String(item.type || "SERVICE"),
+        description: String(
+          item.description || "",
+        ),
+        quantity,
+        unitPrice,
+        subtotal,
+      };
+    })
+    .filter(
+      (item) =>
+        item.description.trim().length > 0,
+    );
+}
+
 function normalizeWorkOrder(
   order: ApiServiceOrder,
 ): WorkOrderListItem {
@@ -348,9 +425,20 @@ function normalizeWorkOrder(
     order.totalAmount || 0,
   );
 
+  const orderNumber =
+    typeof order.orderNumber === "number" &&
+    Number.isFinite(order.orderNumber)
+      ? order.orderNumber
+      : null;
+
   return {
     id: order.id,
-    code: order.id,
+    code:
+      orderNumber != null
+        ? String(orderNumber)
+        : order.id,
+    orderNumber,
+    origin: order.origin ?? null,
     customerId: order.customerId || "",
     clientId: order.customerId || "",
     technicianId: null,
@@ -376,6 +464,9 @@ function normalizeWorkOrder(
       order.scheduledDate || "",
 
     totalAmount,
+
+    pricingNotes:
+      order.pricingNotes ?? null,
 
     amountCents:
       Math.round(totalAmount * 100),
@@ -409,6 +500,10 @@ function normalizeWorkOrder(
 
     visits:
       order.visits ?? [],
+
+    items: normalizeWorkOrderItems(
+      order.items,
+    ),
 
     client: {
       firstName:
@@ -735,14 +830,66 @@ export async function createAdminWorkOrder(
     );
   }
 
-  const totalAmount = Number(
-    input.totalAmount || 0,
+  if (
+    !Array.isArray(input.items) ||
+    input.items.length === 0
+  ) {
+    throw new Error(
+      "Adicione pelo menos um item à ordem de serviço.",
+    );
+  }
+
+  const items = input.items.map(
+    (item, index) => {
+      const description =
+        item.description.trim();
+      const quantity = Number(
+        item.quantity,
+      );
+      const unitPrice = Number(
+        item.unitPrice,
+      );
+
+      if (!description) {
+        throw new Error(
+          `Informe a descrição do item ${index + 1}.`,
+        );
+      }
+
+      if (
+        !Number.isFinite(quantity) ||
+        quantity <= 0
+      ) {
+        throw new Error(
+          `Informe uma quantidade válida para o item ${index + 1}.`,
+        );
+      }
+
+      if (
+        !Number.isFinite(unitPrice) ||
+        unitPrice < 0
+      ) {
+        throw new Error(
+          `Informe um valor válido para o item ${index + 1}.`,
+        );
+      }
+
+      return {
+        type: item.type,
+        description,
+        quantity,
+        unitPrice,
+      };
+    },
   );
 
-  if (
-    !Number.isFinite(totalAmount) ||
-    totalAmount <= 0
-  ) {
+  const totalAmount = items.reduce(
+    (total, item) =>
+      total + item.quantity * item.unitPrice,
+    0,
+  );
+
+  if (totalAmount <= 0) {
     throw new Error(
       "O valor total deve ser maior que zero.",
     );
@@ -762,7 +909,10 @@ export async function createAdminWorkOrder(
     scheduledDate:
       toApiDate(input.scheduledDate),
 
-    totalAmount,
+    notes:
+      input.notes?.trim() || null,
+
+    items,
 
     checklistTemplateId: null,
 
@@ -780,6 +930,9 @@ export async function createAdminWorkOrder(
 
   revalidatePath("/workorders");
   revalidatePath("/workorders/new");
+  revalidatePath(
+    "/workorders/customer-approval",
+  );
   revalidatePath("/workorders/approved");
   revalidatePath("/routes/builder");
   revalidatePath("/routes/dashboard");
@@ -824,7 +977,16 @@ export async function priceWorkOrder(
           scheduledDate: toApiDate(
             input.scheduledDate,
           ),
-          totalAmount,
+          notes:
+            input.notes?.trim() || null,
+          items: [
+            {
+              type: "SERVICE",
+              description: "Orçamento do serviço",
+              quantity: 1,
+              unitPrice: totalAmount,
+            },
+          ],
         }),
       },
     );

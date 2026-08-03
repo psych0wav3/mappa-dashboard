@@ -48,6 +48,10 @@ type ServicePlanListProps = {
     plan: ServicePlan,
     status: "ACTIVE" | "PAUSED",
   ) => void;
+
+  onGenerateOrders?: (
+    plan: ServicePlan,
+  ) => void;
 };
 
 const PAGE_SIZE_OPTIONS = [
@@ -127,6 +131,7 @@ export default function ServicePlanList({
   onClearSearch,
   onCreateFirst,
   onStatusChange,
+  onGenerateOrders,
 }: ServicePlanListProps) {
   const [
     currentPage,
@@ -234,23 +239,40 @@ export default function ServicePlanList({
       plan.status === "ACTIVE"
     ) {
       return (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={pending}
-          onClick={() =>
-            onStatusChange(
-              plan,
-              "PAUSED",
-            )
-          }
-          className="h-8 rounded-lg px-3 text-xs"
-        >
-          <CirclePause className="mr-1.5 h-3.5 w-3.5" />
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={pending}
+            onClick={() =>
+              onGenerateOrders?.(
+                plan,
+              )
+            }
+            className="h-8 rounded-lg px-3 text-xs"
+          >
+            Gerar visitas
+          </Button>
 
-          Pausar
-        </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={pending}
+            onClick={() =>
+              onStatusChange(
+                plan,
+                "PAUSED",
+              )
+            }
+            className="h-8 rounded-lg px-3 text-xs"
+          >
+            <CirclePause className="mr-1.5 h-3.5 w-3.5" />
+
+            Pausar
+          </Button>
+        </div>
       );
     }
 

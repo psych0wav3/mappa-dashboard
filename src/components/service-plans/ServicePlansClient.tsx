@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 import {
   createServicePlan,
+  generateServicePlanOrders,
   updateServicePlanStatus,
   type SaveServicePlanInput,
   type ServicePlan,
@@ -319,6 +320,31 @@ export default function ServicePlansClient({
     });
   }
 
+  function handleGenerateOrders(
+    plan: ServicePlan,
+  ) {
+    startTransition(async () => {
+      try {
+        const result =
+          await generateServicePlanOrders(
+            plan.id,
+          );
+
+        toast.success(
+          result.ordersGenerated > 0
+            ? `${result.ordersGenerated} visita(s) gerada(s).`
+            : "Nenhuma visita nova para gerar no período.",
+        );
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível gerar as visitas.",
+        );
+      }
+    });
+  }
+
   if (showForm) {
     return (
       <div className="space-y-5 pb-8">
@@ -426,6 +452,9 @@ export default function ServicePlansClient({
         onCreateFirst={openForm}
         onStatusChange={
           handleStatusChange
+        }
+        onGenerateOrders={
+          handleGenerateOrders
         }
       />
     </div>

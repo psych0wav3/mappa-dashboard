@@ -534,51 +534,8 @@ export default function NewWorkOrderClient({
         serviceType,
       )}.`;
 
-    const itemsText = items
-      .map((item, index) => {
-        const quantity =
-          Math.max(
-            1,
-            Number(
-              item.quantity || 1,
-            ),
-          );
-
-        const unitPrice =
-          parseMoney(
-            item.unitPrice,
-          );
-
-        return [
-          `${index + 1}. ${
-            ITEM_TYPE_LABELS[
-              item.type
-            ]
-          } — ${item.description.trim()}`,
-
-          `Quantidade: ${quantity}`,
-
-          `Valor unitário: ${formatCurrency(
-            unitPrice,
-          )}`,
-
-          `Subtotal: ${formatCurrency(
-            itemTotal(item),
-          )}`,
-        ].join(" | ");
-      })
-      .join("\n");
-
     return [
       serviceText,
-
-      [
-        "Itens da ordem de serviço:",
-        itemsText,
-        `Total da OS: ${formatCurrency(
-          totalAmount,
-        )}`,
-      ].join("\n"),
 
       description.trim()
         ? `Observações:\n${description.trim()}`
@@ -642,6 +599,20 @@ export default function NewWorkOrderClient({
     const finalDescription =
       buildFinalDescription();
 
+    const payloadItems = items.map(
+      (item) => ({
+        type: item.type,
+        description: item.description.trim(),
+        quantity: Math.max(
+          1,
+          Number(item.quantity || 1),
+        ),
+        unitPrice: parseMoney(
+          item.unitPrice,
+        ),
+      }),
+    );
+
     startTransition(async () => {
       try {
         await createAdminWorkOrder({
@@ -657,17 +628,21 @@ export default function NewWorkOrderClient({
           description:
             finalDescription,
 
+          notes:
+            description.trim() ||
+            undefined,
+
           scheduledDate,
 
-          totalAmount,
+          items: payloadItems,
         });
 
         toast.success(
-          "Ordem de serviço criada com sucesso.",
+          "Ordem enviada para aprovação do cliente.",
         );
 
         router.push(
-          "/workorders?created=1"
+          "/workorders/customer-approval",
         );
 
         router.refresh();

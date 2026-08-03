@@ -438,8 +438,18 @@ function buildCreatePayload(
     endDate:
       toApiDate(input.endDate),
 
-    totalAmount:
-      Number(input.totalAmount),
+    items: [
+      {
+        type: "SERVICE",
+        description:
+          input.title.trim() ||
+          "Mensalidade da rotina",
+        quantity: 1,
+        unitPrice: Number(
+          input.totalAmount,
+        ),
+      },
+    ],
 
     checklistTemplateId:
       input.checklistTemplateId ||
@@ -664,4 +674,39 @@ export async function updateServicePlanStatus(
   revalidatePath("/routes/builder");
 
   return normalizePlan(response);
+}
+
+export async function generateServicePlanOrders(
+  servicePlanId: string,
+) {
+  if (!servicePlanId) {
+    throw new Error(
+      "Rotina não informada.",
+    );
+  }
+
+  const companyId =
+    await getCompanyId();
+
+  const response =
+    await mappaFetch<{
+      ordersGenerated?: number;
+    }>(
+      `/api/companies/${companyId}/service-plans/${servicePlanId}/generate-orders`,
+      {
+        method: "POST",
+      },
+    );
+
+  revalidatePath("/service-plans");
+  revalidatePath("/workorders");
+  revalidatePath("/workorders/approved");
+  revalidatePath("/routes/builder");
+  revalidatePath("/routes/dashboard");
+
+  return {
+    ordersGenerated: Number(
+      response.ordersGenerated || 0,
+    ),
+  };
 }

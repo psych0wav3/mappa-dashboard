@@ -208,6 +208,13 @@ export function workOrderOriginLabel(
 export function workOrderDisplayCode(
   order: WorkOrderListItem,
 ) {
+  if (
+    typeof order.orderNumber === "number" &&
+    Number.isFinite(order.orderNumber)
+  ) {
+    return `OS ${order.orderNumber}`;
+  }
+
   const code = String(
     order.code ||
       order.id ||
@@ -218,7 +225,44 @@ export function workOrderDisplayCode(
     return "OS";
   }
 
+  if (/^\d+$/.test(code)) {
+    return `OS ${code}`;
+  }
+
   return `OS ${code
     .slice(0, 8)
     .toUpperCase()}`;
+}
+
+export function resolveWorkOrderItems(
+  order: WorkOrderListItem,
+  parsed: ParsedWorkOrderDescription,
+): ParsedWorkOrderItem[] {
+  if (
+    Array.isArray(order.items) &&
+    order.items.length > 0
+  ) {
+    return order.items.map(
+      (item, index) => ({
+        index: index + 1,
+        type: item.type,
+        description: item.description,
+        quantity: String(item.quantity),
+        unitPrice: Number(
+          item.unitPrice,
+        ).toLocaleString("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+        }),
+        subtotal: Number(
+          item.subtotal,
+        ).toLocaleString("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+        }),
+      }),
+    );
+  }
+
+  return parsed.items;
 }
