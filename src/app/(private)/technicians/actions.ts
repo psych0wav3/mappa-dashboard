@@ -58,6 +58,19 @@ async function getAuthFromCookies() {
   }
 
   if (!companyId) {
+    const role = cookieStore.get(
+      "mappa_role",
+    )?.value;
+
+    if (
+      role === "SUPER_ADMIN" ||
+      role === "SUPERADMIN"
+    ) {
+      throw new Error(
+        "Selecione uma empresa no topo para continuar.",
+      );
+    }
+
     throw new Error(
       "Empresa não encontrada. Faça login novamente.",
     );

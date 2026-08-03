@@ -16,6 +16,7 @@ import {
   getDashboardMetrics,
   type DashboardMetrics,
 } from "./actions";
+import { SUPER_ADMIN_COMPANY_REQUIRED } from "@/lib/mappa/api";
 
 export const dynamic =
   "force-dynamic";
@@ -80,14 +81,23 @@ async function loadMetrics() {
       throw error;
     }
 
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Não foi possível carregar o painel.";
+
+    if (message === SUPER_ADMIN_COMPANY_REQUIRED) {
+      return {
+        metrics: emptyDashboardMetrics,
+        error: null,
+      };
+    }
+
     return {
       metrics:
         emptyDashboardMetrics,
 
-      error:
-        error instanceof Error
-          ? error.message
-          : "Não foi possível carregar o painel.",
+      error: message,
     };
   }
 }

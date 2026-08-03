@@ -6,7 +6,9 @@ import {
 const SESSION_COOKIES = [
   "mappa_access_token",
   "mappa_company_id",
+  "mappa_company_name",
   "mappa_roles",
+  "mappa_role",
   "mappa_user",
 ] as const;
 

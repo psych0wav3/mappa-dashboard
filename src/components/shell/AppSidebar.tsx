@@ -561,7 +561,15 @@ function SidebarContent({
       );
 
       localStorage.removeItem(
+        "mappa_company_name",
+      );
+
+      localStorage.removeItem(
         "mappa_roles",
+      );
+
+      localStorage.removeItem(
+        "mappa_role",
       );
 
       document.cookie =
@@ -569,6 +577,9 @@ function SidebarContent({
 
       document.cookie =
         "mappa_company_id=; path=/; max-age=0; SameSite=Lax";
+
+      document.cookie =
+        "mappa_role=; path=/; max-age=0; SameSite=Lax";
 
       router.push("/login");
       router.refresh();

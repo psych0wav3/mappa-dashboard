@@ -32,15 +32,19 @@ import { Label } from "@/components/ui/label";
 const SESSION_STORAGE_KEYS = [
   "mappa_access_token",
   "mappa_company_id",
+  "mappa_company_name",
   "mappa_user",
   "mappa_roles",
+  "mappa_role",
 ] as const;
 
 const SESSION_COOKIE_KEYS = [
   "mappa_access_token",
   "mappa_company_id",
+  "mappa_company_name",
   "mappa_user",
   "mappa_roles",
+  "mappa_role",
 ] as const;
 
 function clearLocalSession() {
@@ -203,15 +207,38 @@ export default function LoginPage() {
         data.accessToken ??
         data.AccessToken;
 
+      const user =
+        data.user ?? data.User;
+
+      const roles =
+        user?.roles ??
+        user?.Roles ??
+        data.roles ??
+        data.Roles ??
+        [];
+
+      const primaryRole = roles[0];
+
+      const roleRaw =
+        primaryRole?.role ??
+        primaryRole?.Role ??
+        "";
+
+      const role = String(roleRaw)
+        .replace(
+          /([a-z])([A-Z])/g,
+          "$1_$2",
+        )
+        .toUpperCase();
+
+      const isSuperAdmin =
+        role === "SUPER_ADMIN" ||
+        role === "SUPERADMIN";
+
       const companyId =
-        data.roles?.[0]
-          ?.companyId ??
-        data.roles?.[0]
-          ?.CompanyId ??
-        data.user?.roles?.[0]
-          ?.companyId ??
-        data.user?.roles?.[0]
-          ?.CompanyId;
+        primaryRole?.companyId ??
+        primaryRole?.CompanyId ??
+        null;
 
       if (!accessToken) {
         throw new Error(
@@ -219,7 +246,7 @@ export default function LoginPage() {
         );
       }
 
-      if (!companyId) {
+      if (!companyId && !isSuperAdmin) {
         throw new Error(
           "Empresa não encontrada para este usuário.",
         );
@@ -231,25 +258,21 @@ export default function LoginPage() {
       );
 
       localStorage.setItem(
-        "mappa_company_id",
-        companyId,
-      );
-
-      localStorage.setItem(
         "mappa_user",
-        JSON.stringify(
-          data.user ??
-            data.User,
-        ),
+        JSON.stringify(user),
       );
 
       localStorage.setItem(
         "mappa_roles",
-        JSON.stringify(
-          data.roles ??
-            data.Roles,
-        ),
+        JSON.stringify(roles),
       );
+
+      if (role) {
+        localStorage.setItem(
+          "mappa_role",
+          role,
+        );
+      }
 
       document.cookie =
         `mappa_access_token=${accessToken}; ` +
@@ -257,22 +280,49 @@ export default function LoginPage() {
         "Max-Age=86400; " +
         "SameSite=Lax";
 
-      document.cookie =
-        `mappa_company_id=${companyId}; ` +
-        "Path=/; " +
-        "Max-Age=86400; " +
-        "SameSite=Lax";
+      if (role) {
+        document.cookie =
+          `mappa_role=${encodeURIComponent(role)}; ` +
+          "Path=/; " +
+          "Max-Age=86400; " +
+          "SameSite=Lax";
+      }
+
+      if (companyId) {
+        localStorage.setItem(
+          "mappa_company_id",
+          companyId,
+        );
+
+        document.cookie =
+          `mappa_company_id=${companyId}; ` +
+          "Path=/; " +
+          "Max-Age=86400; " +
+          "SameSite=Lax";
+      } else {
+        localStorage.removeItem(
+          "mappa_company_id",
+        );
+        localStorage.removeItem(
+          "mappa_company_name",
+        );
+        document.cookie =
+          "mappa_company_id=; Path=/; Max-Age=0; SameSite=Lax";
+      }
 
       toast.success(
         "Bem-vindo!",
         {
-          description:
-            "Login realizado com sucesso.",
+          description: isSuperAdmin
+            ? "Selecione uma empresa no topo para continuar."
+            : "Login realizado com sucesso.",
         },
       );
 
       window.location.replace(
-        "/dashboard",
+        isSuperAdmin && !companyId
+          ? "/dashboard?needCompany=1"
+          : "/dashboard",
       );
     } catch (error) {
       toast.error(

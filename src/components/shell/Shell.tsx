@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { Suspense, useLayoutEffect } from "react";
 import AppSidebar from "./AppSidebar";
 import AppTopbar from "./AppTopbar";
-import { useLayoutEffect } from "react";
+import CompanyRequiredBanner from "./CompanyRequiredBanner";
 
 const WIDTH_EXPANDED = 280;
 const WIDTH_COLLAPSED = 80;
@@ -64,6 +65,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         style={{ paddingLeft: "var(--sidebar-w)" }}
       >
         <div className="mx-auto max-w-[1400px] p-4 sm:p-6">
+          <Suspense fallback={null}>
+            <CompanyRequiredBanner />
+          </Suspense>
           {children}
         </div>
       </main>

@@ -1,6 +1,12 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
+import {
+  isSuperAdminRole,
+  normalizeRole,
+  SESSION_KEYS,
+} from "./session";
+
 const API_URL =
   process.env.API_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
@@ -15,7 +21,8 @@ type ApiError = {
 
 type AuthCookies = {
   token: string;
-  companyId: string;
+  companyId: string | null;
+  role: string | null;
 };
 
 type SessionReason =
@@ -34,18 +41,20 @@ function redirectToSessionLogout(
 }
 
 export async function getAuthFromCookies(): Promise<AuthCookies> {
-  const cookieStore =
-    await cookies();
+  const cookieStore = await cookies();
 
-  const token =
-    cookieStore.get(
-      "mappa_access_token",
-    )?.value;
+  const token = cookieStore.get(
+    SESSION_KEYS.token,
+  )?.value;
 
   const companyId =
-    cookieStore.get(
-      "mappa_company_id",
-    )?.value;
+    cookieStore.get(SESSION_KEYS.companyId)
+      ?.value ?? null;
+
+  const role = normalizeRole(
+    cookieStore.get(SESSION_KEYS.role)?.value ??
+      "",
+  );
 
   if (!token) {
     redirectToSessionLogout(
@@ -53,23 +62,34 @@ export async function getAuthFromCookies(): Promise<AuthCookies> {
     );
   }
 
-  if (!companyId) {
-    redirectToSessionLogout(
-      "company-required",
-    );
-  }
-
   return {
     token,
     companyId,
+    role: role || null,
   };
 }
 
+export async function getAccessToken() {
+  const { token } = await getAuthFromCookies();
+  return token;
+}
+
+export const SUPER_ADMIN_COMPANY_REQUIRED =
+  "Selecione uma empresa no topo para continuar.";
+
 export async function getCompanyId() {
-  const { companyId } =
+  const { companyId, role } =
     await getAuthFromCookies();
 
-  return companyId;
+  if (companyId) {
+    return companyId;
+  }
+
+  if (isSuperAdminRole(role)) {
+    throw new Error(SUPER_ADMIN_COMPANY_REQUIRED);
+  }
+
+  redirectToSessionLogout("company-required");
 }
 
 function formatValidationErrors(
@@ -86,157 +106,83 @@ function formatValidationErrors(
           typeof item === "object" &&
           item !== null
         ) {
-          const record =
-            item as Record<
-              string,
-              unknown
-            >;
+          const record = item as Record<
+            string,
+            unknown
+          >;
 
           const message =
             record.message ||
             record.errorMessage;
 
-          if (
-            typeof message ===
-            "string"
-          ) {
+          if (typeof message === "string") {
             return message;
           }
         }
 
-        if (
-          typeof item === "string"
-        ) {
-          return item;
-        }
-
-        try {
-          return JSON.stringify(item);
-        } catch {
-          return String(item);
-        }
+        return String(item);
       })
       .filter(Boolean)
-      .join(" | ");
+      .join(" ");
   }
 
-  if (
-    typeof errors === "object"
-  ) {
-    return Object.entries(
-      errors as Record<
-        string,
-        unknown
-      >,
+  if (typeof errors === "object") {
+    return Object.values(
+      errors as Record<string, unknown>,
     )
-      .map(
-        ([
-          field,
-          messages,
-        ]) => {
-          if (
-            Array.isArray(messages)
-          ) {
-            return `${field}: ${messages.join(
-              ", ",
-            )}`;
-          }
-
-          if (
-            typeof messages ===
-            "string"
-          ) {
-            return `${field}: ${messages}`;
-          }
-
-          try {
-            return `${field}: ${JSON.stringify(
-              messages,
-            )}`;
-          } catch {
-            return `${field}: ${String(
-              messages,
-            )}`;
-          }
-        },
-      )
-      .join(" | ");
+      .flat()
+      .map(String)
+      .join(" ");
   }
 
   return String(errors);
 }
 
-export function parseApiError(
+export async function parseApiError(
   status: number,
   text: string,
 ) {
-  if (status === 403) {
-    return (
-      "Acesso negado. Esta ação exige " +
-      "permissão de administrador da empresa."
-    );
-  }
-
-  const lowerText = String(
-    text || "",
-  ).toLowerCase();
-
-  if (
-    lowerText.includes(
-      "dateonly",
-    ) ||
-    lowerText.includes(
-      "cannot be used as a parameter value",
-    )
-  ) {
-    return (
-      "Erro no backend com campo DateOnly. " +
-      "O backend precisa converter a data " +
-      "antes de gravar."
-    );
-  }
-
-  if (
-    lowerText.includes(
-      "relation",
-    ) ||
-    lowerText.includes(
-      "does not exist",
-    )
-  ) {
-    return (
-      "Erro no backend ou banco de dados: " +
-      "uma estrutura esperada não foi encontrada."
-    );
-  }
-
   try {
-    const error =
-      JSON.parse(
-        text,
-      ) as ApiError;
+    const json = JSON.parse(text) as ApiError;
 
-    const validationDetails =
-      formatValidationErrors(
-        error.errors,
-      );
+    if (Array.isArray(json.errors)) {
+      const first = json.errors[0] as
+        | Record<string, unknown>
+        | string
+        | undefined;
+
+      if (typeof first === "string") {
+        return first;
+      }
+
+      if (
+        first &&
+        typeof first === "object" &&
+        typeof first.message === "string"
+      ) {
+        return first.message;
+      }
+
+      const formatted =
+        formatValidationErrors(json.errors);
+
+      if (formatted) {
+        return formatted;
+      }
+    }
 
     const message =
-      validationDetails ||
-      error.detail ||
-      error.title ||
-      error.message ||
-      JSON.stringify(error);
+      json.message ||
+      json.detail ||
+      json.title;
 
-    return `Erro ${status}: ${message}`;
+    if (typeof message === "string" && message) {
+      return message;
+    }
+
+    return `Erro ${status}: ${text || "Falha na API."}`;
   } catch {
-    return (
-      `Erro ${status}: ` +
-      `${
-        text ||
-        "Falha na API."
-      }`
-    );
+    return `Erro ${status}: ${text || "Falha na API."}`;
   }
 }
 
@@ -244,51 +190,34 @@ export async function mappaFetch<T>(
   path: string,
   options?: RequestInit,
 ): Promise<T> {
-  const { token } =
-    await getAuthFromCookies();
+  const { token } = await getAuthFromCookies();
 
   const response = await fetch(
     `${API_URL}${path}`,
     {
       ...options,
-
       cache: "no-store",
-
       headers: {
-        "Content-Type":
-          "application/json",
-
-        Authorization:
-          `Bearer ${token}`,
-
-        ...(options?.headers ||
-          {}),
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        ...(options?.headers || {}),
       },
     },
   );
 
   if (response.status === 401) {
-    redirectToSessionLogout(
-      "session-expired",
-    );
+    redirectToSessionLogout("session-expired");
   }
 
-  const text =
-    await response.text();
+  const text = await response.text();
 
   if (!response.ok) {
     throw new Error(
-      parseApiError(
-        response.status,
-        text,
-      ),
+      await parseApiError(response.status, text),
     );
   }
 
-  if (
-    response.status === 204 ||
-    !text
-  ) {
+  if (response.status === 204 || !text) {
     return null as T;
   }
 
@@ -309,45 +238,28 @@ export function extractItems<T>(
   }
 
   if (
-    typeof payload !== "object" ||
-    payload === null
+    payload &&
+    typeof payload === "object" &&
+    "items" in payload &&
+    Array.isArray(
+      (payload as { items: unknown }).items,
+    )
   ) {
-    return [];
+    return (payload as { items: T[] }).items;
   }
 
-  const record =
-    payload as Record<
-      string,
-      unknown
-    >;
-
-  const possibleKeys = [
-    "items",
-    "data",
-    "templates",
-    "measurementFields",
-    "measurementTemplates",
-    "servicePlans",
-    "plans",
-    "routes",
-    "serviceOrders",
-    "orders",
-    "customers",
-    "employees",
-    "fields",
-    "checklistTemplates",
-  ];
-
-  for (
-    const key of possibleKeys
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "Items" in payload &&
+    Array.isArray(
+      (payload as { Items: unknown }).Items,
+    )
   ) {
-    const value =
-      record[key];
-
-    if (Array.isArray(value)) {
-      return value as T[];
-    }
+    return (payload as { Items: T[] }).Items;
   }
 
   return [];
 }
+
+export { API_URL };
