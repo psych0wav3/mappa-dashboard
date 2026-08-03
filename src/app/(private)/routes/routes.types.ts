@@ -23,6 +23,8 @@ export type ApiEmployee = {
 
 export type ApiServiceOrder = {
   id: string;
+  orderNumber?: number | null;
+  origin?: string | null;
   companyId?: string | null;
   customerId?: string | null;
   customerName?: string | null;
@@ -63,6 +65,7 @@ export type ApiRouteDetailsResponse =
     serviceOrders?: Array<{
       serviceOrderId?: string | null;
       id?: string | null;
+      orderNumber?: number | null;
       title?: string | null;
       customerId?: string | null;
       customerName?: string | null;
@@ -94,6 +97,7 @@ export type RouteWeekday =
 
 export type AvailableRouteWorkOrder = {
   id: string;
+  orderNumber?: number | null;
   customerId: string;
   customerName: string;
   customerAddressId?: string | null;
@@ -146,6 +150,7 @@ export type RouteDashboardItem = {
   serviceOrders: Array<{
     id: string;
     serviceOrderId: string;
+    orderNumber?: number | null;
     title: string;
     customerName: string;
     address: string;
@@ -156,5 +161,7 @@ export type RouteDashboardItem = {
     frequencyLabel?: string | null;
     weekdaysLabel?: string | null;
     totalAmount?: number;
+    lat?: number;
+    lng?: number;
   }>;
 };

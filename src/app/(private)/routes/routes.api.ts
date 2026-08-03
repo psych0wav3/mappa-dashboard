@@ -61,6 +61,16 @@ export async function fetchWaitingExecutionServiceOrders(): Promise<
 
           id: details.id || summary.id,
 
+          orderNumber:
+            details.orderNumber ??
+            summary.orderNumber ??
+            null,
+
+          origin:
+            details.origin ||
+            summary.origin ||
+            null,
+
           customerId:
             details.customerId ||
             summary.customerId ||
@@ -122,7 +132,13 @@ export async function fetchWaitingExecutionServiceOrders(): Promise<
     }),
   );
 
-  return hydratedOrders;
+  return hydratedOrders.filter((order) => {
+    const origin = String(order.origin || "")
+      .replace(/[_\s-]/g, "")
+      .toUpperCase();
+
+    return origin !== "SERVICEPLANAPPROVAL";
+  });
 }
 
 export async function fetchRoutes(params?: {

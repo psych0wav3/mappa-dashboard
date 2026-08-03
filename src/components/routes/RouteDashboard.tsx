@@ -15,12 +15,15 @@ import {
   Search,
   UserRound,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type {
-  RouteDashboardItem,
-  RouteTechnicianOption,
+import MapCanvas from "@/components/routes/MapCanvas";
+import {
+  changeRouteEmployee,
+  type RouteDashboardItem,
+  type RouteTechnicianOption,
 } from "@/app/(private)/routes/actions";
 
 const WEEKDAYS = [
@@ -171,6 +174,13 @@ export default function RouteDashboard({
   );
   const [selectedDate, setSelectedDate] = React.useState(todayIso);
   const [selectedRouteId, setSelectedRouteId] = React.useState("");
+  const [pendingEmployee, startEmployeeTransition] =
+    React.useTransition();
+  const [routes, setRoutes] = React.useState(initialRoutes);
+
+  React.useEffect(() => {
+    setRoutes(initialRoutes);
+  }, [initialRoutes]);
 
   const weekDays = React.useMemo(
     () => getWeekDays(weekStartDate),
@@ -180,7 +190,7 @@ export default function RouteDashboard({
   const selectedDayRoutes = React.useMemo(() => {
     const term = q.trim().toLowerCase();
 
-    return initialRoutes
+    return routes
       .filter((route) => sameDate(route.routeDate, selectedDate))
       .filter((route) => {
         if (!technicianId) return true;
@@ -206,7 +216,7 @@ export default function RouteDashboard({
           .includes(term);
       })
       .sort((a, b) => a.employeeName.localeCompare(b.employeeName, "pt-BR"));
-  }, [initialRoutes, selectedDate, technicianId, q]);
+  }, [routes, selectedDate, technicianId, q]);
 
   const selectedRoute = React.useMemo(
     () =>
@@ -238,7 +248,7 @@ export default function RouteDashboard({
   const routesByDate = React.useMemo(() => {
     const map = new Map<string, RouteDashboardItem[]>();
 
-    for (const route of initialRoutes) {
+    for (const route of routes) {
       const date = String(route.routeDate || "").slice(0, 10);
 
       if (!date) continue;
@@ -249,7 +259,7 @@ export default function RouteDashboard({
     }
 
     return map;
-  }, [initialRoutes]);
+  }, [routes]);
 
   const totalRoutesInDay = selectedDayRoutes.length;
 
@@ -282,6 +292,72 @@ export default function RouteDashboard({
     setSelectedDate(next);
     setSelectedRouteId("");
   }
+
+  function handleChangeEmployee(employeeUserId: string) {
+    if (!selectedRoute || !employeeUserId) {
+      return;
+    }
+
+    if (employeeUserId === selectedRoute.employeeUserId) {
+      return;
+    }
+
+    const technician = technicians.find(
+      (item) => item.id === employeeUserId,
+    );
+
+    startEmployeeTransition(async () => {
+      try {
+        await changeRouteEmployee({
+          routeId: selectedRoute.id,
+          employeeUserId,
+        });
+
+        setRoutes((current) =>
+          current.map((route) =>
+            route.id === selectedRoute.id
+              ? {
+                  ...route,
+                  employeeUserId,
+                  employeeName:
+                    technician?.name ||
+                    route.employeeName,
+                }
+              : route,
+          ),
+        );
+
+        toast.success(
+          "Técnico da rota atualizado.",
+        );
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível atualizar o técnico.",
+        );
+      }
+    });
+  }
+
+  const mapMarkers = React.useMemo(() => {
+    if (!selectedRoute) {
+      return [];
+    }
+
+    return selectedRoute.serviceOrders
+      .filter(
+        (order) =>
+          Number(order.lat || 0) !== 0 &&
+          Number(order.lng || 0) !== 0,
+      )
+      .map((order, index) => ({
+        id: order.id,
+        lat: Number(order.lat),
+        lng: Number(order.lng),
+        label: String(index + 1),
+      }));
+  }, [selectedRoute]);
 
   return (
     <div className="space-y-5">
@@ -555,14 +631,35 @@ export default function RouteDashboard({
                     </span>
 
                     <span className="inline-flex items-center gap-1.5">
-                      <UserRound className="h-4 w-4" />
-                      {selectedRoute.employeeName}
-                    </span>
-
-                    <span className="inline-flex items-center gap-1.5">
                       <Clock className="h-4 w-4" />
                       Status atualizado ao carregar/atualizar
                     </span>
+                  </div>
+
+                  <div className="mt-3 max-w-sm">
+                    <label className="mb-1 block text-xs font-medium text-slate-600">
+                      Técnico responsável
+                    </label>
+
+                    <select
+                      value={selectedRoute.employeeUserId}
+                      disabled={pendingEmployee}
+                      onChange={(event) =>
+                        handleChangeEmployee(
+                          event.target.value,
+                        )
+                      }
+                      className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                    >
+                      {technicians.map((technician) => (
+                        <option
+                          key={technician.id}
+                          value={technician.id}
+                        >
+                          {technician.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
@@ -594,8 +691,17 @@ export default function RouteDashboard({
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                             <div className="min-w-0">
-                              <div className="truncate text-sm font-semibold text-slate-900">
-                                {order.customerName}
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className="truncate text-sm font-semibold text-slate-900">
+                                  {order.customerName}
+                                </div>
+
+                                {typeof order.orderNumber ===
+                                  "number" && (
+                                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                                    OS {order.orderNumber}
+                                  </span>
+                                )}
                               </div>
 
                               <div className="mt-0.5 text-sm text-slate-700">
@@ -635,72 +741,78 @@ export default function RouteDashboard({
                     Mapa da rota
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Visualização ilustrativa dos pontos desta rota.
+                    {mapMarkers.length > 0
+                      ? `${mapMarkers.length} ponto(s) com localização.`
+                      : "Visualização ilustrativa dos pontos desta rota."}
                   </p>
                 </div>
 
-                <div className="relative h-[340px] overflow-hidden bg-[linear-gradient(135deg,#dff8e8_0%,#dff8e8_35%,#d8eefc_35%,#d8eefc_50%,#f4f9ff_50%,#f4f9ff_100%)]">
-                  <div className="absolute inset-0 opacity-40">
-                    <div className="absolute left-[4%] top-[20%] h-[2px] w-[92%] rotate-6 bg-slate-400" />
-                    <div className="absolute left-[8%] top-[70%] h-[2px] w-[86%] -rotate-6 bg-slate-400" />
-                    <div className="absolute left-[22%] top-0 h-full w-[2px] rotate-12 bg-slate-400" />
-                    <div className="absolute left-[58%] top-0 h-full w-[2px] -rotate-12 bg-slate-400" />
-                  </div>
+                {mapMarkers.length > 0 ? (
+                  <MapCanvas height={340} markers={mapMarkers} />
+                ) : (
+                  <div className="relative h-[340px] overflow-hidden bg-[linear-gradient(135deg,#dff8e8_0%,#dff8e8_35%,#d8eefc_35%,#d8eefc_50%,#f4f9ff_50%,#f4f9ff_100%)]">
+                    <div className="absolute inset-0 opacity-40">
+                      <div className="absolute left-[4%] top-[20%] h-[2px] w-[92%] rotate-6 bg-slate-400" />
+                      <div className="absolute left-[8%] top-[70%] h-[2px] w-[86%] -rotate-6 bg-slate-400" />
+                      <div className="absolute left-[22%] top-0 h-full w-[2px] rotate-12 bg-slate-400" />
+                      <div className="absolute left-[58%] top-0 h-full w-[2px] -rotate-12 bg-slate-400" />
+                    </div>
 
-                  {selectedRoute.serviceOrders.map((order, index) => {
-                    const positions = [
-                      { left: "47%", top: "46%" },
-                      { left: "55%", top: "36%" },
-                      { left: "39%", top: "58%" },
-                      { left: "66%", top: "54%" },
-                      { left: "34%", top: "36%" },
-                      { left: "51%", top: "68%" },
-                    ];
+                    {selectedRoute.serviceOrders.map((order, index) => {
+                      const positions = [
+                        { left: "47%", top: "46%" },
+                        { left: "55%", top: "36%" },
+                        { left: "39%", top: "58%" },
+                        { left: "66%", top: "54%" },
+                        { left: "34%", top: "36%" },
+                        { left: "51%", top: "68%" },
+                      ];
 
-                    const pos = positions[index % positions.length];
+                      const pos = positions[index % positions.length];
 
-                    return (
-                      <div
-                        key={order.id}
-                        className="absolute"
-                        style={{
-                          left: pos.left,
-                          top: pos.top,
-                          transform: "translate(-50%, -50%)",
-                        }}
-                        title={order.customerName}
-                      >
-                        <div className="group relative">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-sky-600 text-xs font-bold text-white shadow-lg">
-                            {index + 1}
-                          </div>
-
-                          <div className="pointer-events-none absolute left-1/2 top-11 z-10 hidden w-56 -translate-x-1/2 rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-lg group-hover:block">
-                            <div className="font-semibold text-slate-900">
-                              {order.customerName}
+                      return (
+                        <div
+                          key={order.id}
+                          className="absolute"
+                          style={{
+                            left: pos.left,
+                            top: pos.top,
+                            transform: "translate(-50%, -50%)",
+                          }}
+                          title={order.customerName}
+                        >
+                          <div className="group relative">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-sky-600 text-xs font-bold text-white shadow-lg">
+                              {index + 1}
                             </div>
 
-                            <div className="mt-1 text-slate-600">
-                              {order.title}
-                            </div>
+                            <div className="pointer-events-none absolute left-1/2 top-11 z-10 hidden w-56 -translate-x-1/2 rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-lg group-hover:block">
+                              <div className="font-semibold text-slate-900">
+                                {order.customerName}
+                              </div>
 
-                            <div className="mt-1 truncate text-slate-500">
-                              {order.address}
+                              <div className="mt-1 text-slate-600">
+                                {order.title}
+                              </div>
+
+                              <div className="mt-1 truncate text-slate-500">
+                                {order.address}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
 
-                  {selectedRoute.serviceOrders.length === 0 && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="rounded-xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-600 shadow-sm">
-                        Nenhum ponto para exibir no mapa.
+                    {selectedRoute.serviceOrders.length === 0 && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="rounded-xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-600 shadow-sm">
+                          Nenhum ponto para exibir no mapa.
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -98,6 +98,11 @@ export function normalizeWorkOrderForRoute(
   return {
     id: order.id,
 
+    orderNumber:
+      typeof order.orderNumber === "number"
+        ? order.orderNumber
+        : null,
+
     customerId:
       order.customerId || "",
 
@@ -187,6 +192,11 @@ export function normalizeRouteDetails(
           item.id ||
           "",
 
+        orderNumber:
+          typeof item.orderNumber === "number"
+            ? item.orderNumber
+            : null,
+
         title:
           item.title ||
           "Ordem de serviço",
@@ -224,6 +234,9 @@ export function normalizeRouteDetails(
 
         totalAmount:
           Number(item.totalAmount || 0),
+
+        lat: Number(item.latitude || 0),
+        lng: Number(item.longitude || 0),
       };
     })
     .sort(

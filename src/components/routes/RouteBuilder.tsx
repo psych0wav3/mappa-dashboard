@@ -18,6 +18,7 @@ import {
   Route,
   Save,
   Search,
+  Sparkles,
   Trash2,
   UserRound,
 } from "lucide-react";
@@ -25,6 +26,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import MapCanvas from "@/components/routes/MapCanvas";
 
 import {
   createRouteFromPlanner,
@@ -129,6 +131,12 @@ function AvailableOrderCard({
             <h3 className="text-sm font-bold text-slate-900">
               {order.customerName}
             </h3>
+
+            {typeof order.orderNumber === "number" && (
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                OS {order.orderNumber}
+              </span>
+            )}
 
             <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700">
               Pronta para rota
@@ -465,6 +473,72 @@ export default function RouteBuilder({
     });
   }
 
+  async function handleOptimizeSequence() {
+    const stops = selectedOrders.filter(
+      (order) => order.hasCoordinates,
+    );
+
+    if (stops.length < 2) {
+      toast.error(
+        "É preciso ao menos 2 paradas com coordenadas para otimizar.",
+      );
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        "/api/routes/optimize",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            startTime: "08:00",
+            stops: stops.map((order) => ({
+              id: order.id,
+              lat: order.lat,
+              lng: order.lng,
+              durationMin: 45,
+            })),
+          }),
+        },
+      );
+
+      const data = (await response.json()) as {
+        order?: string[];
+        error?: string;
+      };
+
+      if (!response.ok || !data.order?.length) {
+        throw new Error(
+          data.error ||
+            "Não foi possível otimizar a sequência.",
+        );
+      }
+
+      const withoutCoords = selectedIds.filter(
+        (id) =>
+          !stops.some((stop) => stop.id === id),
+      );
+
+      setSelectedIds([
+        ...data.order,
+        ...withoutCoords,
+      ]);
+
+      toast.success(
+        "Sequência otimizada com base na localização.",
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível otimizar a sequência.",
+      );
+    }
+  }
+
   function handleSubmit() {
     if (!employeeUserId) {
       toast.error(
@@ -756,12 +830,28 @@ export default function RouteBuilder({
                 </div>
               </div>
 
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
-                {selectedOrders.length}{" "}
-                {selectedOrders.length === 1
-                  ? "parada"
-                  : "paradas"}
-              </span>
+              <div className="flex shrink-0 flex-col items-end gap-2">
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                  {selectedOrders.length}{" "}
+                  {selectedOrders.length === 1
+                    ? "parada"
+                    : "paradas"}
+                </span>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 rounded-xl px-3 text-xs"
+                  onClick={handleOptimizeSequence}
+                  disabled={
+                    pending ||
+                    selectedWithCoordinates.length < 2
+                  }
+                >
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                  Otimizar
+                </Button>
+              </div>
             </div>
 
             <div className="mt-4 space-y-3">
@@ -830,62 +920,42 @@ export default function RouteBuilder({
             </div>
 
             <div className="relative min-h-[280px] overflow-hidden bg-slate-100">
-              <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(186,230,253,0.65)_0%,rgba(224,242,254,0.8)_45%,rgba(220,252,231,0.75)_45%,rgba(240,253,244,0.9)_100%)]" />
+              {selectedWithCoordinates.length > 0 ? (
+                <MapCanvas
+                  height={280}
+                  markers={selectedWithCoordinates.map(
+                    (order, index) => ({
+                      id: order.id,
+                      lat: order.lat,
+                      lng: order.lng,
+                      label: String(index + 1),
+                    }),
+                  )}
+                />
+              ) : (
+                <>
+                  <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(186,230,253,0.65)_0%,rgba(224,242,254,0.8)_45%,rgba(220,252,231,0.75)_45%,rgba(240,253,244,0.9)_100%)]" />
 
-              <div className="absolute inset-x-[12%] top-[28%] h-px rotate-6 bg-slate-300" />
-              <div className="absolute inset-x-[8%] bottom-[28%] h-px -rotate-6 bg-slate-300" />
-              <div className="absolute bottom-[8%] left-[36%] top-[5%] w-px rotate-6 bg-slate-300" />
+                  <div className="absolute inset-x-[12%] top-[28%] h-px rotate-6 bg-slate-300" />
+                  <div className="absolute inset-x-[8%] bottom-[28%] h-px -rotate-6 bg-slate-300" />
+                  <div className="absolute bottom-[8%] left-[36%] top-[5%] w-px rotate-6 bg-slate-300" />
 
-              {selectedWithCoordinates.length >
-              0 ? (
-                <div className="relative z-10 grid min-h-[280px] place-items-center p-6">
-                  <div className="w-full max-w-md rounded-2xl border border-white/70 bg-white/90 p-4 shadow-lg backdrop-blur">
-                    <h3 className="text-sm font-semibold text-slate-900">
-                      Paradas com localização
-                    </h3>
+                  <div className="relative z-10 grid min-h-[280px] place-items-center p-6">
+                    <div className="max-w-sm rounded-2xl border border-white/70 bg-white/90 px-5 py-4 text-center shadow-lg backdrop-blur">
+                      <MapPin className="mx-auto h-7 w-7 text-sky-600" />
 
-                    <div className="mt-3 space-y-2">
-                      {selectedWithCoordinates.map(
-                        (order, index) => (
-                          <div
-                            key={order.id}
-                            className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2"
-                          >
-                            <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-sky-600 text-xs font-bold text-white">
-                              {index + 1}
-                            </div>
+                      <p className="mt-2 text-sm font-semibold text-slate-700">
+                        Mapa aguardando localizações
+                      </p>
 
-                            <div className="min-w-0">
-                              <div className="truncate text-xs font-semibold text-slate-700">
-                                {order.customerName}
-                              </div>
-
-                              <div className="truncate text-[11px] text-slate-400">
-                                {order.address}
-                              </div>
-                            </div>
-                          </div>
-                        ),
-                      )}
+                      <p className="mt-1 text-xs leading-5 text-slate-400">
+                        Adicione ordens com latitude e
+                        longitude para visualizar os
+                        pontos geográficos.
+                      </p>
                     </div>
                   </div>
-                </div>
-              ) : (
-                <div className="relative z-10 grid min-h-[280px] place-items-center p-6">
-                  <div className="max-w-sm rounded-2xl border border-white/70 bg-white/90 px-5 py-4 text-center shadow-lg backdrop-blur">
-                    <MapPin className="mx-auto h-7 w-7 text-sky-600" />
-
-                    <p className="mt-2 text-sm font-semibold text-slate-700">
-                      Mapa aguardando localizações
-                    </p>
-
-                    <p className="mt-1 text-xs leading-5 text-slate-400">
-                      Adicione ordens com latitude e
-                      longitude para visualizar os
-                      pontos geográficos.
-                    </p>
-                  </div>
-                </div>
+                </>
               )}
             </div>
           </section>
