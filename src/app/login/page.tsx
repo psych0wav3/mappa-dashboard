@@ -133,29 +133,6 @@ export default function LoginPage() {
     searchParams,
   ]);
 
-  React.useEffect(() => {
-    if (
-      typeof window ===
-      "undefined"
-    ) {
-      return;
-    }
-
-    const { hash } =
-      window.location;
-
-    if (
-      hash &&
-      hash.includes(
-        "type=recovery",
-      )
-    ) {
-      router.replace(
-        `/reset-password${hash}`,
-      );
-    }
-  }, [router]);
-
   async function handleSubmit(
     event:
       React.FormEvent<HTMLFormElement>,

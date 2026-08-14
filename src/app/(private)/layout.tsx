@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import Shell from "@/components/shell/Shell";
+import PendingAgreementsGate from "@/components/agreements/PendingAgreementsGate";
 
 export const metadata = {
   title: "Aqua Mappa — Dashboard",
@@ -22,7 +23,9 @@ export default async function PrivateLayout({
 
   return (
     <div className="bg-neutral-50 min-h-screen">
-      <Shell>{children}</Shell>
+      <Shell>
+        <PendingAgreementsGate>{children}</PendingAgreementsGate>
+      </Shell>
     </div>
   );
 }

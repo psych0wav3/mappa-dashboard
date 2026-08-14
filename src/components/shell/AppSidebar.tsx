@@ -17,6 +17,7 @@ import {
   ChevronRight,
   ClipboardList,
   Cog,
+  FileText,
   LayoutDashboard,
   ListChecks,
   LogOut,
@@ -31,6 +32,10 @@ import {
 import LabelSlot from "./LabelSlot";
 import SidebarDropdown from "./SidebarDropdown";
 import { SidebarLink } from "./SidebarLink";
+import {
+  getClientRole,
+  isSuperAdminRole,
+} from "@/lib/mappa/session";
 
 const LS_KEY = "sidebar:collapsed";
 const WIDTH_EXPANDED = 280;
@@ -358,8 +363,32 @@ function SidebarContent({
     [],
   );
 
-  const settingsItems = useMemo(
-    () => [
+  const [planLabel, setPlanLabel] =
+    useState<string | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] =
+    useState(false);
+
+  useEffect(() => {
+    try {
+      const role = getClientRole() ?? "COMPANY_ADMIN";
+      setIsSuperAdmin(isSuperAdminRole(role));
+
+      const labels: Record<string, string> = {
+        SUPER_ADMIN: "Super Admin",
+        COMPANY_ADMIN: "Admin",
+        EMPLOYEE: "Funcionário",
+        CUSTOMER: "Cliente",
+      };
+
+      setPlanLabel(labels[role] ?? role);
+    } catch {
+      setPlanLabel(null);
+      setIsSuperAdmin(false);
+    }
+  }, []);
+
+  const settingsItems = useMemo(() => {
+    const items = [
       {
         href: "/account",
         label: "Meu perfil",
@@ -371,65 +400,27 @@ function SidebarContent({
         icon: Cog,
       },
       {
-        href:
-          "/settings/checklist-templates",
-        label:
-          "Checklists de Serviço",
+        href: "/settings/checklist-templates",
+        label: "Checklists de Serviço",
         icon: ListChecks,
       },
       {
-        href:
-          "/settings/measurement-templates",
-        label:
-          "Templates de Medição",
+        href: "/settings/measurement-templates",
+        label: "Templates de Medição",
         icon: CalendarClock,
       },
-    ],
-    [],
-  );
+    ];
 
-  const [planLabel, setPlanLabel] =
-    useState<string | null>(null);
-
-  useEffect(() => {
-    try {
-      const raw =
-        localStorage.getItem(
-          "mappa_user",
-        );
-
-      if (!raw) {
-        return;
-      }
-
-      const user = JSON.parse(raw);
-
-      const role =
-        user?.roles?.[0]?.role ||
-        user?.roles?.[0] ||
-        user?.companies?.[0]?.role ||
-        user?.companyRoles?.[0]
-          ?.role ||
-        user?.role ||
-        "COMPANY_ADMIN";
-
-      const labels: Record<
-        string,
-        string
-      > = {
-        SUPER_ADMIN: "Super Admin",
-        COMPANY_ADMIN: "Admin",
-        EMPLOYEE: "Funcionário",
-        CUSTOMER: "Cliente",
-      };
-
-      setPlanLabel(
-        labels[role] ?? role,
-      );
-    } catch {
-      setPlanLabel(null);
+    if (isSuperAdmin) {
+      items.push({
+        href: "/settings/agreements",
+        label: "Termos e acordos",
+        icon: FileText,
+      });
     }
-  }, []);
+
+    return items;
+  }, [isSuperAdmin]);
 
   const isWorkordersSection =
     pathname.startsWith(

@@ -4,14 +4,30 @@ import type { NextRequest } from "next/server";
 const PUBLIC_PATHS = [
   "/",
   "/login",
+  "/forgot-password",
+  "/verify-reset-code",
+  "/reset-password",
   "/auth/signout",
   "/favicon.ico",
   "/assets",
   "/_next",
 ];
 
+const AUTH_FLOW_PATHS = [
+  "/login",
+  "/forgot-password",
+  "/verify-reset-code",
+  "/reset-password",
+];
+
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p));
+}
+
+function isAuthFlowPath(pathname: string) {
+  return AUTH_FLOW_PATHS.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
 }
 
 export async function middleware(req: NextRequest) {
@@ -20,7 +36,7 @@ export async function middleware(req: NextRequest) {
   const hasAccess = !!req.cookies.get("mappa_access_token");
 
   const isPublic = isPublicPath(pathname);
-  const isAuthRoute = pathname.startsWith("/login");
+  const isAuthRoute = isAuthFlowPath(pathname);
 
   if (!hasAccess && !isPublic) {
     const url = req.nextUrl.clone();
