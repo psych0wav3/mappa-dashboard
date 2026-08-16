@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 export default function NewTechnicianPage() {
   return (
-    <FormPage className="max-w-6xl">
+    <FormPage>
       <FormPageHeader
         icon={UserPlus}
         badge="Equipe técnica"

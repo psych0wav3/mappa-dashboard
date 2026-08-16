@@ -12,9 +12,5 @@ export const metadata: Metadata = {
 export default async function ChecklistTemplatesPage() {
   const templates = await listChecklistTemplates();
 
-  return (
-    <div className="min-h-screen bg-neutral-50 px-4 py-6 sm:px-6 lg:px-8">
-      <ChecklistTemplatesClient initialTemplates={templates} />
-    </div>
-  );
+  return <ChecklistTemplatesClient initialTemplates={templates} />;
 }

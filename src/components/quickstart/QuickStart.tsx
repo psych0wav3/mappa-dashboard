@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Circle, ExternalLink, SkipForward } from "lucide-react";
+import { CheckCircle2, Circle, ExternalLink, Rocket, SkipForward } from "lucide-react";
+import FormPageHeader from "@/components/form-layout/FormPageHeader";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -54,18 +55,17 @@ export default function QuickStart({
     setDone((cur) => ({ ...cur, [id]: !cur[id] }));
 
   return (
-    <div className={cn("rounded-xl border bg-white", classe)}>
-      {/* Cabeçalho */}
-      <div className="border-b px-4 py-3">
-        <div className="text-lg font-semibold">Guia Aqua Mappa</div>
-      </div>
+    <div className={cn("space-y-5", classe)}>
+      <FormPageHeader icon={Rocket} title={titulo} description={subtitulo} />
 
-      {/* Título + Progresso */}
-      <div className="px-4 pt-6">
-        <h1 className="text-2xl font-bold text-neutral-800">{titulo}</h1>
-        <p className="mt-1 text-neutral-600">{subtitulo}</p>
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-5 py-4">
+          <div className="text-sm font-semibold text-slate-900">Guia Aqua Mappa</div>
+        </div>
 
-        <div className="mt-4">
+        {/* Progresso */}
+        <div className="px-5 pt-5">
+          <div>
           <div className="mb-1 flex items-center justify-between text-sm">
             <span className="font-medium">Progresso</span>
             <span className="text-neutral-600">{pct}% concluído</span>
@@ -152,21 +152,22 @@ export default function QuickStart({
       </ol>
 
       {/* Rodapé */}
-      <div className="flex items-center justify-between border-t px-4 py-3">
-        <div className="text-sm text-neutral-600">
-          {concluidos} de {total} passos concluídos
+        <div className="flex items-center justify-between border-t px-4 py-3">
+          <div className="text-sm text-neutral-600">
+            {concluidos} de {total} passos concluídos
+          </div>
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => {
+              // marcar todos como concluídos rapidamente
+              setDone(Object.fromEntries(passos.map((p) => [p.id, true])));
+            }}
+          >
+            <SkipForward className="h-4 w-4" />
+            Pular onboarding
+          </Button>
         </div>
-        <Button
-          variant="outline"
-          className="gap-2"
-          onClick={() => {
-            // marcar todos como concluídos rapidamente
-            setDone(Object.fromEntries(passos.map((p) => [p.id, true])));
-          }}
-        >
-          <SkipForward className="h-4 w-4" />
-          Pular onboarding
-        </Button>
       </div>
     </div>
   );

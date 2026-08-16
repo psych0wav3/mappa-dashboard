@@ -11,6 +11,7 @@ import { getRouteOrder, saveRouteOrder } from "@/app/(private)/routes/route-orde
 import type { RouteOrderItem } from "@/app/(private)/routes/route-order.api";
 import { loadRouteWeek } from "@/app/(private)/routes/weekly-route-materialization.actions";
 
+import FormPageHeader from "@/components/form-layout/FormPageHeader";
 import RouteMapPanel from "@/components/routes/RouteMapPanel";
 import RouteTechnicianWeekSelector from "@/components/routes/RouteTechnicianWeekSelector";
 import { addDays, formatDate, getTechnicianDayMeta, getTechnicianRouteForDate, getTechnicianWeekMetrics, isRouteOrderCompleted, routeStatusClass, routeStatusLabel, startOfWeekMonday, toIsoDate } from "@/components/routes/routeWeek.utils";
@@ -525,32 +526,7 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
 
   return (
     <div className="space-y-5">
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
-              <Route className="h-5 w-5" />
-            </div>
-
-            <div>
-              <h1 className="text-lg font-bold text-slate-900">Controle das rotas</h1>
-              <p className="mt-1 text-sm text-slate-500">Acompanhe as rotas recorrentes, encaixe as OS avulsas e organize a sequência de execução.</p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" className="rounded-xl" disabled={loadingWeek || orderDirty} onClick={refreshCurrentWeek}>
-              <RefreshCcw className={`mr-2 h-4 w-4 ${loadingWeek ? "animate-spin" : ""}`} />
-              {loadingWeek ? "Atualizando..." : "Atualizar"}
-            </Button>
-
-            <Button type="button" className="btn-brand rounded-xl text-white" onClick={() => router.push("/routes/builder")}>
-              <Plus className="mr-2 h-4 w-4" />
-              Planejar rotas
-            </Button>
-          </div>
-        </div>
-      </section>
+      <FormPageHeader icon={Route} title="Controle das rotas" description="Acompanhe as rotas recorrentes, encaixe as OS avulsas e organize a sequência de execução." actions={<div className="flex flex-wrap gap-2"><Button type="button" variant="outline" className="rounded-xl" disabled={loadingWeek || orderDirty} onClick={refreshCurrentWeek}><RefreshCcw className={`mr-2 h-4 w-4 ${loadingWeek ? "animate-spin" : ""}`} />{loadingWeek ? "Atualizando..." : "Atualizar"}</Button><Button type="button" className="btn-brand rounded-xl text-white" onClick={() => router.push("/routes/builder")}><Plus className="mr-2 h-4 w-4" />Planejar rotas</Button></div>} />
 
       <RouteTechnicianWeekSelector technicians={technicians} technicianId={technicianId} technicianMetrics={technicianMetrics} weekStartDate={weekStartDate} selectedDate={selectedDate} todayIso={todayIso} dayMeta={dayMeta} onSelectTechnician={selectTechnician} onPreviousWeek={previousWeek} onCurrentWeek={currentWeek} onNextWeek={nextWeek} onSelectDate={selectDate} />
 

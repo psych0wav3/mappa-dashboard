@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import FormPageHeader from "@/components/form-layout/FormPageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -288,38 +289,8 @@ export default function MeasurementTemplatesClient({
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5">
-      <div className="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-lg font-semibold text-slate-900">
-              Templates de Medição
-            </h1>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Configure modelos de medições para uso nas
-              ordens e visitas.
-            </p>
-          </div>
-
-          <Button
-            type="button"
-            className="btn-brand text-white"
-            onClick={() => {
-              if (showForm && !isEditing) {
-                resetForm();
-                setShowForm(false);
-                return;
-              }
-
-              openCreateForm();
-            }}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Novo template
-          </Button>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <FormPageHeader icon={Activity} title="Templates de Medição" description="Configure modelos de medições para uso nas ordens e visitas." actions={<Button type="button" className="btn-brand text-white" onClick={() => { if (showForm && !isEditing) { resetForm(); setShowForm(false); return; } openCreateForm(); }}><Plus className="mr-2 h-4 w-4" />Novo template</Button>} />
 
       {showForm && (
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

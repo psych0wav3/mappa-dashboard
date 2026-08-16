@@ -14,11 +14,5 @@ export default async function MeasurementTemplatesPage() {
   const templates =
     await listMeasurementTemplates();
 
-  return (
-    <div className="min-h-screen bg-neutral-50 px-4 py-6 sm:px-6 lg:px-8">
-      <MeasurementTemplatesClient
-        initialTemplates={templates}
-      />
-    </div>
-  );
+  return <MeasurementTemplatesClient initialTemplates={templates} />;
 }

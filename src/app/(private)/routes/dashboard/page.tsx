@@ -20,11 +20,5 @@ export default async function RouteDashboardPage() {
     listRouteTechnicians(),
   ]);
 
-  return (
-    <div className="min-h-screen bg-neutral-50 px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
-        <RouteDashboard initialRoutes={routes} technicians={technicians} />
-      </div>
-    </div>
-  );
+  return <RouteDashboard initialRoutes={routes} technicians={technicians} />;
 }

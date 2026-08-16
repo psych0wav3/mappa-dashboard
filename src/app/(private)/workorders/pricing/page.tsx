@@ -15,11 +15,5 @@ export default async function PendingPricingPage() {
     status: "PendingCompanyPricing",
   });
 
-  return (
-    <div className="min-h-screen bg-neutral-50 px-4 py-6 sm:px-6 lg:px-8">
-      <PendingPricingClient
-        initialOrders={orders}
-      />
-    </div>
-  );
+  return <PendingPricingClient initialOrders={orders} />;
 }

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Calculator } from "lucide-react";
 
+import FormPageHeader from "@/components/form-layout/FormPageHeader";
 import { Button } from "@/components/ui/button";
 import WorkOrderDataTable from "@/components/workorders/WorkOrderDataTable";
 import { filterWorkOrders } from "@/components/workorders/work-order-table.helpers";
@@ -49,26 +50,8 @@ export default function PendingPricingClient({
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 pb-8">
-      <header className="rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6">
-        <div className="flex items-start gap-3">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-amber-50 text-amber-700">
-            <Calculator className="h-5 w-5" />
-          </div>
-
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-slate-950">
-              Aguardando Precificação
-            </h1>
-
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
-              Revise as solicitações, detalhe
-              os itens e envie o orçamento
-              ao cliente.
-            </p>
-          </div>
-        </div>
-      </header>
+    <div className="space-y-5 pb-8">
+      <FormPageHeader icon={Calculator} title="Aguardando Precificação" description="Revise as solicitações, detalhe os itens e envie o orçamento ao cliente." />
 
       <WorkOrderDataTable
         title="Solicitações aguardando preço"

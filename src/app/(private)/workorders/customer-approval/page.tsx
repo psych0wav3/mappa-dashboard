@@ -16,11 +16,5 @@ export default async function PendingCustomerApprovalPage() {
     status: "PendingCustomerApproval",
   });
 
-  return (
-    <div className="min-h-screen bg-neutral-50 px-4 py-6 sm:px-6 lg:px-8">
-      <PendingCustomerApprovalClient
-        initialOrders={orders}
-      />
-    </div>
-  );
+  return <PendingCustomerApprovalClient initialOrders={orders} />;
 }

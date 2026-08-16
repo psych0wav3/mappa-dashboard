@@ -20,13 +20,7 @@ export const metadata: Metadata = {
 };
 
 export default async function ServicePlansPage() {
-  const [
-    plans,
-    customers,
-    technicians,
-    checklistTemplates,
-    measurementTemplates,
-  ] = await Promise.all([
+  const [plans, customers, technicians, checklistTemplates, measurementTemplates] = await Promise.all([
     listServicePlans(),
     listWorkOrderCustomers(),
     listWorkOrderTechnicians(),
@@ -35,14 +29,8 @@ export default async function ServicePlansPage() {
   ]);
 
   return (
-    <FormPage className="max-w-7xl">
-      <ServicePlansClient
-        initialPlans={plans}
-        customers={customers}
-        technicians={technicians}
-        checklistTemplates={checklistTemplates}
-        measurementTemplates={measurementTemplates}
-      />
+    <FormPage>
+      <ServicePlansClient initialPlans={plans} customers={customers} technicians={technicians} checklistTemplates={checklistTemplates} measurementTemplates={measurementTemplates} />
     </FormPage>
   );
 }

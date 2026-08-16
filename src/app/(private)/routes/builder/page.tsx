@@ -37,19 +37,5 @@ export default async function RouteBuilderPage() {
     listWeeklyRouteTemplates(),
   ]);
 
-  return (
-    <div className="min-h-screen bg-neutral-50 px-4 py-6 sm:px-6 lg:px-8">
-      <RouteBuilder
-        technicians={
-          technicians
-        }
-        services={
-          services
-        }
-        initialTemplates={
-          templates
-        }
-      />
-    </div>
-  );
+  return <RouteBuilder technicians={technicians} services={services} initialTemplates={templates} />;
 }

@@ -19,7 +19,7 @@ export default async function NewWorkOrderPage() {
   const customers = await listWorkOrderCustomers();
 
   return (
-    <FormPage className="max-w-7xl">
+    <FormPage>
       <FormPageHeader
         icon={ClipboardPlus}
         badge="Atendimento avulso"

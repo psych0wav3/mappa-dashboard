@@ -3,6 +3,8 @@ import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { ArrowRight, CalendarCheck2, CheckCircle2, CircleDollarSign, ClipboardCheck, Clock3, Route, UserRound, UsersRound } from "lucide-react";
 
+import FormPageHeader from "@/components/form-layout/FormPageHeader";
+
 import { getDashboardMetrics } from "./actions";
 
 export const metadata: Metadata = {
@@ -50,15 +52,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-5">
-      <section className="rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6">
-        <div className="flex items-center gap-3">
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-600"><ClipboardCheck className="h-5 w-5" /></div>
-          <div>
-            <h1 className="text-lg font-bold text-slate-900">Painel de controle</h1>
-            <p className="mt-0.5 text-sm text-slate-500">Acompanhe os principais números e o andamento da operação da empresa.</p>
-          </div>
-        </div>
-      </section>
+      <FormPageHeader icon={ClipboardCheck} title="Painel de controle" description="Acompanhe os principais números e o andamento da operação da empresa." />
 
       <section>
         <div className="mb-3">

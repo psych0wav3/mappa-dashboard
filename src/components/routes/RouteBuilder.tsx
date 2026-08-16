@@ -9,6 +9,7 @@ import type { RouteTechnicianOption, RouteWeekday } from "@/app/(private)/routes
 import { saveWeeklyRouteTemplate } from "@/app/(private)/routes/weekly-route.actions";
 import type { WeeklyRoutePlanningService, WeeklyRouteTemplate } from "@/app/(private)/routes/weekly-route.types";
 
+import FormPageHeader from "@/components/form-layout/FormPageHeader";
 import RoutePlanningDayStrip, { type PlanningDayMeta } from "@/components/routes/RoutePlanningDayStrip";
 import RouteTechnicianSelector from "@/components/routes/RouteTechnicianSelector";
 import { ROUTE_WEEKDAYS } from "@/components/routes/routeWeek.utils";
@@ -399,31 +400,8 @@ export default function RouteBuilder({ technicians, services, initialTemplates }
   const hasDraft = Object.prototype.hasOwnProperty.call(drafts, currentDraftKey);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 pb-8">
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
-              <Route className="h-5 w-5" />
-            </div>
-
-            <div>
-              <h1 className="text-lg font-bold text-slate-900">
-                Planejamento de Rotas
-              </h1>
-
-              <p className="mt-1 text-sm text-slate-500">
-                Monte a rota padrão de cada técnico para cada dia da semana.
-              </p>
-            </div>
-          </div>
-
-          <Button type="button" variant="outline" className="rounded-xl" onClick={() => router.push("/routes/dashboard")}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Controle das rotas
-          </Button>
-        </div>
-      </section>
+    <div className="space-y-5 pb-8">
+      <FormPageHeader icon={Route} title="Planejamento de Rotas" description="Monte a rota padrão de cada técnico para cada dia da semana." actions={<Button type="button" variant="outline" className="rounded-xl" onClick={() => router.push("/routes/dashboard")}><ArrowLeft className="mr-2 h-4 w-4" />Controle das rotas</Button>} />
 
       <RouteTechnicianSelector technicians={technicians} technicianId={technicianId} summaries={technicianSummaries} onSelectTechnician={selectTechnician} />
 
