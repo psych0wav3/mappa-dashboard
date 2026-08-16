@@ -629,7 +629,7 @@ export default function NewWorkOrderClient({
             finalDescription,
 
           notes:
-            description.trim() || null,
+            description.trim() || undefined,
 
           scheduledDate,
 

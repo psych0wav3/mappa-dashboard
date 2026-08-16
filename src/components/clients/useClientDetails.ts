@@ -22,10 +22,7 @@ type UseClientDetailsParams = {
   onClose: () => void;
 };
 
-function applyClientStatus(
-  client: Client,
-  active: boolean,
-): Client {
+function applyClientStatus(client: Client, active: boolean): Client {
   return {
     ...client,
     active,
@@ -43,20 +40,12 @@ export default function useClientDetails({
   onDeleted,
   onClose,
 }: UseClientDetailsParams) {
-  const [client, setClient] =
-    React.useState<Client>(summary);
+  const [client, setClient] = React.useState<Client>(summary);
+  const [loading, setLoading] = React.useState(false);
+  const [savingAddress, setSavingAddress] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
 
-  const [loading, setLoading] =
-    React.useState(false);
-
-  const [savingAddress, setSavingAddress] =
-    React.useState(false);
-
-  const [deleting, setDeleting] =
-    React.useState(false);
-
-  const onUpdatedRef =
-    React.useRef(onUpdated);
+  const onUpdatedRef = React.useRef(onUpdated);
 
   React.useEffect(() => {
     onUpdatedRef.current = onUpdated;
@@ -66,38 +55,23 @@ export default function useClientDetails({
     setClient(summary);
   }, [summary]);
 
-  const updateClient = React.useCallback(
-    (updatedClient: Client) => {
-      setClient(updatedClient);
-      onUpdatedRef.current?.(updatedClient);
-    },
-    [],
-  );
+  const updateClient = React.useCallback((updatedClient: Client) => {
+    setClient(updatedClient);
+    onUpdatedRef.current?.(updatedClient);
+  }, []);
 
-  const loadClientDetails =
-    React.useCallback(async () => {
-      const details =
-        await getClientById(clientId);
+  const loadClientDetails = React.useCallback(async () => {
+    const details = await getClientById(clientId);
 
-      /*
-       * Enquanto o status de inativação estiver sendo
-       * controlado pela tabela/localStorage, preservamos
-       * o status do summary ao carregar os detalhes.
-       */
-      const normalizedDetails =
-        applyClientStatus(
-          details,
-          summary.active,
-        );
-
-      updateClient(normalizedDetails);
-
-      return normalizedDetails;
-    }, [
-      clientId,
+    const normalizedDetails = applyClientStatus(
+      details,
       summary.active,
-      updateClient,
-    ]);
+    );
+
+    updateClient(normalizedDetails);
+
+    return normalizedDetails;
+  }, [clientId, summary.active, updateClient]);
 
   React.useEffect(() => {
     if (!open) {
@@ -110,18 +84,16 @@ export default function useClientDetails({
       try {
         setLoading(true);
 
-        const details =
-          await getClientById(clientId);
+        const details = await getClientById(clientId);
 
         if (!mounted) {
           return;
         }
 
-        const normalizedDetails =
-          applyClientStatus(
-            details,
-            summary.active,
-          );
+        const normalizedDetails = applyClientStatus(
+          details,
+          summary.active,
+        );
 
         updateClient(normalizedDetails);
       } catch (error) {
@@ -153,124 +125,130 @@ export default function useClientDetails({
     updateClient,
   ]);
 
-  const handleAddAddress =
-    React.useCallback(
-      async (
-        address: AddClientAddressInput,
-      ) => {
-        try {
-          setSavingAddress(true);
+  const handleAddAddress = React.useCallback(
+    async (address: AddClientAddressInput) => {
+      try {
+        setSavingAddress(true);
 
-          await addClientAddress(
-            clientId,
-            address,
-          );
-
-          await loadClientDetails();
-
-          toast.success(
-            "Endereço adicionado com sucesso.",
-          );
-        } catch (error) {
-          const message =
-            error instanceof Error
-              ? error.message
-              : "Não foi possível adicionar o endereço.";
-
-          toast.error(message);
-
-          throw error;
-        } finally {
-          setSavingAddress(false);
-        }
-      },
-      [
-        clientId,
-        loadClientDetails,
-      ],
-    );
-
-  const handleDeactivate =
-    React.useCallback(() => {
-      if (!onDeactivate) {
-        return;
-      }
-
-      onDeactivate();
-
-      setClient((current) =>
-        applyClientStatus(current, false),
-      );
-
-      onClose();
-    }, [onClose, onDeactivate]);
-
-  const handleReactivate =
-    React.useCallback(() => {
-      if (!onReactivate) {
-        return;
-      }
-
-      onReactivate();
-
-      setClient((current) =>
-        applyClientStatus(current, true),
-      );
-
-      onClose();
-    }, [onClose, onReactivate]);
-
-  const handleDelete =
-    React.useCallback(async () => {
-      if (client.active) {
-        toast.error(
-          "Inative o cliente antes de excluí-lo.",
+        await addClientAddress(
+          clientId,
+          address,
         );
 
-        return;
-      }
-
-      const confirmed = window.confirm(
-        "Tem certeza que deseja excluir este cliente definitivamente? Essa ação não poderá ser desfeita.",
-      );
-
-      if (!confirmed) {
-        return;
-      }
-
-      try {
-        setDeleting(true);
-
-        await deleteClient(clientId);
+        await loadClientDetails();
 
         toast.success(
-          "Cliente excluído definitivamente.",
+          "Endereço adicionado com sucesso.",
         );
-
-        onClose();
-        onDeleted?.();
       } catch (error) {
-        toast.error(
+        const message =
           error instanceof Error
             ? error.message
-            : "Não foi possível excluir o cliente.",
-        );
+            : "Não foi possível adicionar o endereço.";
+
+        toast.error(message);
+
+        throw error;
       } finally {
-        setDeleting(false);
+        setSavingAddress(false);
       }
-    }, [
-      client.active,
+    },
+    [
       clientId,
-      onClose,
-      onDeleted,
-    ]);
+      loadClientDetails,
+    ],
+  );
+
+  const handleDeactivate = React.useCallback(() => {
+    if (!onDeactivate) {
+      return;
+    }
+
+    onDeactivate();
+
+    setClient((current) =>
+      applyClientStatus(
+        current,
+        false,
+      ),
+    );
+
+    onClose();
+  }, [
+    onClose,
+    onDeactivate,
+  ]);
+
+  const handleReactivate = React.useCallback(() => {
+    if (!onReactivate) {
+      return;
+    }
+
+    onReactivate();
+
+    setClient((current) =>
+      applyClientStatus(
+        current,
+        true,
+      ),
+    );
+
+    onClose();
+  }, [
+    onClose,
+    onReactivate,
+  ]);
+
+  const handleDelete = React.useCallback(async () => {
+    if (client.active) {
+      toast.error(
+        "Inative o cliente antes de excluí-lo.",
+      );
+
+      return false;
+    }
+
+    try {
+      setDeleting(true);
+
+      await deleteClient(
+        clientId,
+      );
+
+      toast.success(
+        "Cliente excluído definitivamente.",
+      );
+
+      onDeleted?.();
+      onClose();
+
+      return true;
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível excluir o cliente.",
+      );
+
+      return false;
+    } finally {
+      setDeleting(false);
+    }
+  }, [
+    client.active,
+    clientId,
+    onClose,
+    onDeleted,
+  ]);
 
   return {
     client,
     loading,
     savingAddress,
     deleting,
-    busy: savingAddress || deleting,
+    busy:
+      savingAddress ||
+      deleting,
     handleAddAddress,
     handleDeactivate,
     handleReactivate,

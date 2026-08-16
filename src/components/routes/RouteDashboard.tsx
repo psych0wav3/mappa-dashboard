@@ -585,12 +585,10 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-base font-bold text-slate-900">{selectedRoute.title}</h2>
 
-                      <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${routeStatusClass(selectedRoute.status)}`}>
-                        {routeStatusLabel(selectedRoute.status)}
-                      </span>
-
                       {orderDirty ? (
-                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">Alterações não salvas</span>
+                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
+                          Alterações não salvas
+                        </span>
                       ) : null}
                     </div>
 
