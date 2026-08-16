@@ -16,13 +16,12 @@ import {
   getDashboardMetrics,
   type DashboardMetrics,
 } from "./actions";
+
 import { SUPER_ADMIN_COMPANY_REQUIRED } from "@/lib/mappa/api";
 
-export const dynamic =
-  "force-dynamic";
+export const dynamic = "force-dynamic";
 
-export const fetchCache =
-  "force-no-store";
+export const fetchCache = "force-no-store";
 
 type DashboardCard = {
   title: string;
@@ -66,15 +65,6 @@ async function loadMetrics() {
       error: null,
     };
   } catch (error) {
-    /*
-     * O redirect() do Next lança uma
-     * exceção interna para interromper
-     * a renderização.
-     *
-     * Essa exceção precisa continuar
-     * subindo para que o navegador seja
-     * enviado à tela de login.
-     */
     if (
       isNextRedirectError(error)
     ) {
@@ -86,9 +76,13 @@ async function loadMetrics() {
         ? error.message
         : "Não foi possível carregar o painel.";
 
-    if (message === SUPER_ADMIN_COMPANY_REQUIRED) {
+    if (
+      message ===
+      SUPER_ADMIN_COMPANY_REQUIRED
+    ) {
       return {
-        metrics: emptyDashboardMetrics,
+        metrics:
+          emptyDashboardMetrics,
         error: null,
       };
     }
@@ -247,10 +241,8 @@ export default async function DashboardPage() {
             Início rápido
           </Link>
 
-          {" "}no menu para
-          continuar o onboarding ou
-          acesse diretamente as rotas,
-          técnicos e clientes.
+          {" "}
+          no menu para continuar o onboarding ou acesse diretamente as rotas, técnicos e clientes.
         </p>
       </section>
 
@@ -262,8 +254,12 @@ export default async function DashboardPage() {
 
             return (
               <Link
-                key={card.title}
-                href={card.href}
+                key={
+                  card.title
+                }
+                href={
+                  card.href
+                }
                 className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
               >
                 <div className="mb-4 flex items-center justify-between gap-3">
@@ -272,12 +268,16 @@ export default async function DashboardPage() {
                   </div>
 
                   <div className="text-2xl font-semibold text-slate-900">
-                    {card.value}
+                    {
+                      card.value
+                    }
                   </div>
                 </div>
 
                 <h3 className="text-sm font-semibold text-slate-900">
-                  {card.title}
+                  {
+                    card.title
+                  }
                 </h3>
 
                 <p className="mt-1 text-xs text-slate-500">

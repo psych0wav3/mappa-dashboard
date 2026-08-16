@@ -326,14 +326,16 @@ function SidebarContent({
 
   const routeItems = useMemo(
     () => [
-      {
-        href: "/routes/builder",
-        label: "Criar rota",
-      },
-      {
-        href: "/routes/dashboard",
-        label: "Controle das rotas",
-      },
+{
+      href: "/routes/builder",
+      label:
+        "Planejamento de rotas",
+    },
+    {
+      href: "/routes/dashboard",
+      label:
+        "Controle das rotas",
+    },
     ],
     [],
   );

@@ -2,225 +2,51 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import {
-  AlertTriangle,
-  ArrowDown,
-  ArrowLeft,
-  ArrowUp,
-  CalendarDays,
-  CheckCircle2,
-  CircleDollarSign,
-  ClipboardList,
-  GripVertical,
-  ListOrdered,
-  MapPin,
-  Plus,
-  Route,
-  Save,
-  Search,
-  Sparkles,
-  Trash2,
-  UserRound,
-} from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, CalendarDays, CheckCircle2, GripVertical, Plus, Route, Save, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import type { RouteTechnicianOption, RouteWeekday } from "@/app/(private)/routes/routes.types";
+import { saveWeeklyRouteTemplate } from "@/app/(private)/routes/weekly-route.actions";
+import type { WeeklyRoutePlanningService, WeeklyRouteTemplate } from "@/app/(private)/routes/weekly-route.types";
+
+import RoutePlanningDayStrip, { type PlanningDayMeta } from "@/components/routes/RoutePlanningDayStrip";
+import RouteTechnicianSelector from "@/components/routes/RouteTechnicianSelector";
+import { ROUTE_WEEKDAYS } from "@/components/routes/routeWeek.utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import MapCanvas from "@/components/routes/MapCanvas";
-
-import {
-  createRouteFromPlanner,
-  type AvailableRouteWorkOrder,
-  type RouteTechnicianOption,
-} from "@/app/(private)/routes/actions";
 
 type RouteBuilderProps = {
   technicians: RouteTechnicianOption[];
-  initialOrders: AvailableRouteWorkOrder[];
+  services: WeeklyRoutePlanningService[];
+  initialTemplates: WeeklyRouteTemplate[];
 };
 
-function todayIso() {
-  const now = new Date();
-  const offset = now.getTimezoneOffset();
+type DraftMap = Record<string, string[]>;
 
-  return new Date(
-    now.getTime() - offset * 60_000,
-  )
-    .toISOString()
-    .slice(0, 10);
+function templateKey(employeeUserId: string, weekday: RouteWeekday) {
+  return `${employeeUserId}:${weekday}`;
 }
 
-function formatDate(value?: string | null) {
-  if (!value) {
-    return "Data não informada";
+function weekdayLabel(weekday: RouteWeekday) {
+  return ROUTE_WEEKDAYS.find((day) => day.value === weekday)?.label || "Dia";
+}
+
+function normalizeText(value?: string | null) {
+  return String(value || "").trim().toLocaleLowerCase("pt-BR");
+}
+
+function getTemplateIds(template?: WeeklyRouteTemplate | null) {
+  if (!template) {
+    return [];
   }
 
-  const [year, month, day] = value
-    .slice(0, 10)
-    .split("-");
-
-  if (!year || !month || !day) {
-    return value;
-  }
-
-  return `${day}/${month}/${year}`;
+  return [...template.items]
+    .sort((first, second) => first.executionOrder - second.executionOrder)
+    .map((item) => item.servicePlanId);
 }
 
-function formatMoney(value?: number | null) {
-  return Number(value || 0).toLocaleString(
-    "pt-BR",
-    {
-      style: "currency",
-      currency: "BRL",
-    },
-  );
-}
-
-function weekdayName(dateValue: string) {
-  if (!dateValue) {
-    return "";
-  }
-
-  const [year, month, day] = dateValue
-    .split("-")
-    .map(Number);
-
-  const date = new Date(
-    year,
-    month - 1,
-    day,
-  );
-
-  return date.toLocaleDateString("pt-BR", {
-    weekday: "long",
-  });
-}
-
-function defaultRouteTitle(
-  routeDate: string,
-  technicianName?: string,
-) {
-  const weekday = weekdayName(routeDate);
-
-  const capitalizedWeekday = weekday
-    ? weekday.charAt(0).toUpperCase() +
-      weekday.slice(1)
-    : "Dia";
-
-  if (technicianName) {
-    return `Rota de ${capitalizedWeekday} — ${technicianName}`;
-  }
-
-  return `Rota de ${capitalizedWeekday}`;
-}
-
-function AvailableOrderCard({
-  order,
-  onAdd,
-}: {
-  order: AvailableRouteWorkOrder;
-  onAdd: () => void;
-}) {
-  const canAdd = order.hasAddress;
-
-  return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-slate-300 hover:shadow-sm">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-bold text-slate-900">
-              {order.customerName}
-            </h3>
-
-            {typeof order.orderNumber === "number" && (
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                OS {order.orderNumber}
-              </span>
-            )}
-
-            <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700">
-              Pronta para rota
-            </span>
-          </div>
-
-          <p className="mt-1 text-sm font-semibold text-slate-700">
-            {order.title}
-          </p>
-
-          <div className="mt-3 grid gap-2 text-xs text-slate-500 sm:grid-cols-2">
-            <div className="flex items-start gap-2">
-              <CalendarDays className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-600" />
-
-              <span>
-                {formatDate(order.scheduledDate)}
-              </span>
-            </div>
-
-            <div className="flex items-start gap-2">
-              <CircleDollarSign className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-600" />
-
-              <span>
-                {order.totalAmount > 0
-                  ? formatMoney(order.totalAmount)
-                  : "Inclusa no plano"}
-              </span>
-            </div>
-
-            <div className="flex items-start gap-2 sm:col-span-2">
-              <MapPin
-                className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${
-                  order.hasAddress
-                    ? "text-sky-600"
-                    : "text-amber-600"
-                }`}
-              />
-
-              <span
-                className={
-                  order.hasAddress
-                    ? ""
-                    : "font-medium text-amber-700"
-                }
-              >
-                {order.hasAddress
-                  ? order.address
-                  : "Endereço pendente"}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <Button
-          type="button"
-          className="btn-brand h-10 shrink-0 rounded-xl px-4 text-white"
-          onClick={onAdd}
-          disabled={!canAdd}
-          title={
-            canAdd
-              ? "Adicionar ordem à rota"
-              : "A OS precisa de um endereço antes de ser roteirizada"
-          }
-        >
-          <Plus className="mr-2 h-4 w-4" />
-
-          Adicionar
-        </Button>
-      </div>
-
-      {!order.hasAddress && (
-        <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-
-          Cadastre ou vincule o endereço do cliente
-          antes de adicionar esta OS à rota.
-        </div>
-      )}
-    </article>
-  );
-}
-
-function SelectedStopCard({
-  order,
+function RoutePlanStopCard({
+  service,
   position,
   isFirst,
   isLast,
@@ -228,7 +54,7 @@ function SelectedStopCard({
   onMoveDown,
   onRemove,
 }: {
-  order: AvailableRouteWorkOrder;
+  service: WeeklyRoutePlanningService;
   position: number;
   isFirst: boolean;
   isLast: boolean;
@@ -237,7 +63,7 @@ function SelectedStopCard({
   onRemove: () => void;
 }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <article className="rounded-xl border border-slate-200 bg-white p-3.5">
       <div className="flex items-start gap-3">
         <div className="flex shrink-0 items-center gap-2">
           <GripVertical className="h-5 w-5 text-slate-300" />
@@ -249,790 +75,497 @@ function SelectedStopCard({
 
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-sm font-bold text-slate-900">
-            {order.customerName}
+            {service.customerName}
           </h3>
 
           <p className="mt-0.5 truncate text-xs font-medium text-slate-600">
-            {order.title}
+            {service.title}
           </p>
 
-          <div className="mt-2 flex items-start gap-2 text-xs leading-5 text-slate-500">
-            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-600" />
-
-            <span>{order.address}</span>
-          </div>
+          <p className="mt-2 text-xs text-slate-400">
+            Atendimento recorrente
+          </p>
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-<Button
-  type="button"
-  variant="outline"
-  size="sm"
-  className="h-9 w-9 rounded-xl"
-  onClick={onMoveUp}
-  disabled={isFirst}
-  title="Mover para cima"
->
-  <ArrowUp className="h-4 w-4" />
-</Button>
+          <Button type="button" variant="outline" size="sm" className="h-8 w-8 rounded-lg p-0" onClick={onMoveUp} disabled={isFirst} title="Mover para cima">
+            <ArrowUp className="h-3.5 w-3.5" />
+          </Button>
 
-<Button
-  type="button"
-  variant="outline"
-  size="sm"
-  className="h-9 w-9 rounded-xl"
-  onClick={onMoveDown}
-  disabled={isLast}
-  title="Mover para baixo"
->
-  <ArrowDown className="h-4 w-4" />
-</Button>
+          <Button type="button" variant="outline" size="sm" className="h-8 w-8 rounded-lg p-0" onClick={onMoveDown} disabled={isLast} title="Mover para baixo">
+            <ArrowDown className="h-3.5 w-3.5" />
+          </Button>
 
-<Button
-  type="button"
-  variant="outline"
-  size="sm"
-  className="h-9 w-9 rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
-  onClick={onRemove}
-  title="Remover da rota"
->
-  <Trash2 className="h-4 w-4" />
-</Button>
+          <Button type="button" variant="outline" size="sm" className="h-8 w-8 rounded-lg border-red-200 p-0 text-red-600 hover:bg-red-50 hover:text-red-700" onClick={onRemove} title="Remover da rota">
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
         </div>
       </div>
     </article>
   );
 }
 
-export default function RouteBuilder({
-  technicians,
-  initialOrders,
-}: RouteBuilderProps) {
-  const router = useRouter();
+function AvailableServiceCard({
+  service,
+  preferredTechnicianName,
+  onAdd,
+}: {
+  service: WeeklyRoutePlanningService;
+  preferredTechnicianName?: string;
+  onAdd: () => void;
+}) {
+  return (
+    <article className="rounded-xl border border-slate-200 bg-white p-3.5">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-sm font-bold text-slate-900">
+            {service.customerName}
+          </h3>
 
-  const [pending, startTransition] =
-    React.useTransition();
+          <p className="mt-0.5 text-xs font-medium text-slate-600">
+            {service.title}
+          </p>
 
-  const [routeDate, setRouteDate] =
-    React.useState(todayIso());
+          {preferredTechnicianName ? (
+            <p className="mt-2 text-[11px] text-slate-400">
+              Técnico preferencial: {preferredTechnicianName}
+            </p>
+          ) : (
+            <p className="mt-2 text-[11px] text-slate-400">
+              Sem técnico preferencial
+            </p>
+          )}
+        </div>
 
-  const [employeeUserId, setEmployeeUserId] =
-    React.useState("");
-
-  const [title, setTitle] =
-    React.useState(
-      defaultRouteTitle(todayIso()),
-    );
-
-  const [search, setSearch] =
-    React.useState("");
-
-  const [onlySelectedDate, setOnlySelectedDate] =
-    React.useState(false);
-
-  const [selectedIds, setSelectedIds] =
-    React.useState<string[]>([]);
-
-  const selectedTechnician =
-    React.useMemo(
-      () =>
-        technicians.find(
-          (technician) =>
-            technician.id === employeeUserId,
-        ) || null,
-      [employeeUserId, technicians],
-    );
-
-  const orderMap = React.useMemo(
-    () =>
-      new Map(
-        initialOrders.map((order) => [
-          order.id,
-          order,
-        ]),
-      ),
-    [initialOrders],
+        <Button type="button" className="btn-brand h-9 shrink-0 rounded-xl px-3 text-xs text-white" onClick={onAdd}>
+          <Plus className="mr-1.5 h-3.5 w-3.5" />
+          Adicionar
+        </Button>
+      </div>
+    </article>
   );
+}
 
-  const selectedOrders =
-    React.useMemo(
-      () =>
-        selectedIds
-          .map((id) => orderMap.get(id))
-          .filter(
-            (
-              order,
-            ): order is AvailableRouteWorkOrder =>
-              Boolean(order),
-          ),
-      [orderMap, selectedIds],
-    );
+export default function RouteBuilder({ technicians, services, initialTemplates }: RouteBuilderProps) {
+  const router = useRouter();
+  const [pending, startTransition] = React.useTransition();
 
-  const filteredOrders =
-    React.useMemo(() => {
-      const normalizedSearch = search
-        .trim()
-        .toLocaleLowerCase("pt-BR");
+  const [technicianId, setTechnicianId] = React.useState(technicians[0]?.id || "");
+  const [selectedWeekday, setSelectedWeekday] = React.useState<RouteWeekday>("MONDAY");
+  const [templates, setTemplates] = React.useState<WeeklyRouteTemplate[]>(initialTemplates);
+  const [drafts, setDrafts] = React.useState<DraftMap>({});
+  const [search, setSearch] = React.useState("");
 
-      return initialOrders.filter((order) => {
-        if (selectedIds.includes(order.id)) {
-          return false;
+  React.useEffect(() => {
+    if (!technicianId && technicians[0]?.id) {
+      setTechnicianId(technicians[0].id);
+    }
+  }, [technicianId, technicians]);
+
+  const selectedTechnician = React.useMemo(() => {
+    return technicians.find((technician) => technician.id === technicianId) || null;
+  }, [technicianId, technicians]);
+
+  const techniciansById = React.useMemo(() => {
+    return new Map(technicians.map((technician) => [technician.id, technician]));
+  }, [technicians]);
+
+  const servicesById = React.useMemo(() => {
+    return new Map(services.map((service) => [service.id, service]));
+  }, [services]);
+
+  const currentDraftKey = templateKey(technicianId, selectedWeekday);
+
+  const currentTemplate = React.useMemo(() => {
+    return templates.find((template) => template.employeeUserId === technicianId && template.weekday === selectedWeekday) || null;
+  }, [selectedWeekday, technicianId, templates]);
+
+  const selectedIds = React.useMemo(() => {
+    if (Object.prototype.hasOwnProperty.call(drafts, currentDraftKey)) {
+      return drafts[currentDraftKey];
+    }
+
+    return getTemplateIds(currentTemplate);
+  }, [currentDraftKey, currentTemplate, drafts]);
+
+  const orderedServices = React.useMemo(() => {
+    return selectedIds
+      .map((id) => servicesById.get(id))
+      .filter((service): service is WeeklyRoutePlanningService => Boolean(service));
+  }, [selectedIds, servicesById]);
+
+  const eligibleServices = React.useMemo(() => {
+    return services.filter((service) => service.weekdays.includes(selectedWeekday));
+  }, [selectedWeekday, services]);
+
+  const assignedToOtherTechnicians = React.useMemo(() => {
+    const assigned = new Set<string>();
+
+    for (const technician of technicians) {
+      if (technician.id === technicianId) {
+        continue;
+      }
+
+      const key = templateKey(technician.id, selectedWeekday);
+
+      if (Object.prototype.hasOwnProperty.call(drafts, key)) {
+        for (const servicePlanId of drafts[key]) {
+          assigned.add(servicePlanId);
         }
 
-        if (
-          onlySelectedDate &&
-          order.scheduledDate !== routeDate
-        ) {
-          return false;
-        }
+        continue;
+      }
 
-        if (!normalizedSearch) {
+      const template = templates.find((item) => item.employeeUserId === technician.id && item.weekday === selectedWeekday);
+
+      for (const servicePlanId of getTemplateIds(template)) {
+        assigned.add(servicePlanId);
+      }
+    }
+
+    return assigned;
+  }, [drafts, selectedWeekday, technicianId, technicians, templates]);
+
+  const availableServices = React.useMemo(() => {
+    const term = normalizeText(search);
+
+    return eligibleServices
+      .filter((service) => !selectedIds.includes(service.id))
+      .filter((service) => !assignedToOtherTechnicians.has(service.id))
+      .filter((service) => {
+        if (!term) {
           return true;
         }
 
-        const content = [
-          order.customerName,
-          order.title,
-          order.description,
-          order.address,
-          order.scheduledDate,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLocaleLowerCase("pt-BR");
+        return normalizeText(`${service.customerName} ${service.title}`).includes(term);
+      })
+      .sort((first, second) => first.customerName.localeCompare(second.customerName, "pt-BR"));
+  }, [assignedToOtherTechnicians, eligibleServices, search, selectedIds]);
 
-        return content.includes(normalizedSearch);
-      });
-    }, [
-      initialOrders,
-      onlySelectedDate,
-      routeDate,
-      search,
-      selectedIds,
-    ]);
+  const technicianSummaries = React.useMemo(() => {
+    return Object.fromEntries(
+      technicians.map((technician) => {
+        let weeklyStops = 0;
+        let daysWithRoute = 0;
 
-  const selectedWithCoordinates =
-    selectedOrders.filter(
-      (order) => order.hasCoordinates,
-    );
+        for (const day of ROUTE_WEEKDAYS) {
+          const key = templateKey(technician.id, day.value);
 
-  const isValid =
-    Boolean(title.trim()) &&
-    Boolean(routeDate) &&
-    Boolean(employeeUserId) &&
-    selectedOrders.length > 0 &&
-    selectedOrders.every(
-      (order) => order.hasAddress,
-    );
+          let ids: string[];
 
-  React.useEffect(() => {
-    setTitle(
-      defaultRouteTitle(
-        routeDate,
-        selectedTechnician?.name,
-      ),
-    );
-  }, [routeDate, selectedTechnician?.name]);
+          if (Object.prototype.hasOwnProperty.call(drafts, key)) {
+            ids = drafts[key];
+          } else {
+            const template = templates.find((item) => item.employeeUserId === technician.id && item.weekday === day.value);
+            ids = getTemplateIds(template);
+          }
 
-  function addOrder(orderId: string) {
-    setSelectedIds((current) =>
-      current.includes(orderId)
-        ? current
-        : [...current, orderId],
-    );
-  }
+          if (ids.length > 0) {
+            daysWithRoute += 1;
+            weeklyStops += ids.length;
+          }
+        }
 
-  function removeOrder(orderId: string) {
-    setSelectedIds((current) =>
-      current.filter((id) => id !== orderId),
-    );
-  }
-
-  function moveOrder(
-    index: number,
-    direction: -1 | 1,
-  ) {
-    setSelectedIds((current) => {
-      const targetIndex = index + direction;
-
-      if (
-        targetIndex < 0 ||
-        targetIndex >= current.length
-      ) {
-        return current;
-      }
-
-      const next = [...current];
-
-      [next[index], next[targetIndex]] = [
-        next[targetIndex],
-        next[index],
-      ];
-
-      return next;
-    });
-  }
-
-  async function handleOptimizeSequence() {
-    const stops = selectedOrders.filter(
-      (order) => order.hasCoordinates,
-    );
-
-    if (stops.length < 2) {
-      toast.error(
-        "É preciso ao menos 2 paradas com coordenadas para otimizar.",
-      );
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        "/api/routes/optimize",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
+        return [
+          technician.id,
+          {
+            primary: `${weeklyStops} ${weeklyStops === 1 ? "atendimento" : "atendimentos"} na semana`,
+            secondary: `${daysWithRoute} ${daysWithRoute === 1 ? "dia com rota" : "dias com rota"}`,
+            status: daysWithRoute > 0 ? `${daysWithRoute} ${daysWithRoute === 1 ? "dia planejado" : "dias planejados"}` : "Sem rotas planejadas",
           },
-          body: JSON.stringify({
-            startTime: "08:00",
-            stops: stops.map((order) => ({
-              id: order.id,
-              lat: order.lat,
-              lng: order.lng,
-              durationMin: 45,
-            })),
-          }),
-        },
-      );
+        ];
+      }),
+    );
+  }, [drafts, technicians, templates]);
 
-      const data = (await response.json()) as {
-        order?: string[];
-        error?: string;
-      };
+  const dayMeta = React.useMemo(() => {
+    return Object.fromEntries(
+      ROUTE_WEEKDAYS.map((day) => {
+        const key = templateKey(technicianId, day.value);
 
-      if (!response.ok || !data.order?.length) {
-        throw new Error(
-          data.error ||
-            "Não foi possível otimizar a sequência.",
-        );
-      }
+        let ids: string[];
 
-      const withoutCoords = selectedIds.filter(
-        (id) =>
-          !stops.some((stop) => stop.id === id),
-      );
+        if (Object.prototype.hasOwnProperty.call(drafts, key)) {
+          ids = drafts[key];
+        } else {
+          const template = templates.find((item) => item.employeeUserId === technicianId && item.weekday === day.value);
+          ids = getTemplateIds(template);
+        }
 
-      setSelectedIds([
-        ...data.order,
-        ...withoutCoords,
-      ]);
+        const savedTemplate = templates.find((item) => item.employeeUserId === technicianId && item.weekday === day.value);
 
-      toast.success(
-        "Sequência otimizada com base na localização.",
-      );
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível otimizar a sequência.",
-      );
-    }
+        return [
+          day.value,
+          {
+            count: ids.length,
+            saved: Boolean(savedTemplate?.items.length),
+          } satisfies PlanningDayMeta,
+        ];
+      }),
+    ) as Record<RouteWeekday, PlanningDayMeta>;
+  }, [drafts, technicianId, templates]);
+
+  function replaceDraft(next: string[]) {
+    setDrafts((current) => ({
+      ...current,
+      [currentDraftKey]: next,
+    }));
   }
 
-  function handleSubmit() {
-    if (!employeeUserId) {
-      toast.error(
-        "Selecione o técnico responsável.",
-      );
-
+  function addService(servicePlanId: string) {
+    if (selectedIds.includes(servicePlanId)) {
       return;
     }
 
-    if (!title.trim()) {
-      toast.error(
-        "Informe o nome da rota.",
-      );
+    replaceDraft([...selectedIds, servicePlanId]);
+  }
 
+  function removeService(servicePlanId: string) {
+    replaceDraft(selectedIds.filter((id) => id !== servicePlanId));
+  }
+
+  function moveService(index: number, direction: -1 | 1) {
+    const targetIndex = index + direction;
+
+    if (targetIndex < 0 || targetIndex >= selectedIds.length) {
       return;
     }
 
-    if (!selectedOrders.length) {
-      toast.error(
-        "Adicione ao menos uma ordem à rota.",
-      );
+    const next = [...selectedIds];
 
+    [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+
+    replaceDraft(next);
+  }
+
+  function selectTechnician(id: string) {
+    setTechnicianId(id);
+    setSelectedWeekday("MONDAY");
+    setSearch("");
+  }
+
+  function selectWeekday(weekday: RouteWeekday) {
+    setSelectedWeekday(weekday);
+    setSearch("");
+  }
+
+  function savePlanning() {
+    if (!selectedTechnician) {
+      toast.error("Selecione um técnico.");
       return;
     }
 
-    if (
-      selectedOrders.some(
-        (order) => !order.hasAddress,
-      )
-    ) {
-      toast.error(
-        "Todas as ordens precisam possuir endereço.",
-      );
-
+    if (!orderedServices.length && !currentTemplate?.items.length) {
+      toast.error("Adicione ao menos um atendimento à rota.");
       return;
     }
 
     startTransition(async () => {
-      const result =
-        await createRouteFromPlanner({
-          title: title.trim(),
-          routeDate,
-          employeeUserId,
-          serviceOrderIds: selectedIds,
-        });
+      const result = await saveWeeklyRouteTemplate({
+        employeeUserId: selectedTechnician.id,
+        weekday: selectedWeekday,
+        items: orderedServices.map((service, index) => ({
+          servicePlanId: service.id,
+          executionOrder: index + 1,
+        })),
+      });
 
-      if (!result.ok) {
-        toast.error(
-          result.error ||
-            "Não foi possível criar a rota.",
-        );
-
+      if (!result.ok || !result.template) {
+        toast.error(result.error || "Não foi possível salvar a rota padrão.");
         return;
       }
 
-      toast.success(
-        `Rota criada com ${selectedIds.length} ${
-          selectedIds.length === 1
-            ? "atendimento"
-            : "atendimentos"
-        }.`,
-      );
+      const savedTemplate = result.template;
 
-      router.push("/routes/dashboard");
+      setTemplates((current) => {
+        const withoutCurrent = current.filter((template) => !(template.employeeUserId === savedTemplate.employeeUserId && template.weekday === savedTemplate.weekday));
+
+        return [...withoutCurrent, savedTemplate];
+      });
+
+      setDrafts((current) => {
+        const next = { ...current };
+        delete next[currentDraftKey];
+        return next;
+      });
+
+      toast.success(`Rota de ${weekdayLabel(selectedWeekday).toLowerCase()} salva para ${selectedTechnician.name}.`);
+
       router.refresh();
     });
   }
 
+  const hasSavedRoute = Boolean(currentTemplate?.items.length);
+  const hasDraft = Object.prototype.hasOwnProperty.call(drafts, currentDraftKey);
+
   return (
-    <div className="mx-auto max-w-7xl space-y-5 pb-28">
-      <header className="rounded-2xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div className="mx-auto max-w-7xl space-y-5 pb-8">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
               <Route className="h-5 w-5" />
             </div>
 
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-slate-950">
-                Criar rota
+              <h1 className="text-lg font-bold text-slate-900">
+                Planejamento de rotas
               </h1>
 
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
-                Escolha o dia, defina o técnico e
-                organize a sequência dos atendimentos.
+              <p className="mt-1 text-sm text-slate-500">
+                Monte a rota padrão de cada técnico para cada dia da semana.
               </p>
             </div>
           </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            className="rounded-xl"
-            onClick={() =>
-              router.push("/routes/dashboard")
-            }
-          >
+          <Button type="button" variant="outline" className="rounded-xl" onClick={() => router.push("/routes/dashboard")}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-
-            Voltar às rotas
+            Controle das rotas
           </Button>
         </div>
-      </header>
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-        <div className="mb-5 flex items-start gap-3">
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
-            <ClipboardList className="h-4 w-4" />
-          </div>
-
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900">
-              Dados da rota
-            </h2>
-
-            <p className="mt-0.5 text-xs leading-5 text-slate-500">
-              Cada rota pertence a um único dia e a um
-              técnico responsável.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid gap-4 lg:grid-cols-3">
-          <div>
-            <label className="mb-2 block text-xs font-semibold text-slate-700">
-              Data da rota
-              <span className="ml-1 text-red-500">
-                *
-              </span>
-            </label>
-
-            <Input
-              type="date"
-              value={routeDate}
-              onChange={(event) =>
-                setRouteDate(event.target.value)
-              }
-              className="h-11 rounded-xl"
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-xs font-semibold text-slate-700">
-              Técnico responsável
-              <span className="ml-1 text-red-500">
-                *
-              </span>
-            </label>
-
-            <select
-              value={employeeUserId}
-              onChange={(event) =>
-                setEmployeeUserId(
-                  event.target.value,
-                )
-              }
-              className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
-            >
-              <option value="">
-                Selecione um técnico...
-              </option>
-
-              {technicians.map((technician) => (
-                <option
-                  key={technician.id}
-                  value={technician.id}
-                >
-                  {technician.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-2 block text-xs font-semibold text-slate-700">
-              Nome da rota
-              <span className="ml-1 text-red-500">
-                *
-              </span>
-            </label>
-
-            <Input
-              value={title}
-              onChange={(event) =>
-                setTitle(event.target.value)
-              }
-              placeholder="Ex.: Rota de segunda-feira"
-              className="h-11 rounded-xl"
-            />
-          </div>
-        </div>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(420px,0.9fr)]">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="flex flex-col gap-4 border-b border-slate-100 pb-4">
-            <div className="flex items-start gap-3">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
-                <CheckCircle2 className="h-4 w-4" />
-              </div>
+      <RouteTechnicianSelector technicians={technicians} technicianId={technicianId} summaries={technicianSummaries} onSelectTechnician={selectTechnician} />
 
+      {selectedTechnician ? (
+        <RoutePlanningDayStrip selectedWeekday={selectedWeekday} dayMeta={dayMeta} onSelectWeekday={selectWeekday} />
+      ) : null}
+
+      {selectedTechnician ? (
+        <section className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 className="text-sm font-semibold text-slate-900">
-                  Ordens disponíveis
-                </h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  <CalendarDays className="h-4 w-4 text-sky-600" />
 
-                <p className="mt-0.5 text-xs leading-5 text-slate-500">
-                  Selecione as OS que serão executadas
-                  nesta rota.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-
-                <Input
-                  value={search}
-                  onChange={(event) =>
-                    setSearch(event.target.value)
-                  }
-                  placeholder="Buscar cliente, serviço ou endereço..."
-                  className="h-10 rounded-xl pl-10"
-                />
-              </div>
-
-              <label className="flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600">
-                <input
-                  type="checkbox"
-                  checked={onlySelectedDate}
-                  onChange={(event) =>
-                    setOnlySelectedDate(
-                      event.target.checked,
-                    )
-                  }
-                  className="h-4 w-4 rounded border-slate-300"
-                />
-
-                Somente {formatDate(routeDate)}
-              </label>
-            </div>
-          </div>
-
-          <div className="mt-4 max-h-[720px] space-y-3 overflow-y-auto pr-1">
-            {filteredOrders.map((order) => (
-              <AvailableOrderCard
-                key={order.id}
-                order={order}
-                onAdd={() => addOrder(order.id)}
-              />
-            ))}
-
-            {filteredOrders.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-12 text-center">
-                <CheckCircle2 className="mx-auto h-9 w-9 text-slate-300" />
-
-                <h3 className="mt-3 text-sm font-semibold text-slate-700">
-                  Nenhuma OS disponível
-                </h3>
-
-                <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-slate-400">
-                  Não existem ordens compatíveis com
-                  os filtros ou todas já foram
-                  adicionadas.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-5">
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
-              <div className="flex items-start gap-3">
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
-                  <ListOrdered className="h-4 w-4" />
-                </div>
-
-                <div>
-                  <h2 className="text-sm font-semibold text-slate-900">
-                    Sequência da rota
+                  <h2 className="text-base font-bold text-slate-900">
+                    Rota de {weekdayLabel(selectedWeekday).toLowerCase()} — {selectedTechnician.name}
                   </h2>
 
-                  <p className="mt-0.5 text-xs leading-5 text-slate-500">
-                    A ordem abaixo será enviada como
-                    sequência de execução.
-                  </p>
+                  {hasSavedRoute && !hasDraft ? (
+                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">
+                      Rota salva
+                    </span>
+                  ) : null}
+
+                  {hasDraft ? (
+                    <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
+                      Alterações não salvas
+                    </span>
+                  ) : null}
                 </div>
+
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Esta sequência será repetida todas as {weekdayLabel(selectedWeekday).toLowerCase()}s.
+                </p>
               </div>
 
-              <div className="flex shrink-0 flex-col items-end gap-2">
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
-                  {selectedOrders.length}{" "}
-                  {selectedOrders.length === 1
-                    ? "parada"
-                    : "paradas"}
-                </span>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-9 rounded-xl px-3 text-xs"
-                  onClick={handleOptimizeSequence}
-                  disabled={
-                    pending ||
-                    selectedWithCoordinates.length < 2
-                  }
-                >
-                  <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-                  Otimizar
-                </Button>
+              <div className="rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs text-sky-700">
+                <strong>{orderedServices.length}</strong>{" "}
+                {orderedServices.length === 1 ? "atendimento" : "atendimentos"}
               </div>
             </div>
 
-            <div className="mt-4 space-y-3">
-              {selectedOrders.map(
-                (order, index) => (
-                  <SelectedStopCard
-                    key={order.id}
-                    order={order}
-                    position={index + 1}
-                    isFirst={index === 0}
-                    isLast={
-                      index ===
-                      selectedOrders.length - 1
-                    }
-                    onMoveUp={() =>
-                      moveOrder(index, -1)
-                    }
-                    onMoveDown={() =>
-                      moveOrder(index, 1)
-                    }
-                    onRemove={() =>
-                      removeOrder(order.id)
-                    }
-                  />
-                ),
-              )}
+            <div className="mt-4 space-y-2.5">
+              {orderedServices.map((service, index) => (
+                <RoutePlanStopCard
+                  key={service.id}
+                  service={service}
+                  position={index + 1}
+                  isFirst={index === 0}
+                  isLast={index === orderedServices.length - 1}
+                  onMoveUp={() => moveService(index, -1)}
+                  onMoveDown={() => moveService(index, 1)}
+                  onRemove={() => removeService(service.id)}
+                />
+              ))}
 
-              {selectedOrders.length === 0 && (
-                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-10 text-center">
-                  <ListOrdered className="mx-auto h-8 w-8 text-slate-300" />
+              {orderedServices.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-12 text-center">
+                  <Route className="mx-auto h-8 w-8 text-slate-300" />
 
                   <p className="mt-3 text-sm font-semibold text-slate-700">
-                    Nenhuma parada adicionada
+                    Esta rota ainda está vazia
                   </p>
 
-                  <p className="mt-1 text-xs leading-5 text-slate-400">
-                    Use o botão “Adicionar” para
-                    montar a sequência da rota.
+                  <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-slate-400">
+                    Adicione os atendimentos disponíveis no painel ao lado para montar a rota de {weekdayLabel(selectedWeekday).toLowerCase()}.
                   </p>
                 </div>
-              )}
+              ) : null}
             </div>
-          </section>
 
-          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-100 p-4 sm:p-5">
-              <div className="flex items-start gap-3">
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
-                  <MapPin className="h-4 w-4" />
-                </div>
+            <div className="mt-5 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-2 text-xs leading-5 text-slate-500">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
 
-                <div>
-                  <h2 className="text-sm font-semibold text-slate-900">
-                    Visão geográfica
-                  </h2>
-
-                  <p className="mt-0.5 text-xs leading-5 text-slate-500">
-                    {
-                      selectedWithCoordinates.length
-                    }{" "}
-                    de {selectedOrders.length} paradas
-                    possuem coordenadas para o mapa.
-                  </p>
-                </div>
+                <span>
+                  Depois de salva, esta será a rota padrão de todas as {weekdayLabel(selectedWeekday).toLowerCase()}s de {selectedTechnician.name}.
+                </span>
               </div>
-            </div>
 
-            <div className="relative min-h-[280px] overflow-hidden bg-slate-100">
-              {selectedWithCoordinates.length > 0 ? (
-                <MapCanvas
-                  height={280}
-                  markers={selectedWithCoordinates.map(
-                    (order, index) => ({
-                      id: order.id,
-                      lat: order.lat,
-                      lng: order.lng,
-                      label: String(index + 1),
-                    }),
-                  )}
-                />
-              ) : (
-                <>
-                  <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(186,230,253,0.65)_0%,rgba(224,242,254,0.8)_45%,rgba(220,252,231,0.75)_45%,rgba(240,253,244,0.9)_100%)]" />
+              <Button
+                type="button"
+                className="btn-brand shrink-0 rounded-xl px-6 text-white"
+                onClick={savePlanning}
+                disabled={pending || (!orderedServices.length && !currentTemplate?.items.length)}
+              >
+                <Save className="mr-2 h-4 w-4" />
 
-                  <div className="absolute inset-x-[12%] top-[28%] h-px rotate-6 bg-slate-300" />
-                  <div className="absolute inset-x-[8%] bottom-[28%] h-px -rotate-6 bg-slate-300" />
-                  <div className="absolute bottom-[8%] left-[36%] top-[5%] w-px rotate-6 bg-slate-300" />
-
-                  <div className="relative z-10 grid min-h-[280px] place-items-center p-6">
-                    <div className="max-w-sm rounded-2xl border border-white/70 bg-white/90 px-5 py-4 text-center shadow-lg backdrop-blur">
-                      <MapPin className="mx-auto h-7 w-7 text-sky-600" />
-
-                      <p className="mt-2 text-sm font-semibold text-slate-700">
-                        Mapa aguardando localizações
-                      </p>
-
-                      <p className="mt-1 text-xs leading-5 text-slate-400">
-                        Adicione ordens com latitude e
-                        longitude para visualizar os
-                        pontos geográficos.
-                      </p>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </section>
-        </div>
-      </section>
-
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur lg:left-[var(--sidebar-w)]">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-500">
-            <div className="flex items-center gap-2">
-              <UserRound className="h-4 w-4 text-sky-600" />
-
-              <span>
-                Técnico:{" "}
-                <strong className="text-slate-700">
-                  {selectedTechnician?.name ||
-                    "não selecionado"}
-                </strong>
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <CalendarDays className="h-4 w-4 text-sky-600" />
-
-              <span>
-                Data:{" "}
-                <strong className="text-slate-700">
-                  {formatDate(routeDate)}
-                </strong>
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <ListOrdered className="h-4 w-4 text-sky-600" />
-
-              <span>
-                <strong className="text-slate-700">
-                  {selectedOrders.length}
-                </strong>{" "}
-                atendimentos
-              </span>
+                {pending ? "Salvando..." : hasSavedRoute ? "Salvar alterações" : "Salvar rota padrão"}
+              </Button>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-xl"
-              onClick={() =>
-                router.push("/routes/dashboard")
-              }
-              disabled={pending}
-            >
-              Cancelar
-            </Button>
+          <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">
+                Atendimentos disponíveis
+              </h2>
 
-            <Button
-              type="button"
-              className="btn-brand rounded-xl px-6 text-white"
-              onClick={handleSubmit}
-              disabled={pending || !isValid}
-              title={
-                isValid
-                  ? "Criar rota"
-                  : "Selecione técnico, data e ao menos uma OS com endereço"
-              }
-            >
-              <Save className="mr-2 h-4 w-4" />
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                Atendimentos recorrentes previstos para {weekdayLabel(selectedWeekday).toLowerCase()} e ainda não incluídos em outra rota.
+              </p>
+            </div>
 
-              {pending
-                ? "Criando rota..."
-                : "Criar rota"}
-            </Button>
-          </div>
-        </div>
-      </div>
+            <div className="relative mt-4">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+
+              <Input value={search} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setSearch(event.target.value)} placeholder="Buscar cliente ou serviço..." className="h-10 rounded-xl pl-9" />
+            </div>
+
+            <div className="mt-4 max-h-[560px] space-y-2.5 overflow-y-auto pr-1">
+              {availableServices.map((service) => {
+                const preferredTechnician = service.preferredEmployeeUserId ? techniciansById.get(service.preferredEmployeeUserId) : null;
+
+                return (
+                  <AvailableServiceCard
+                    key={service.id}
+                    service={service}
+                    preferredTechnicianName={preferredTechnician?.name}
+                    onAdd={() => addService(service.id)}
+                  />
+                );
+              })}
+
+              {availableServices.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-9 text-center">
+                  <CheckCircle2 className="mx-auto h-7 w-7 text-emerald-500" />
+
+                  <p className="mt-2 text-sm font-semibold text-slate-700">
+                    Nenhum atendimento disponível
+                  </p>
+
+                  <p className="mx-auto mt-1 max-w-xs text-xs leading-5 text-slate-400">
+                    Todos os atendimentos previstos para este dia já estão em uma rota ou não existem rotinas configuradas para este dia.
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          </aside>
+        </section>
+      ) : null}
     </div>
   );
 }
