@@ -409,7 +409,7 @@ export default function RouteBuilder({ technicians, services, initialTemplates }
 
             <div>
               <h1 className="text-lg font-bold text-slate-900">
-                Planejamento de rotas
+                Planejamento de Rotas
               </h1>
 
               <p className="mt-1 text-sm text-slate-500">
@@ -432,8 +432,8 @@ export default function RouteBuilder({ technicians, services, initialTemplates }
       ) : null}
 
       {selectedTechnician ? (
-        <section className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <section className="grid items-stretch gap-5 xl:grid-cols-[1.25fr_0.75fr]">
+          <div className="flex min-h-[365px] flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 xl:h-[365px] xl:min-h-0">
             <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -467,7 +467,7 @@ export default function RouteBuilder({ technicians, services, initialTemplates }
               </div>
             </div>
 
-            <div className="mt-4 space-y-2.5">
+            <div className="mt-4 min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1">
               {orderedServices.map((service, index) => (
                 <RoutePlanStopCard
                   key={service.id}
@@ -482,8 +482,8 @@ export default function RouteBuilder({ technicians, services, initialTemplates }
               ))}
 
               {orderedServices.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-12 text-center">
-                  <Route className="mx-auto h-8 w-8 text-slate-300" />
+                <div className="flex h-full min-h-[150px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-6 text-center">
+                  <Route className="h-8 w-8 text-slate-300" />
 
                   <p className="mt-3 text-sm font-semibold text-slate-700">
                     Esta rota ainda está vazia
@@ -496,7 +496,7 @@ export default function RouteBuilder({ technicians, services, initialTemplates }
               ) : null}
             </div>
 
-            <div className="mt-5 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mt-4 flex shrink-0 flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-2 text-xs leading-5 text-slate-500">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
 
@@ -518,7 +518,7 @@ export default function RouteBuilder({ technicians, services, initialTemplates }
             </div>
           </div>
 
-          <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <aside className="flex min-h-[365px] flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 xl:h-[365px] xl:min-h-0">
             <div>
               <h2 className="text-sm font-semibold text-slate-900">
                 Atendimentos disponíveis
@@ -535,7 +535,7 @@ export default function RouteBuilder({ technicians, services, initialTemplates }
               <Input value={search} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setSearch(event.target.value)} placeholder="Buscar cliente ou serviço..." className="h-10 rounded-xl pl-9" />
             </div>
 
-            <div className="mt-4 max-h-[560px] space-y-2.5 overflow-y-auto pr-1">
+            <div className="mt-4 min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1">
               {availableServices.map((service) => {
                 const preferredTechnician = service.preferredEmployeeUserId ? techniciansById.get(service.preferredEmployeeUserId) : null;
 

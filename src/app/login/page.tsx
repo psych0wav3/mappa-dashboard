@@ -265,6 +265,32 @@ export default function LoginPage() {
           "SameSite=Lax";
       }
 
+      if (isSuperAdmin) {
+        localStorage.removeItem(
+          "mappa_company_id",
+        );
+        localStorage.removeItem(
+          "mappa_company_name",
+        );
+        document.cookie =
+          "mappa_company_id=; Path=/; Max-Age=0; SameSite=Lax";
+        document.cookie =
+          "mappa_company_name=; Path=/; Max-Age=0; SameSite=Lax";
+
+        toast.success(
+          "Bem-vindo!",
+          {
+            description:
+              "Escolha a empresa que deseja administrar.",
+          },
+        );
+
+        window.location.replace(
+          "/select-company",
+        );
+        return;
+      }
+
       if (companyId) {
         localStorage.setItem(
           "mappa_company_id",
@@ -276,30 +302,18 @@ export default function LoginPage() {
           "Path=/; " +
           "Max-Age=86400; " +
           "SameSite=Lax";
-      } else {
-        localStorage.removeItem(
-          "mappa_company_id",
-        );
-        localStorage.removeItem(
-          "mappa_company_name",
-        );
-        document.cookie =
-          "mappa_company_id=; Path=/; Max-Age=0; SameSite=Lax";
       }
 
       toast.success(
         "Bem-vindo!",
         {
-          description: isSuperAdmin
-            ? "Selecione uma empresa no topo para continuar."
-            : "Login realizado com sucesso.",
+          description:
+            "Login realizado com sucesso.",
         },
       );
 
       window.location.replace(
-        isSuperAdmin && !companyId
-          ? "/dashboard?needCompany=1"
-          : "/dashboard",
+        "/dashboard",
       );
     } catch (error) {
       toast.error(

@@ -1,28 +1,27 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import Shell from "@/components/shell/Shell";
+
 import PendingAgreementsGate from "@/components/agreements/PendingAgreementsGate";
+import Shell from "@/components/shell/Shell";
+import { isSuperAdminRole, SESSION_KEYS } from "@/lib/mappa/session";
 
 export const metadata = {
   title: "Aqua Mappa — Dashboard",
   description: "Gestão de rotas e visitas",
 };
 
-export default async function PrivateLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export default async function PrivateLayout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies();
-  const token = cookieStore.get("mappa_access_token")?.value;
+  const token = cookieStore.get(SESSION_KEYS.token)?.value;
+  const role = cookieStore.get(SESSION_KEYS.role)?.value;
+  const companyId = cookieStore.get(SESSION_KEYS.companyId)?.value;
 
-  if (!token) {
-    redirect("/login");
-  }
+  if (!token) redirect("/login");
+  if (isSuperAdminRole(role) && !companyId) redirect("/select-company");
 
   return (
-    <div className="bg-neutral-50 min-h-screen">
+    <div className="min-h-screen bg-neutral-50">
       <Shell>
         <PendingAgreementsGate>{children}</PendingAgreementsGate>
       </Shell>

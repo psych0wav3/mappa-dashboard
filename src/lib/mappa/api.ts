@@ -86,7 +86,7 @@ export async function getCompanyId() {
   }
 
   if (isSuperAdminRole(role)) {
-    throw new Error(SUPER_ADMIN_COMPANY_REQUIRED);
+    redirect("/select-company");
   }
 
   redirectToSessionLogout("company-required");

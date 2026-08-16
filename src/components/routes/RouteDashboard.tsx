@@ -555,10 +555,10 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
       <RouteTechnicianWeekSelector technicians={technicians} technicianId={technicianId} technicianMetrics={technicianMetrics} weekStartDate={weekStartDate} selectedDate={selectedDate} todayIso={todayIso} dayMeta={dayMeta} onSelectTechnician={selectTechnician} onPreviousWeek={previousWeek} onCurrentWeek={currentWeek} onNextWeek={nextWeek} onSelectDate={selectDate} />
 
       {selectedTechnician ? (
-        <section className="grid items-start gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <section className="grid items-stretch gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+          <div className="flex h-full min-h-0 flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             {loadingWeek && !selectedRoute ? (
-              <div className="grid min-h-[420px] place-items-center rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+              <div className="grid min-h-[420px] flex-1 place-items-center rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
                 <div>
                   <LoaderCircle className="mx-auto h-9 w-9 animate-spin text-sky-500" />
                   <h2 className="mt-3 text-sm font-semibold text-slate-700">Preparando as rotas</h2>
@@ -566,7 +566,7 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
                 </div>
               </div>
             ) : !selectedRoute ? (
-              <div className="grid min-h-[420px] place-items-center rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+              <div className="grid min-h-[420px] flex-1 place-items-center rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
                 <div>
                   <CalendarDays className="mx-auto h-9 w-9 text-slate-300" />
                   <h2 className="mt-3 text-sm font-semibold text-slate-700">Nenhuma rota para {formatDate(selectedDate)}</h2>
@@ -688,15 +688,6 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
                     );
                   })}
                 </div>
-
-                {orderDirty ? (
-                  <div className="mt-4 flex justify-end border-t border-slate-100 pt-4">
-                    <Button type="button" className="btn-brand rounded-xl px-5 text-white" disabled={savingRouteOrder} onClick={persistRouteOrder}>
-                      {savingRouteOrder ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                      {savingRouteOrder ? "Salvando..." : "Salvar nova ordem"}
-                    </Button>
-                  </div>
-                ) : null}
               </div>
             )}
           </div>
