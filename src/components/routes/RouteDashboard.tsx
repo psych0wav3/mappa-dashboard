@@ -11,7 +11,7 @@ import { getRouteOrder, saveRouteOrder } from "@/app/(private)/routes/route-orde
 import type { RouteOrderItem } from "@/app/(private)/routes/route-order.api";
 import { loadRouteWeek } from "@/app/(private)/routes/weekly-route-materialization.actions";
 
-import FormPageHeader from "@/components/form-layout/FormPageHeader";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import RouteMapPanel from "@/components/routes/RouteMapPanel";
 import RouteTechnicianWeekSelector from "@/components/routes/RouteTechnicianWeekSelector";
 import { addDays, formatDate, getTechnicianDayMeta, getTechnicianRouteForDate, getTechnicianWeekMetrics, isRouteOrderCompleted, routeStatusClass, routeStatusLabel, startOfWeekMonday, toIsoDate } from "@/components/routes/routeWeek.utils";
@@ -133,6 +133,7 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
   const [orderDirty, setOrderDirty] = React.useState(false);
   const [loadingRouteOrder, setLoadingRouteOrder] = React.useState(false);
   const [savingRouteOrder, setSavingRouteOrder] = React.useState(false);
+  const [orderToRemove, setOrderToRemove] = React.useState<RouteDashboardItem["serviceOrders"][number] | null>(null);
 
   const [technicianId, setTechnicianId] = React.useState(() => {
     const todayRoute = initialRoutes.find((route) => route.routeDate === todayIso);
@@ -266,9 +267,7 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
 
     const byId = new Map(selectedRoute.serviceOrders.map((order) => [order.serviceOrderId, order]));
 
-    return draftOrderIds
-      .map((id) => byId.get(id))
-      .filter((order): order is RouteDashboardItem["serviceOrders"][number] => Boolean(order));
+    return draftOrderIds.map((id) => byId.get(id)).filter((order): order is RouteDashboardItem["serviceOrders"][number] => Boolean(order));
   }, [draftOrderIds, selectedRoute]);
 
   const completedOrders = React.useMemo(() => {
@@ -383,10 +382,7 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
 
     setSavingRouteOrder(true);
 
-    const result = await saveRouteOrder(
-      selectedRoute.id,
-      draftOrderIds,
-    );
+    const result = await saveRouteOrder(selectedRoute.id, draftOrderIds);
 
     setSavingRouteOrder(false);
 
@@ -455,7 +451,23 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
       updatedRoute,
     ]);
 
-    await loadOneTimeOrdersForDate(selectedDate);
+    const updatedOrderIds = [...updatedRoute.serviceOrders]
+      .sort((first, second) => first.executionOrder - second.executionOrder)
+      .map((routeOrder) => routeOrder.serviceOrderId);
+
+    setDraftOrderIds(updatedOrderIds);
+    setOrderDirty(false);
+
+    const [routeOrderResult] = await Promise.all([
+      getRouteOrder(updatedRoute.id),
+      loadOneTimeOrdersForDate(selectedDate),
+    ]);
+
+    if (routeOrderResult.ok) {
+      setRouteOrderMeta(routeOrderResult.serviceOrders);
+    } else {
+      setRouteOrderMeta([]);
+    }
 
     toast.success(
       selectedRoute
@@ -466,21 +478,15 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
     router.refresh();
   }
 
-  async function removeOneTimeOrder(order: RouteDashboardItem["serviceOrders"][number]) {
-    if (!selectedRoute) {
+  async function removeOneTimeOrder() {
+    if (!selectedRoute || !orderToRemove) {
       return;
     }
+
+    const order = orderToRemove;
 
     if (orderDirty) {
       toast.error("Salve primeiro a nova ordem da rota.");
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `Retirar a OS ${order.orderNumber ?? ""} de ${order.customerName} desta rota?\n\nEla voltará para as OS avulsas disponíveis de ${formatDate(selectedDate)}.`,
-    );
-
-    if (!confirmed) {
       return;
     }
 
@@ -498,18 +504,10 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
       return;
     }
 
+    setOrderToRemove(null);
     setOrderDirty(false);
     loadedWeeksRef.current.delete(weekStartDate);
 
-    /*
-     * Buscamos novamente:
-     *
-     * 1. as rotas da semana;
-     * 2. as OS disponíveis daquele dia.
-     *
-     * Assim a OS desaparece da esquerda e
-     * reaparece imediatamente à direita.
-     */
     await Promise.all([
       loadWeek(weekStartDate, true),
       loadOneTimeOrdersForDate(selectedDate),
@@ -526,7 +524,32 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
 
   return (
     <div className="space-y-5">
-      <FormPageHeader icon={Route} title="Controle das rotas" description="Acompanhe as rotas recorrentes, encaixe as OS avulsas e organize a sequência de execução." actions={<div className="flex flex-wrap gap-2"><Button type="button" variant="outline" className="rounded-xl" disabled={loadingWeek || orderDirty} onClick={refreshCurrentWeek}><RefreshCcw className={`mr-2 h-4 w-4 ${loadingWeek ? "animate-spin" : ""}`} />{loadingWeek ? "Atualizando..." : "Atualizar"}</Button><Button type="button" className="btn-brand rounded-xl text-white" onClick={() => router.push("/routes/builder")}><Plus className="mr-2 h-4 w-4" />Planejar rotas</Button></div>} />
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700">
+              <Route className="h-5 w-5" />
+            </div>
+
+            <div>
+              <h1 className="text-lg font-bold text-slate-900">Controle das rotas</h1>
+              <p className="mt-1 text-sm text-slate-500">Acompanhe as rotas recorrentes, encaixe as OS avulsas e organize a sequência de execução.</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" className="rounded-xl" disabled={loadingWeek || orderDirty} onClick={refreshCurrentWeek}>
+              <RefreshCcw className={`mr-2 h-4 w-4 ${loadingWeek ? "animate-spin" : ""}`} />
+              {loadingWeek ? "Atualizando..." : "Atualizar"}
+            </Button>
+
+            <Button type="button" className="btn-brand rounded-xl text-white" onClick={() => router.push("/routes/builder")}>
+              <Plus className="mr-2 h-4 w-4" />
+              Planejar rotas
+            </Button>
+          </div>
+        </div>
+      </section>
 
       <RouteTechnicianWeekSelector technicians={technicians} technicianId={technicianId} technicianMetrics={technicianMetrics} weekStartDate={weekStartDate} selectedDate={selectedDate} todayIso={todayIso} dayMeta={dayMeta} onSelectTechnician={selectTechnician} onPreviousWeek={previousWeek} onCurrentWeek={currentWeek} onNextWeek={nextWeek} onSelectDate={selectDate} />
 
@@ -648,7 +671,7 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
                                 </Button>
 
                                 {oneTime ? (
-                                  <Button type="button" variant="outline" size="sm" className="h-8 w-8 rounded-lg border-violet-200 p-0 text-violet-600 hover:bg-violet-50 hover:text-violet-700" disabled={orderDirty || savingRouteOrder || Boolean(removingOrderId)} onClick={() => removeOneTimeOrder(order)} title="Retirar da rota">
+                                  <Button type="button" variant="outline" size="sm" className="h-8 w-8 rounded-lg border-violet-200 p-0 text-violet-600 hover:bg-violet-50 hover:text-violet-700" disabled={orderDirty || savingRouteOrder || Boolean(removingOrderId)} onClick={() => setOrderToRemove(order)} title="Retirar da rota">
                                     {removing ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
                                   </Button>
                                 ) : null}
@@ -675,6 +698,34 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
           </div>
         </section>
       ) : null}
+
+      <ConfirmDialog
+        open={Boolean(orderToRemove)}
+        tone="warning"
+        title="Retirar OS da rota?"
+        description={
+          orderToRemove ? (
+            <>
+              <p>
+                A OS <strong className="font-semibold text-slate-700">{orderToRemove.orderNumber ? `#${orderToRemove.orderNumber}` : orderToRemove.title}</strong> de <strong className="font-semibold text-slate-700">{orderToRemove.customerName}</strong> será retirada desta rota.
+              </p>
+
+              <p className="mt-2">
+                Ela voltará para as OS avulsas disponíveis de <strong className="font-semibold text-slate-700">{formatDate(selectedDate)}</strong>.
+              </p>
+            </>
+          ) : null
+        }
+        confirmLabel="Retirar da rota"
+        cancelLabel="Manter na rota"
+        loading={Boolean(removingOrderId)}
+        onCancel={() => {
+          if (!removingOrderId) {
+            setOrderToRemove(null);
+          }
+        }}
+        onConfirm={removeOneTimeOrder}
+      />
     </div>
   );
 }
