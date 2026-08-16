@@ -49,11 +49,7 @@ export async function loadRouteWeek(params: {
     revalidatePath(
       "/workorders",
     );
-
-    revalidatePath(
-      "/workorders/approved",
-    );
-
+    
     return {
       ok: true,
       routes,

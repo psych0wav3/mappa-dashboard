@@ -23,6 +23,67 @@ export function normalizeWorkOrderStatus(
     .toUpperCase();
 }
 
+export function normalizeWorkOrderOrigin(
+  origin?: string | null,
+) {
+  return String(origin ?? "")
+    .replace(/[_\s-]/g, "")
+    .toUpperCase();
+}
+
+export function normalizeWorkOrderType(
+  type?: string | null,
+) {
+  return String(type ?? "")
+    .replace(/[_\s-]/g, "")
+    .toUpperCase();
+}
+
+export function workOrderTypeLabel(
+  order: WorkOrderListItem,
+  fallbackType?: string | null,
+) {
+  const type =
+    normalizeWorkOrderType(
+      order.serviceOrderType,
+    );
+
+  const origin =
+    normalizeWorkOrderOrigin(
+      order.origin,
+    );
+
+  if (
+    type === "RECURRENT" ||
+    origin ===
+      "SERVICEPLANAPPROVAL" ||
+    origin ===
+      "SERVICEPLANEXECUTION"
+  ) {
+    return "Serviço recorrente";
+  }
+
+  if (type === "ONETIME") {
+    return "Serviço avulso";
+  }
+
+  if (fallbackType?.trim()) {
+    return fallbackType.trim();
+  }
+
+  const typeMatch =
+    String(
+      order.description || "",
+    ).match(
+      /Tipo de atendimento:\s*([^\n.]+)\.?/i,
+    );
+
+  return (
+    typeMatch?.[1]?.trim() ||
+    "Serviço avulso"
+  );
+}
+
 export function workOrderStatusLabel(
   status?: string | null,
 ) {
@@ -70,6 +131,44 @@ export function workOrderStatusLabel(
     labels[normalized] ??
     status ??
     "Status não informado"
+  );
+}
+
+export function workOrderStatusLabelForOrder(
+  order: WorkOrderListItem,
+) {
+  const origin =
+    normalizeWorkOrderOrigin(
+      order.origin,
+    );
+
+  const status =
+    normalizeWorkOrderStatus(
+      order.status,
+    );
+
+  if (
+    origin ===
+    "SERVICEPLANAPPROVAL"
+  ) {
+    if (
+      status === "DONE" ||
+      status === "FINISHED"
+    ) {
+      return "Recorrência aprovada";
+    }
+
+    if (
+      status === "CANCELED" ||
+      status === "CANCELLED" ||
+      status === "REJECTED"
+    ) {
+      return "Recorrência recusada";
+    }
+  }
+
+  return workOrderStatusLabel(
+    order.status,
   );
 }
 
@@ -273,9 +372,12 @@ export function filterWorkOrders(
             order.address,
             order.openedByUserName,
             order.finishedByUserName,
+            order.serviceOrderType,
+            order.origin,
             order.status,
-            workOrderStatusLabel(
-              order.status,
+            workOrderTypeLabel(order),
+            workOrderStatusLabelForOrder(
+              order,
             ),
             formatWorkOrderDate(
               order.scheduledDate,

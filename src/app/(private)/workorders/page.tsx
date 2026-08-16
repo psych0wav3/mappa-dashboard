@@ -41,6 +41,8 @@ export default async function WorkOrdersPage({
 
     scheduledDate:
       scheduledDate || undefined,
+
+    hideServicePlanExecutions: true,
   });
 
   return (

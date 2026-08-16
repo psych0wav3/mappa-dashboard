@@ -148,7 +148,6 @@ export async function createRouteFromPlanner(input: CreateRoutePlannerInput): Pr
     revalidatePath("/routes/builder");
     revalidatePath("/routes/dashboard");
     revalidatePath("/workorders");
-    revalidatePath("/workorders/approved");
 
     return {
       ok: true,
@@ -241,7 +240,6 @@ export async function addOneTimeServiceOrderToDailyRoute(input: {
 
     revalidatePath("/routes/dashboard");
     revalidatePath("/workorders");
-    revalidatePath("/workorders/approved");
 
     return {
       ok: true,

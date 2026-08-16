@@ -182,9 +182,5 @@ export async function priceWorkOrder(
     "/workorders/customer-approval",
   );
 
-  revalidatePath(
-    "/workorders/approved",
-  );
-
   return updated;
 }

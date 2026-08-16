@@ -82,6 +82,7 @@ type ApiServiceOrder = {
   scheduledDate?: string | null;
   totalAmount?: number | null;
   pricingNotes?: string | null;
+  serviceOrderType?: string | null;
   origin?: string | null;
   status?: string | null;
   openedByUserId?: string | null;
@@ -150,6 +151,7 @@ export type WorkOrderListItem = {
   id: string;
   code?: string;
   orderNumber?: number | null;
+  serviceOrderType?: string | null;
   origin?: string | null;
   customerId: string;
   clientId?: string;
@@ -335,6 +337,14 @@ function normalizeStatus(
   );
 }
 
+function normalizeServiceOrderOrigin(
+  value?: string | null,
+) {
+  return String(value ?? "")
+    .replace(/[_\s-]/g, "")
+    .toUpperCase();
+}
+
 function addressLabel(
   address?: ApiAddress | null,
 ) {
@@ -455,6 +465,8 @@ function normalizeWorkOrder(
         ? String(orderNumber)
         : order.id,
     orderNumber,
+    serviceOrderType:
+      order.serviceOrderType ?? null,
     origin: order.origin ?? null,
     customerId: order.customerId || "",
     clientId: order.customerId || "",
@@ -537,6 +549,7 @@ export async function listWorkOrders(
     status?: string;
     customerId?: string;
     scheduledDate?: string;
+    hideServicePlanExecutions?: boolean;
   },
 ): Promise<WorkOrderListItem[]> {
   const companyId = await getCompanyId();
@@ -577,37 +590,74 @@ export async function listWorkOrders(
   const summaries =
     extractItems<ApiServiceOrder>(data);
 
-  const hydrated = await Promise.all(
-    summaries.map(async (summary) => {
-      try {
-        const details =
-          await mappaFetch<ApiServiceOrder>(
-            `/api/companies/${companyId}/service-orders/${summary.id}`,
-          );
+  const summariesToHydrate =
+    options?.hideServicePlanExecutions
+      ? summaries.filter((order) => {
+          const origin =
+            normalizeServiceOrderOrigin(
+              order.origin,
+            );
 
-        return {
-          ...summary,
-          ...details,
-          customerName:
-            details.customerName ||
-            summary.customerName,
-          customerId:
-            details.customerId ||
-            summary.customerId,
-          customerAddressId:
-            details.customerAddressId ||
-            summary.customerAddressId,
-          address:
-            details.address ||
-            summary.address,
-        };
-      } catch {
-        return summary;
-      }
-    }),
+          return (
+            !origin ||
+            origin !==
+              "SERVICEPLANEXECUTION"
+          );
+        })
+      : summaries;
+
+  const hydrated = await Promise.all(
+    summariesToHydrate.map(
+      async (summary) => {
+        try {
+          const details =
+            await mappaFetch<ApiServiceOrder>(
+              `/api/companies/${companyId}/service-orders/${summary.id}`,
+            );
+
+          return {
+            ...summary,
+            ...details,
+            serviceOrderType:
+              details.serviceOrderType ??
+              summary.serviceOrderType,
+            origin:
+              details.origin ??
+              summary.origin,
+            customerName:
+              details.customerName ||
+              summary.customerName,
+            customerId:
+              details.customerId ||
+              summary.customerId,
+            customerAddressId:
+              details.customerAddressId ||
+              summary.customerAddressId,
+            address:
+              details.address ||
+              summary.address,
+          };
+        } catch {
+          return summary;
+        }
+      },
+    ),
   );
 
-  return hydrated.map(normalizeWorkOrder);
+  const visibleOrders =
+    options?.hideServicePlanExecutions
+      ? hydrated.filter(
+          (order) =>
+            normalizeServiceOrderOrigin(
+              order.origin,
+            ) !==
+            "SERVICEPLANEXECUTION",
+        )
+      : hydrated;
+
+  return visibleOrders.map(
+    normalizeWorkOrder,
+  );
 }
 
 export async function getWorkOrderById(
@@ -950,7 +1000,6 @@ export async function createAdminWorkOrder(
   revalidatePath(
     "/workorders/customer-approval",
   );
-  revalidatePath("/workorders/approved");
   revalidatePath("/routes/builder");
   revalidatePath("/routes/dashboard");
 
@@ -1013,7 +1062,6 @@ export async function priceWorkOrder(
   revalidatePath(
     "/workorders/customer-approval",
   );
-  revalidatePath("/workorders/approved");
 
   return normalizeWorkOrder(updated);
 }

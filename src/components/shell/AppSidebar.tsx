@@ -357,10 +357,6 @@ function SidebarContent({
         label:
           "Aguardando Aprovação",
       },
-      {
-        href: "/workorders/approved",
-        label: "Prontas para Rota",
-      },
     ],
     [],
   );

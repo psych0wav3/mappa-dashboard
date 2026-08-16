@@ -125,10 +125,6 @@ export async function removeOneTimeOrderFromDailyRoute(params: {
       "/workorders",
     );
 
-    revalidatePath(
-      "/workorders/approved",
-    );
-
     return {
       ok: true,
 

@@ -85,7 +85,7 @@ export default async function DashboardPage() {
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Aguardando precificação" value={metrics.pendingCompanyPricingOrders} description="OS que ainda precisam receber os valores da empresa." href="/workorders/pricing" icon={CircleDollarSign} tone="amber" />
           <MetricCard label="Aguardando aprovação" value={metrics.pendingCustomerApprovalOrders} description="OS enviadas e ainda não aprovadas pelo cliente." href="/workorders/customer-approval" icon={Clock3} tone="violet" />
-          <MetricCard label="Aguardando execução" value={metrics.waitingExecutionOrders} description="OS aprovadas e prontas para entrar na operação." href="/workorders/approved" icon={CalendarCheck2} tone="sky" />
+          <MetricCard label="Aguardando execução" value={metrics.waitingExecutionOrders} description="OS aprovadas e prontas para entrar na operação." href="/routes/builder" icon={CalendarCheck2} tone="sky" />
           <MetricCard label="Em rota" value={metrics.inRouteOrders} description="Atendimentos que já estão incluídos em uma rota." href="/routes/dashboard" icon={Route} tone="emerald" />
         </div>
       </section>

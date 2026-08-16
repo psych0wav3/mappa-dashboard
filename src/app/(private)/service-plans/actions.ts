@@ -635,7 +635,6 @@ export async function createServicePlan(
   revalidatePath(
     "/workorders/customer-approval",
   );
-  revalidatePath("/workorders/approved");
   revalidatePath("/routes/builder");
 
   return normalizePlan(response);
@@ -670,7 +669,6 @@ export async function updateServicePlanStatus(
 
   revalidatePath("/service-plans");
   revalidatePath("/workorders");
-  revalidatePath("/workorders/approved");
   revalidatePath("/routes/builder");
 
   return normalizePlan(response);
@@ -700,7 +698,6 @@ export async function generateServicePlanOrders(
 
   revalidatePath("/service-plans");
   revalidatePath("/workorders");
-  revalidatePath("/workorders/approved");
   revalidatePath("/routes/builder");
   revalidatePath("/routes/dashboard");
 

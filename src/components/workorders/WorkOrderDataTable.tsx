@@ -19,7 +19,8 @@ import {
   formatWorkOrderDate,
   workOrderStatusClassName,
   workOrderStatusDotClassName,
-  workOrderStatusLabel,
+  workOrderStatusLabelForOrder,
+  workOrderTypeLabel,
 } from "./work-order-table.helpers";
 
 const PAGE_SIZE_OPTIONS = [
@@ -98,28 +99,6 @@ function getPageNumbers(
     currentPage + 1,
     currentPage + 2,
   ];
-}
-
-function workOrderTypeLabel(
-  order: WorkOrderListItem,
-) {
-  const description = String(
-    order.description || "",
-  );
-
-  const typeMatch =
-    description.match(
-      /Tipo de atendimento:\s*([^\n.]+)\.?/i,
-    );
-
-  const type =
-    typeMatch?.[1]?.trim();
-
-  if (type) {
-    return type;
-  }
-
-  return "Serviço avulso";
 }
 
 export default function WorkOrderDataTable({
@@ -443,8 +422,8 @@ export default function WorkOrderDataTable({
                               />
 
                               <span className="truncate">
-                                {workOrderStatusLabel(
-                                  order.status,
+                                {workOrderStatusLabelForOrder(
+                                  order,
                                 )}
                               </span>
                             </span>
@@ -538,8 +517,8 @@ export default function WorkOrderDataTable({
                           ].join(" ")}
                         />
 
-                        {workOrderStatusLabel(
-                          order.status,
+                        {workOrderStatusLabelForOrder(
+                          order,
                         )}
                       </span>
                     </div>

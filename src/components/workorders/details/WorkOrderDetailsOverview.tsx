@@ -20,7 +20,8 @@ import {
   formatWorkOrderDate,
   workOrderStatusClassName,
   workOrderStatusDotClassName,
-  workOrderStatusLabel,
+  workOrderStatusLabelForOrder,
+  workOrderTypeLabel,
 } from "../work-order-table.helpers";
 
 import {
@@ -82,8 +83,10 @@ export default function WorkOrderDetailsOverview({
   parsedDescription: ParsedWorkOrderDescription;
 }) {
   const orderType =
-    parsedDescription.serviceType ||
-    "Serviço avulso";
+    workOrderTypeLabel(
+      order,
+      parsedDescription.serviceType,
+    );
 
   return (
     <div className="space-y-4">
@@ -116,8 +119,8 @@ export default function WorkOrderDetailsOverview({
                   ].join(" ")}
                 />
 
-                {workOrderStatusLabel(
-                  order.status,
+                {workOrderStatusLabelForOrder(
+                  order,
                 )}
               </span>
             </div>
