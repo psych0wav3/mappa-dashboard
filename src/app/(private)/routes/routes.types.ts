@@ -60,26 +60,25 @@ export type ApiRouteResponse = {
   createdAt?: string | null;
 };
 
-export type ApiRouteDetailsResponse =
-  ApiRouteResponse & {
-    serviceOrders?: Array<{
-      serviceOrderId?: string | null;
-      id?: string | null;
-      orderNumber?: number | null;
-      title?: string | null;
-      customerId?: string | null;
-      customerName?: string | null;
-      customerAddressId?: string | null;
-      address?: string | ApiAddress | null;
-      latitude?: number | null;
-      longitude?: number | null;
-      executionOrder?: number | null;
-      status?: string | null;
-      description?: string | null;
-      scheduledDate?: string | null;
-      totalAmount?: number | null;
-    }>;
-  };
+export type ApiRouteDetailsResponse = ApiRouteResponse & {
+  serviceOrders?: Array<{
+    serviceOrderId?: string | null;
+    id?: string | null;
+    orderNumber?: number | null;
+    title?: string | null;
+    customerId?: string | null;
+    customerName?: string | null;
+    customerAddressId?: string | null;
+    address?: string | ApiAddress | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    executionOrder?: number | null;
+    status?: string | null;
+    description?: string | null;
+    scheduledDate?: string | null;
+    totalAmount?: number | null;
+  }>;
+};
 
 export type RouteTechnicianOption = {
   id: string;
@@ -98,14 +97,13 @@ export type RouteWeekday =
 export type AvailableRouteWorkOrder = {
   id: string;
   orderNumber?: number | null;
+  origin: string;
   customerId: string;
   customerName: string;
   customerAddressId?: string | null;
   title: string;
   description: string;
-  serviceKind:
-    | "POOL_CLEANING"
-    | "ADDITIONAL_SERVICE";
+  serviceKind: "POOL_CLEANING" | "ADDITIONAL_SERVICE";
   frequencyLabel: string;
   weekdays: RouteWeekday[];
   weekdaysLabel: string;
@@ -114,9 +112,7 @@ export type AvailableRouteWorkOrder = {
   address: string;
   hasAddress: boolean;
   hasCoordinates: boolean;
-  status:
-    | "WAITING_EXECUTION"
-    | "READY_FOR_ROUTE";
+  status: "WAITING_EXECUTION" | "READY_FOR_ROUTE";
   lat: number;
   lng: number;
   totalAmount: number;
@@ -146,7 +142,6 @@ export type RouteDashboardItem = {
   status: string;
   serviceOrderCount: number;
   createdAt?: string | null;
-
   serviceOrders: Array<{
     id: string;
     serviceOrderId: string;
