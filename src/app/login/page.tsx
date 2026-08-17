@@ -217,6 +217,11 @@ export default function LoginPage() {
         primaryRole?.CompanyId ??
         null;
 
+      const companyName =
+        primaryRole?.companyName ??
+        primaryRole?.CompanyName ??
+        null;
+
       if (!accessToken) {
         throw new Error(
           "Token não retornado pela API.",
@@ -269,11 +274,14 @@ export default function LoginPage() {
         localStorage.removeItem(
           "mappa_company_id",
         );
+
         localStorage.removeItem(
           "mappa_company_name",
         );
+
         document.cookie =
           "mappa_company_id=; Path=/; Max-Age=0; SameSite=Lax";
+
         document.cookie =
           "mappa_company_name=; Path=/; Max-Age=0; SameSite=Lax";
 
@@ -288,6 +296,7 @@ export default function LoginPage() {
         window.location.replace(
           "/select-company",
         );
+
         return;
       }
 
@@ -302,6 +311,26 @@ export default function LoginPage() {
           "Path=/; " +
           "Max-Age=86400; " +
           "SameSite=Lax";
+      }
+
+      if (companyName) {
+        localStorage.setItem(
+          "mappa_company_name",
+          companyName,
+        );
+
+        document.cookie =
+          `mappa_company_name=${encodeURIComponent(companyName)}; ` +
+          "Path=/; " +
+          "Max-Age=86400; " +
+          "SameSite=Lax";
+      } else {
+        localStorage.removeItem(
+          "mappa_company_name",
+        );
+
+        document.cookie =
+          "mappa_company_name=; Path=/; Max-Age=0; SameSite=Lax";
       }
 
       toast.success(

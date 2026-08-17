@@ -1,10 +1,9 @@
-// src/components/shell/AppTopbar.tsx
 "use client";
 
 import { Menu } from "lucide-react";
-import * as React from "react";
 
 import CompanySwitcher from "./CompanySwitcher";
+import UserAccountButton from "./UserAccountButton";
 
 export default function AppTopbar({
   onOpenMenu,
@@ -13,7 +12,7 @@ export default function AppTopbar({
 }) {
   return (
     <header
-      className="fixed top-0 right-0 z-[90] h-[64px] border-b bg-white/80 backdrop-blur"
+      className="fixed right-0 top-0 z-[90] h-[64px] border-b bg-white/80 backdrop-blur"
       style={{ left: "var(--sidebar-w)" }}
     >
       <div className="mx-auto flex h-full max-w-[1400px] items-center gap-3 px-3 lg:px-6">
@@ -25,7 +24,10 @@ export default function AppTopbar({
           <Menu size={18} />
         </button>
 
-        <CompanySwitcher />
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <CompanySwitcher />
+          <UserAccountButton />
+        </div>
       </div>
     </header>
   );

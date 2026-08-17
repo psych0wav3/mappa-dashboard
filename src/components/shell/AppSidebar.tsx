@@ -12,19 +12,17 @@ import {
 } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
+  Building2,
   CalendarClock,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
-  Cog,
-  FileText,
   LayoutDashboard,
   ListChecks,
   LogOut,
   Rocket,
   Route as RouteIcon,
   Settings as SettingsIcon,
-  User as UserIcon,
   UserRound,
   Wrench,
 } from "lucide-react";
@@ -32,10 +30,7 @@ import {
 import LabelSlot from "./LabelSlot";
 import SidebarDropdown from "./SidebarDropdown";
 import { SidebarLink } from "./SidebarLink";
-import {
-  getClientRole,
-  isSuperAdminRole,
-} from "@/lib/mappa/session";
+import { getClientRole } from "@/lib/mappa/session";
 
 const LS_KEY = "sidebar:collapsed";
 const WIDTH_EXPANDED = 280;
@@ -363,13 +358,10 @@ function SidebarContent({
 
   const [planLabel, setPlanLabel] =
     useState<string | null>(null);
-  const [isSuperAdmin, setIsSuperAdmin] =
-    useState(false);
 
   useEffect(() => {
     try {
       const role = getClientRole() ?? "COMPANY_ADMIN";
-      setIsSuperAdmin(isSuperAdminRole(role));
 
       const labels: Record<string, string> = {
         SUPER_ADMIN: "Super Admin",
@@ -381,39 +373,26 @@ function SidebarContent({
       setPlanLabel(labels[role] ?? role);
     } catch {
       setPlanLabel(null);
-      setIsSuperAdmin(false);
     }
   }, []);
 
-  const settingsItems = useMemo(() => {
-    const items = [
-      {
-        href: "/account",
-        label: "Meu perfil",
-        icon: UserIcon,
-      },
-      {
-        href: "/settings/checklist-templates",
-        label: "Checklists de Serviço",
-        icon: ListChecks,
-      },
-      {
-        href: "/settings/measurement-templates",
-        label: "Templates de Medição",
-        icon: CalendarClock,
-      },
-    ];
-
-    if (isSuperAdmin) {
-      items.push({
-        href: "/settings/agreements",
-        label: "Termos e acordos",
-        icon: FileText,
-      });
-    }
-
-    return items;
-  }, [isSuperAdmin]);
+const settingsItems = useMemo(() => [
+  {
+    href: "/account",
+    label: "Dados da empresa",
+    icon: Building2,
+  },
+  {
+    href: "/settings/checklist-templates",
+    label: "Checklists de Serviço",
+    icon: ListChecks,
+  },
+  {
+    href: "/settings/measurement-templates",
+    label: "Templates de Medição",
+    icon: CalendarClock,
+  },
+], []);
 
   const isWorkordersSection =
     pathname.startsWith(
@@ -674,7 +653,7 @@ function SidebarContent({
           open={settingsOpen}
           setOpen={setSettingsOpen}
           active={isSettingsSection}
-          defaultHref="/settings"
+          defaultHref="/account"
           items={settingsItems}
           pathname={pathname}
           onNavigate={onNavigate}
