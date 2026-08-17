@@ -220,6 +220,24 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
     return getTechnicianRouteForDate(routes, technicianId, selectedDate);
   }, [routes, selectedDate, technicianId]);
 
+  const selectedRouteIds = React.useMemo(() => {
+    if (!selectedRoute) {
+      return [];
+    }
+
+    return selectedRoute.sourceRouteIds.length > 0 ? selectedRoute.sourceRouteIds : [selectedRoute.id];
+  }, [selectedRoute]);
+
+  const hasConsolidatedRoutes = selectedRouteIds.length > 1;
+
+  const selectedRouteSignature = React.useMemo(() => {
+    if (!selectedRoute) {
+      return "";
+    }
+
+    return `${selectedRouteIds.join("|")}::${selectedRoute.serviceOrders.map((order) => `${order.routeId}:${order.serviceOrderId}:${order.executionOrder}:${order.status}`).join("|")}`;
+  }, [selectedRoute, selectedRouteIds]);
+
   React.useEffect(() => {
     let active = true;
 
@@ -235,26 +253,28 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
     setOrderDirty(false);
     setLoadingRouteOrder(true);
 
-    void getRouteOrder(selectedRoute.id).then((result) => {
+    void Promise.all(selectedRouteIds.map((routeId) => getRouteOrder(routeId))).then((results) => {
       if (!active) {
         return;
       }
 
       setLoadingRouteOrder(false);
 
-      if (!result.ok) {
-        setRouteOrderMeta([]);
-        toast.error(result.error || "Não foi possível carregar os dados da rota.");
+      const failed = results.find((result) => !result.ok);
+
+      if (failed) {
+        setRouteOrderMeta(results.flatMap((result) => (result.ok ? result.serviceOrders : [])));
+        toast.error(failed.error || "Não foi possível carregar todos os dados da rota.");
         return;
       }
 
-      setRouteOrderMeta(result.serviceOrders);
+      setRouteOrderMeta(results.flatMap((result) => result.serviceOrders));
     });
 
     return () => {
       active = false;
     };
-  }, [selectedRoute?.id]);
+  }, [selectedRouteSignature, selectedRouteIds]);
 
   const routeOrderMetaById = React.useMemo(() => {
     return new Map(routeOrderMeta.map((item) => [item.serviceOrderId, item]));
@@ -380,6 +400,11 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
       return;
     }
 
+    if (hasConsolidatedRoutes) {
+      toast.error("Esta data possui rotas duplicadas consolidadas. A ordenação fica bloqueada até os registros antigos serem unificados.");
+      return;
+    }
+
     setSavingRouteOrder(true);
 
     const result = await saveRouteOrder(selectedRoute.id, draftOrderIds);
@@ -444,30 +469,13 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
       return;
     }
 
-    const updatedRoute = result.route;
-
-    setRoutes((current) => [
-      ...current.filter((route) => route.id !== updatedRoute.id),
-      updatedRoute,
-    ]);
-
-    const updatedOrderIds = [...updatedRoute.serviceOrders]
-      .sort((first, second) => first.executionOrder - second.executionOrder)
-      .map((routeOrder) => routeOrder.serviceOrderId);
-
-    setDraftOrderIds(updatedOrderIds);
     setOrderDirty(false);
+    loadedWeeksRef.current.delete(weekStartDate);
 
-    const [routeOrderResult] = await Promise.all([
-      getRouteOrder(updatedRoute.id),
+    await Promise.all([
+      loadWeek(weekStartDate, true),
       loadOneTimeOrdersForDate(selectedDate),
     ]);
-
-    if (routeOrderResult.ok) {
-      setRouteOrderMeta(routeOrderResult.serviceOrders);
-    } else {
-      setRouteOrderMeta([]);
-    }
 
     toast.success(
       selectedRoute
@@ -493,7 +501,7 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
     setRemovingOrderId(order.serviceOrderId);
 
     const result = await removeOneTimeOrderFromDailyRoute({
-      routeId: selectedRoute.id,
+      routeId: order.routeId || selectedRoute.id,
       serviceOrderId: order.serviceOrderId,
     });
 
@@ -590,6 +598,12 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
                           Alterações não salvas
                         </span>
                       ) : null}
+
+                      {hasConsolidatedRoutes ? (
+                        <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[10px] font-semibold text-violet-700">
+                          {selectedRouteIds.length} rotas consolidadas
+                        </span>
+                      ) : null}
                     </div>
 
                     <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
@@ -660,11 +674,11 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
                               </div>
 
                               <div className="flex shrink-0 items-center gap-1">
-                                <Button type="button" variant="outline" size="sm" className="h-8 w-8 rounded-lg p-0" disabled={index === 0 || savingRouteOrder || Boolean(removingOrderId)} onClick={() => moveRouteOrder(index, -1)} title="Mover para cima">
+                                <Button type="button" variant="outline" size="sm" className="h-8 w-8 rounded-lg p-0" disabled={hasConsolidatedRoutes || index === 0 || savingRouteOrder || Boolean(removingOrderId)} onClick={() => moveRouteOrder(index, -1)} title="Mover para cima">
                                   <ArrowUp className="h-3.5 w-3.5" />
                                 </Button>
 
-                                <Button type="button" variant="outline" size="sm" className="h-8 w-8 rounded-lg p-0" disabled={index === orderedRouteOrders.length - 1 || savingRouteOrder || Boolean(removingOrderId)} onClick={() => moveRouteOrder(index, 1)} title="Mover para baixo">
+                                <Button type="button" variant="outline" size="sm" className="h-8 w-8 rounded-lg p-0" disabled={hasConsolidatedRoutes || index === orderedRouteOrders.length - 1 || savingRouteOrder || Boolean(removingOrderId)} onClick={() => moveRouteOrder(index, 1)} title="Mover para baixo">
                                   <ArrowDown className="h-3.5 w-3.5" />
                                 </Button>
 

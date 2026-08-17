@@ -135,6 +135,7 @@ export type CreateRoutePlannerResult = {
 
 export type RouteDashboardItem = {
   id: string;
+  sourceRouteIds: string[];
   title: string;
   routeDate: string;
   employeeUserId: string;
@@ -144,6 +145,7 @@ export type RouteDashboardItem = {
   createdAt?: string | null;
   serviceOrders: Array<{
     id: string;
+    routeId: string;
     serviceOrderId: string;
     orderNumber?: number | null;
     title: string;

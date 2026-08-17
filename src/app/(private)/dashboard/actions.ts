@@ -1,5 +1,7 @@
 import { getCompanyId, mappaFetch } from "@/lib/mappa/api";
 
+import { fetchRouteOneTimeOrders } from "@/app/(private)/routes/one-time-orders.api";
+
 export type DashboardMetrics = {
   totalCustomers: number;
   totalEmployees: number;
@@ -9,6 +11,17 @@ export type DashboardMetrics = {
   inRouteOrders: number;
   doneOrdersToday: number;
   plannedRoutesToday: number;
+};
+
+export type DashboardOneTimeOrderReminder = {
+  todayIso: string;
+  todayCount: number;
+  tomorrowCount: number;
+  laterCount: number;
+  futureCount: number;
+  totalUpcomingCount: number;
+  totalAvailableCount: number;
+  todayOrderIds: string[];
 };
 
 export const emptyDashboardMetrics: DashboardMetrics = {
@@ -22,6 +35,37 @@ export const emptyDashboardMetrics: DashboardMetrics = {
   plannedRoutesToday: 0,
 };
 
+function getTodayIso() {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  const parts = formatter.formatToParts(new Date());
+  const year = parts.find((part) => part.type === "year")?.value || "";
+  const month = parts.find((part) => part.type === "month")?.value || "";
+  const day = parts.find((part) => part.type === "day")?.value || "";
+
+  return `${year}-${month}-${day}`;
+}
+
+function addDaysIso(date: string, amount: number) {
+  const [year, month, day] = date.split("-").map(Number);
+  const value = new Date(Date.UTC(year, month - 1, day));
+
+  value.setUTCDate(value.getUTCDate() + amount);
+
+  return value.toISOString().slice(0, 10);
+}
+
+function normalizeScheduledDate(value?: string | null) {
+  const date = String(value || "").slice(0, 10);
+
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "";
+}
+
 export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   const companyId = await getCompanyId();
 
@@ -33,4 +77,49 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
     ...emptyDashboardMetrics,
     ...data,
   };
+}
+
+export async function getDashboardOneTimeOrderReminder(): Promise<DashboardOneTimeOrderReminder> {
+  const todayIso = getTodayIso();
+  const tomorrowIso = addDaysIso(todayIso, 1);
+  const endIso = addDaysIso(todayIso, 7);
+
+  try {
+    const orders = await fetchRouteOneTimeOrders();
+
+    const ordersWithDate = orders
+      .map((order) => ({
+        id: order.id,
+        scheduledDate: normalizeScheduledDate(order.scheduledDate),
+      }))
+      .filter((order) => order.scheduledDate);
+
+    const todayOrders = ordersWithDate.filter((order) => order.scheduledDate === todayIso);
+    const tomorrowOrders = ordersWithDate.filter((order) => order.scheduledDate === tomorrowIso);
+    const laterOrders = ordersWithDate.filter((order) => order.scheduledDate > tomorrowIso && order.scheduledDate <= endIso);
+
+    return {
+      todayIso,
+      todayCount: todayOrders.length,
+      tomorrowCount: tomorrowOrders.length,
+      laterCount: laterOrders.length,
+      futureCount: tomorrowOrders.length + laterOrders.length,
+      totalUpcomingCount: todayOrders.length + tomorrowOrders.length + laterOrders.length,
+      totalAvailableCount: ordersWithDate.length,
+      todayOrderIds: todayOrders.map((order) => order.id).sort(),
+    };
+  } catch (error) {
+    console.error("[getDashboardOneTimeOrderReminder]", error);
+
+    return {
+      todayIso,
+      todayCount: 0,
+      tomorrowCount: 0,
+      laterCount: 0,
+      futureCount: 0,
+      totalUpcomingCount: 0,
+      totalAvailableCount: 0,
+      todayOrderIds: [],
+    };
+  }
 }

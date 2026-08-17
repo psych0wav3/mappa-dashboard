@@ -19,6 +19,7 @@ import {
 
 import {
   employeeDisplayName,
+  mergeRouteDashboardItems,
   normalizeRouteDetails,
   normalizeWorkOrderForRoute,
 } from "./routes.mapper";
@@ -130,20 +131,47 @@ function validateRouteInput(input: CreateRoutePlannerInput) {
 export async function createRouteFromPlanner(input: CreateRoutePlannerInput): Promise<CreateRoutePlannerResult> {
   try {
     const validated = validateRouteInput(input);
-
-    const created = await createRoute({
-      title: validated.title,
+    const existingRoutes = await fetchRoutes({
       routeDate: validated.routeDate,
       employeeUserId: validated.employeeUserId,
     });
 
-    const route = await addServiceOrdersToRoute({
-      routeId: created.id,
-      serviceOrders: validated.serviceOrderIds.map((serviceOrderId, index) => ({
-        serviceOrderId,
-        executionOrder: index + 1,
-      })),
-    });
+    let route: ApiRouteDetailsResponse;
+
+    if (existingRoutes.length > 0) {
+      const routeDetails = await Promise.all(existingRoutes.map((item) => fetchRouteDetails(item.id)));
+      const primaryRoute = [...routeDetails].sort((first, second) => (second.serviceOrders?.length || 0) - (first.serviceOrders?.length || 0))[0];
+      const existingServiceOrderIds = new Set(routeDetails.flatMap((item) => (item.serviceOrders || []).map((order) => order.serviceOrderId || order.id || "")).filter(Boolean));
+      const serviceOrderIdsToAdd = validated.serviceOrderIds.filter((serviceOrderId) => !existingServiceOrderIds.has(serviceOrderId));
+
+      if (serviceOrderIdsToAdd.length === 0) {
+        route = primaryRoute;
+      } else {
+        const nextExecutionOrder = Math.max(0, ...(primaryRoute.serviceOrders || []).map((order) => Number(order.executionOrder || 0))) + 1;
+
+        route = await addServiceOrdersToRoute({
+          routeId: primaryRoute.id,
+          serviceOrders: serviceOrderIdsToAdd.map((serviceOrderId, index) => ({
+            serviceOrderId,
+            executionOrder: nextExecutionOrder + index,
+          })),
+        });
+      }
+    } else {
+      const created = await createRoute({
+        title: validated.title,
+        routeDate: validated.routeDate,
+        employeeUserId: validated.employeeUserId,
+      });
+
+      route = await addServiceOrdersToRoute({
+        routeId: created.id,
+        serviceOrders: validated.serviceOrderIds.map((serviceOrderId, index) => ({
+          serviceOrderId,
+          executionOrder: index + 1,
+        })),
+      });
+    }
 
     revalidatePath("/routes/builder");
     revalidatePath("/routes/dashboard");
@@ -204,22 +232,25 @@ export async function addOneTimeServiceOrderToDailyRoute(input: {
     let routeDetails: ApiRouteDetailsResponse;
 
     if (routes.length > 0) {
-      const currentRoute = await fetchRouteDetails(routes[0].id);
+      const currentRoutes = await Promise.all(routes.map((route) => fetchRouteDetails(route.id)));
+      const existingRoute = currentRoutes.find((route) => (route.serviceOrders || []).some((order) => (order.serviceOrderId || order.id) === input.serviceOrderId));
 
-      const nextExecutionOrder = Math.max(
-        0,
-        ...(currentRoute.serviceOrders || []).map((order) => Number(order.executionOrder || 0)),
-      ) + 1;
+      if (existingRoute) {
+        routeDetails = existingRoute;
+      } else {
+        const currentRoute = [...currentRoutes].sort((first, second) => (second.serviceOrders?.length || 0) - (first.serviceOrders?.length || 0))[0];
+        const nextExecutionOrder = Math.max(0, ...(currentRoute.serviceOrders || []).map((order) => Number(order.executionOrder || 0))) + 1;
 
-      routeDetails = await addServiceOrdersToRoute({
-        routeId: currentRoute.id,
-        serviceOrders: [
-          {
-            serviceOrderId: input.serviceOrderId,
-            executionOrder: nextExecutionOrder,
-          },
-        ],
-      });
+        routeDetails = await addServiceOrdersToRoute({
+          routeId: currentRoute.id,
+          serviceOrders: [
+            {
+              serviceOrderId: input.serviceOrderId,
+              executionOrder: nextExecutionOrder,
+            },
+          ],
+        });
+      }
     } else {
       const createdRoute = await createRoute({
         title: routeTitle(input.routeDate, input.employeeName),
@@ -301,8 +332,7 @@ export async function listRoutesForDashboard(params?: {
       }),
     );
 
-    return detailed
-      .map(normalizeRouteDetails)
+    return mergeRouteDashboardItems(detailed.map(normalizeRouteDetails))
       .sort((first, second) => {
         const dateCompare = String(second.routeDate || "").localeCompare(String(first.routeDate || ""));
 

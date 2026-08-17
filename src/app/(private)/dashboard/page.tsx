@@ -3,9 +3,10 @@ import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { ArrowRight, CalendarCheck2, CheckCircle2, CircleDollarSign, ClipboardCheck, Clock3, Route, UserRound, UsersRound } from "lucide-react";
 
+import OneTimeOrdersReminder from "@/components/dashboard/OneTimeOrdersReminder";
 import FormPageHeader from "@/components/form-layout/FormPageHeader";
 
-import { getDashboardMetrics } from "./actions";
+import { getDashboardMetrics, getDashboardOneTimeOrderReminder } from "./actions";
 
 export const metadata: Metadata = {
   title: "Painel de controle — Aqua Mappa",
@@ -21,6 +22,7 @@ type MetricCardProps = {
   href: string;
   icon: LucideIcon;
   tone?: "sky" | "emerald" | "amber" | "violet" | "slate";
+  detail?: string;
 };
 
 const tones = {
@@ -31,34 +33,48 @@ const tones = {
   slate: "bg-slate-100 text-slate-600",
 } as const;
 
-function MetricCard({ label, value, description, href, icon: Icon, tone = "sky" }: MetricCardProps) {
+function MetricCard({ label, value, description, href, icon: Icon, tone = "sky", detail }: MetricCardProps) {
   return (
     <Link href={href} className="group flex min-h-[150px] flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-sky-200 hover:shadow-md">
       <div className="flex items-start justify-between gap-4">
         <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${tones[tone]}`}><Icon className="h-5 w-5" /></div>
         <ArrowRight className="h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-sky-500" />
       </div>
+
       <div className="mt-5">
         <p className="text-2xl font-bold tracking-tight text-slate-900">{value}</p>
         <p className="mt-1 text-sm font-semibold text-slate-800">{label}</p>
         <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
+        {detail ? <p className="mt-2 inline-flex rounded-full bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-700">{detail}</p> : null}
       </div>
     </Link>
   );
 }
 
 export default async function DashboardPage() {
-  const metrics = await getDashboardMetrics();
+  const [metrics, oneTimeOrders] = await Promise.all([
+    getDashboardMetrics(),
+    getDashboardOneTimeOrderReminder(),
+  ]);
+
+  const oneTimeDetail = oneTimeOrders.totalAvailableCount > 0
+    ? oneTimeOrders.totalAvailableCount === 1
+      ? "1 é OS avulsa com data definida"
+      : `${oneTimeOrders.totalAvailableCount} são OS avulsas com data definida`
+    : undefined;
 
   return (
     <div className="space-y-5">
       <FormPageHeader icon={ClipboardCheck} title="Painel de controle" description="Acompanhe os principais números e o andamento da operação da empresa." />
+
+      <OneTimeOrdersReminder data={oneTimeOrders} />
 
       <section>
         <div className="mb-3">
           <h2 className="text-sm font-semibold text-slate-900">Visão geral</h2>
           <p className="mt-1 text-xs text-slate-500">Cadastros e movimentação de hoje.</p>
         </div>
+
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Clientes" value={metrics.totalCustomers} description="Clientes cadastrados na empresa." href="/clients" icon={UserRound} tone="sky" />
           <MetricCard label="Técnicos" value={metrics.totalEmployees} description="Profissionais cadastrados na operação." href="/technicians" icon={UsersRound} tone="violet" />
@@ -73,13 +89,17 @@ export default async function DashboardPage() {
             <h2 className="text-sm font-semibold text-slate-900">Ordens de serviço</h2>
             <p className="mt-1 text-xs leading-5 text-slate-500">Veja rapidamente em qual etapa estão as ordens que ainda exigem acompanhamento.</p>
           </div>
-          <Link href="/workorders" className="hidden shrink-0 items-center gap-1 text-xs font-semibold text-sky-600 hover:text-sky-700 sm:flex">Ver todas <ArrowRight className="h-3.5 w-3.5" /></Link>
+
+          <Link href="/workorders" className="hidden shrink-0 items-center gap-1 text-xs font-semibold text-sky-600 hover:text-sky-700 sm:flex">
+            Ver todas
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Aguardando precificação" value={metrics.pendingCompanyPricingOrders} description="OS que ainda precisam receber os valores da empresa." href="/workorders/pricing" icon={CircleDollarSign} tone="amber" />
           <MetricCard label="Aguardando aprovação" value={metrics.pendingCustomerApprovalOrders} description="OS enviadas e ainda não aprovadas pelo cliente." href="/workorders/customer-approval" icon={Clock3} tone="violet" />
-          <MetricCard label="Aguardando execução" value={metrics.waitingExecutionOrders} description="OS aprovadas e prontas para entrar na operação." href="/routes/builder" icon={CalendarCheck2} tone="sky" />
+          <MetricCard label="Aguardando execução" value={metrics.waitingExecutionOrders} description="OS aprovadas e prontas para entrar na operação." href="/routes/builder" icon={CalendarCheck2} tone="sky" detail={oneTimeDetail} />
           <MetricCard label="Em rota" value={metrics.inRouteOrders} description="Atendimentos que já estão incluídos em uma rota." href="/routes/dashboard" icon={Route} tone="emerald" />
         </div>
       </section>

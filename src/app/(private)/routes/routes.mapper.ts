@@ -90,6 +90,7 @@ export function normalizeRouteDetails(route: ApiRouteDetailsResponse): RouteDash
 
       return {
         id: item.id || item.serviceOrderId || `${route.id}-${index}`,
+        routeId: route.id,
         serviceOrderId: item.serviceOrderId || item.id || "",
         orderNumber: typeof item.orderNumber === "number" ? item.orderNumber : null,
         title: item.title || "Ordem de serviço",
@@ -110,6 +111,7 @@ export function normalizeRouteDetails(route: ApiRouteDetailsResponse): RouteDash
 
   return {
     id: route.id,
+    sourceRouteIds: [route.id],
     title: route.title || "Rota",
     routeDate: toApiDate(route.routeDate || ""),
     employeeUserId: route.employeeUserId || "",
@@ -119,4 +121,46 @@ export function normalizeRouteDetails(route: ApiRouteDetailsResponse): RouteDash
     createdAt: route.createdAt ?? null,
     serviceOrders,
   };
+}
+
+export function mergeRouteDashboardItems(routes: RouteDashboardItem[]): RouteDashboardItem[] {
+  const grouped = new Map<string, RouteDashboardItem>();
+
+  for (const route of routes) {
+    const key = `${route.employeeUserId}::${route.routeDate}`;
+    const current = grouped.get(key);
+
+    if (!current) {
+      grouped.set(key, {
+        ...route,
+        sourceRouteIds: [...route.sourceRouteIds],
+        serviceOrders: route.serviceOrders.map((order) => ({ ...order })),
+      });
+      continue;
+    }
+
+    const sourceRouteIds = Array.from(new Set([...current.sourceRouteIds, ...route.sourceRouteIds]));
+    const serviceOrderById = new Map(current.serviceOrders.map((order) => [order.serviceOrderId, order]));
+
+    for (const order of route.serviceOrders) {
+      if (!serviceOrderById.has(order.serviceOrderId)) {
+        serviceOrderById.set(order.serviceOrderId, order);
+      }
+    }
+
+    const serviceOrders = Array.from(serviceOrderById.values()).map((order, index) => ({
+      ...order,
+      executionOrder: index + 1,
+    }));
+
+    grouped.set(key, {
+      ...current,
+      sourceRouteIds,
+      serviceOrders,
+      serviceOrderCount: serviceOrders.length,
+      createdAt: [current.createdAt, route.createdAt].filter(Boolean).sort()[0] || null,
+    });
+  }
+
+  return Array.from(grouped.values());
 }
