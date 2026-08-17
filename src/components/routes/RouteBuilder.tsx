@@ -410,9 +410,8 @@ export default function RouteBuilder({ technicians, services, initialTemplates }
       ) : null}
 
       {selectedTechnician ? (
-        <section className="grid items-stretch gap-5 xl:grid-cols-[1.25fr_0.75fr]">
-          <div className="flex min-h-[365px] flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 xl:h-[365px] xl:min-h-0">
-            <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
+        <section className="grid items-start gap-5 xl:grid-cols-[1.25fr_0.75fr]">
+          <div className="flex min-h-[365px] flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">             <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <CalendarDays className="h-4 w-4 text-sky-600" />
@@ -445,7 +444,7 @@ export default function RouteBuilder({ technicians, services, initialTemplates }
               </div>
             </div>
 
-            <div className="mt-4 min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1">
+            <div className="mt-4 space-y-2.5">
               {orderedServices.map((service, index) => (
                 <RoutePlanStopCard
                   key={service.id}
@@ -496,8 +495,7 @@ export default function RouteBuilder({ technicians, services, initialTemplates }
             </div>
           </div>
 
-          <aside className="flex min-h-[365px] flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 xl:h-[365px] xl:min-h-0">
-            <div>
+            <aside className="flex min-h-[365px] flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">            <div>
               <h2 className="text-sm font-semibold text-slate-900">
                 Atendimentos disponíveis
               </h2>
@@ -513,7 +511,7 @@ export default function RouteBuilder({ technicians, services, initialTemplates }
               <Input value={search} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setSearch(event.target.value)} placeholder="Buscar cliente ou serviço..." className="h-10 rounded-xl pl-9" />
             </div>
 
-            <div className="mt-4 min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1">
+            <div className="mt-4 space-y-2.5">
               {availableServices.map((service) => {
                 const preferredTechnician = service.preferredEmployeeUserId ? techniciansById.get(service.preferredEmployeeUserId) : null;
 

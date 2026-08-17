@@ -300,24 +300,24 @@ export default function WorkOrderDataTable({
         </div>
       ) : (
         <>
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[920px] table-fixed border-collapse">
+          <div className="hidden w-full overflow-x-auto md:block">
+            <table className="w-full min-w-[920px] table-fixed border-collapse lg:min-w-0">
               <colgroup>
-                <col className="w-[13%]" />
-                <col className="w-[24%]" />
-                <col className="w-[16%]" />
-                <col className="w-[24%]" />
+                <col className="w-[12%]" />
+                <col className="w-[23%]" />
+                <col className="w-[15%]" />
+                <col className="w-[19%]" />
 
                 <col
                   className={
                     hasActions
-                      ? "w-[15%]"
-                      : "w-[23%]"
+                      ? "w-[17%]"
+                      : "w-[31%]"
                   }
                 />
 
                 {hasActions && (
-                  <col className="w-[8%]" />
+                  <col className="w-[14%]" />
                 )}
               </colgroup>
 
@@ -344,7 +344,7 @@ export default function WorkOrderDataTable({
                   </th>
 
                   {hasActions && (
-                    <th className="px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    <th className="px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                       {actionHeader}
                     </th>
                   )}
@@ -430,10 +430,12 @@ export default function WorkOrderDataTable({
                           </td>
 
                           {hasActions && (
-                            <td className="px-5 py-3.5 text-right">
-                              {renderAction?.(
-                                order,
-                              )}
+                            <td className="px-4 py-3.5 text-center">
+                              <div className="flex justify-center">
+                                {renderAction?.(
+                                  order,
+                                )}
+                              </div>
                             </td>
                           )}
                         </tr>
