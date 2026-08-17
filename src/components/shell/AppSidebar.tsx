@@ -393,11 +393,6 @@ function SidebarContent({
         icon: UserIcon,
       },
       {
-        href: "/settings",
-        label: "Preferências",
-        icon: Cog,
-      },
-      {
         href: "/settings/checklist-templates",
         label: "Checklists de Serviço",
         icon: ListChecks,
