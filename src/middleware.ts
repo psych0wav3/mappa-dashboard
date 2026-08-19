@@ -15,61 +15,122 @@ const PUBLIC_PATHS = [
   "/verify-reset-code",
   "/reset-password",
   "/auth/signout",
-  "/favicon.ico",
-  "/assets",
-  "/_next",
 ];
 
-const AUTH_FLOW_PATHS = ["/login", "/forgot-password", "/verify-reset-code", "/reset-password"];
+const AUTH_FLOW_PATHS = [
+  "/login",
+  "/forgot-password",
+  "/verify-reset-code",
+  "/reset-password",
+];
 
 function isPublicPath(pathname: string) {
-  return PUBLIC_PATHS.some((path) => path === "/" ? pathname === "/" : pathname === path || pathname.startsWith(`${path}/`));
+  return PUBLIC_PATHS.some((path) =>
+    path === "/"
+      ? pathname === "/"
+      : pathname === path ||
+        pathname.startsWith(`${path}/`),
+  );
 }
 
 function isAuthFlowPath(pathname: string) {
-  return AUTH_FLOW_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+  return AUTH_FLOW_PATHS.some(
+    (path) =>
+      pathname === path ||
+      pathname.startsWith(`${path}/`),
+  );
 }
 
 function isSuperAdmin(role?: string) {
-  const normalized = String(role ?? "").trim().replace(/([a-z])([A-Z])/g, "$1_$2").replace(/\s+/g, "_").toUpperCase();
-  return normalized === "SUPER_ADMIN" || normalized === "SUPERADMIN";
+  const normalized = String(role ?? "")
+    .trim()
+    .replace(/([a-z])([A-Z])/g, "$1_$2")
+    .replace(/\s+/g, "_")
+    .toUpperCase();
+
+  return (
+    normalized === "SUPER_ADMIN" ||
+    normalized === "SUPERADMIN"
+  );
 }
 
-export async function middleware(req: NextRequest) {
+export async function middleware(
+  req: NextRequest,
+) {
   const { pathname, search } = req.nextUrl;
-  const hasAccess = Boolean(req.cookies.get("mappa_access_token")?.value);
-  const role = req.cookies.get("mappa_role")?.value;
-  const companyId = req.cookies.get("mappa_company_id")?.value;
-  const superAdminWithoutCompany = hasAccess && isSuperAdmin(role) && !companyId;
+
+  const hasAccess = Boolean(
+    req.cookies.get("mappa_access_token")?.value,
+  );
+
+  const role =
+    req.cookies.get("mappa_role")?.value;
+
+  const companyId =
+    req.cookies.get("mappa_company_id")?.value;
+
+  const superAdminWithoutCompany =
+    hasAccess &&
+    isSuperAdmin(role) &&
+    !companyId;
+
   const isPublic = isPublicPath(pathname);
-  const isAuthRoute = isAuthFlowPath(pathname);
-  const isCompanySelection = pathname === "/select-company" || pathname.startsWith("/select-company/");
+  const isAuthRoute =
+    isAuthFlowPath(pathname);
+
+  const isCompanySelection =
+    pathname === "/select-company" ||
+    pathname.startsWith("/select-company/");
 
   if (!hasAccess && !isPublic) {
     const url = req.nextUrl.clone();
+
     url.pathname = "/login";
-    url.searchParams.set("redirectTo", pathname + (search || ""));
+
+    url.searchParams.set(
+      "redirectTo",
+      pathname + (search || ""),
+    );
+
     return NextResponse.redirect(url);
   }
 
   if (hasAccess && isAuthRoute) {
     const url = req.nextUrl.clone();
-    url.pathname = superAdminWithoutCompany ? "/select-company" : "/dashboard";
+
+    url.pathname =
+      superAdminWithoutCompany
+        ? "/select-company"
+        : "/dashboard";
+
     url.search = "";
+
     return NextResponse.redirect(url);
   }
 
-  if (superAdminWithoutCompany && !isCompanySelection && !isPublic) {
+  if (
+    superAdminWithoutCompany &&
+    !isCompanySelection &&
+    !isPublic
+  ) {
     const url = req.nextUrl.clone();
+
     url.pathname = "/select-company";
     url.search = "";
+
     return NextResponse.redirect(url);
   }
 
-  if (hasAccess && isCompanySelection && !isSuperAdmin(role)) {
+  if (
+    hasAccess &&
+    isCompanySelection &&
+    !isSuperAdmin(role)
+  ) {
     const url = req.nextUrl.clone();
+
     url.pathname = "/dashboard";
     url.search = "";
+
     return NextResponse.redirect(url);
   }
 
@@ -77,5 +138,7 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon\\.ico|assets).*)"],
+  matcher: [
+    "/((?!api|_next|.*\\..*).*)",
+  ],
 };

@@ -1,75 +1,83 @@
 "use client";
 
 import * as React from "react";
-import { Route as RouteIcon, Users, Camera, ShieldCheck } from "lucide-react";
+import { Route as RouteIcon, ClipboardCheck, Camera } from "lucide-react";
 import { motion } from "framer-motion";
 
+const items = [
+  {
+    icon: RouteIcon,
+    title: "Rotas inteligentes",
+    desc: "Organize a agenda dos técnicos, planeje os atendimentos e tenha mais controle sobre a operação da semana.",
+  },
+  {
+    icon: ClipboardCheck,
+    title: "Serviços e checklists",
+    desc: "Padronize os atendimentos e garanta que nenhuma etapa importante seja esquecida durante o serviço.",
+  },
+  {
+    icon: Camera,
+    title: "Fotos e medições",
+    desc: "Registre fotos, medições e informações de cada atendimento e mantenha o histórico de cada cliente organizado.",
+  },
+];
+
 export default function BenefitsSection() {
-  const items = [
-    { icon: <RouteIcon className="h-5 w-5" />, title: "Rotas otimizadas", desc: "Monte rotas semanais e ad-hoc, veja distâncias e ordem ideal." },
-    { icon: <Users className="h-5 w-5" />, title: "Atribuição de técnicos", desc: "Distribua visitas por técnico e acompanhe em tempo real." },
-    { icon: <Camera className="h-5 w-5" />, title: "Checklists com fotos", desc: "Antes/Depois, leituras químicas e histórico por cliente." },
-    { icon: <ShieldCheck className="h-5 w-5" />, title: "Confiabilidade", desc: "Dados seguros, logs e trilha de auditoria por visita." },
-  ];
-
   return (
-    <section id="benefits" className="relative overflow-hidden bg-white">
-      {/* Marca d’água no fundo */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center">
-        <span className="select-none text-[16vw] font-black leading-none tracking-tight text-slate-100">
-          BENEFÍCIOS
-        </span>
-      </div>
+    <section id="benefits" className="relative overflow-hidden bg-[#EAF7FD] py-20 sm:py-24">
+      <div className="pointer-events-none absolute -right-40 top-10 h-96 w-96 rounded-full bg-cyan-200/30 blur-3xl" />
 
-      <div className="relative mx-auto max-w-6xl px-4 py-16 sm:px-6">
-        {/* Título */}
+      <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
         <div className="mx-auto max-w-3xl text-center">
-          <h2 className="text-pretty text-3xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
-            Tudo que você precisa para gerenciar seu negócio de serviços de piscina, em um só app.
+          <span className="text-sm font-bold uppercase tracking-[0.18em] text-[#079CCB]">
+            Tudo em um só lugar
+          </span>
+
+          <h2 className="mt-4 text-balance text-4xl font-extrabold tracking-tight text-[#173F76] sm:text-5xl">
+            Tudo que você precisa,{" "}
+            <span className="text-[#08A8CF]">
+              em um único app.
+            </span>
           </h2>
-          <p className="mt-4 text-base text-slate-600">
-            Menos planilhas, menos ligações no improviso. Mais previsibilidade para sua agenda e seu caixa.
+
+          <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-slate-600">
+            Menos informações espalhadas e mais clareza para sua equipe trabalhar todos os dias.
           </p>
         </div>
 
-        {/* Linha + itens */}
-        <div className="relative mt-16">
-          {/* linha que atravessa os bullets */}
-          <div className="absolute top-2 left-0 right-0 h-px bg-slate-200" />
+        <div className="mt-14 grid grid-cols-1 gap-5 md:grid-cols-3">
+          {items.map((item, index) => {
+            const Icon = item.icon;
 
-          <div className="grid grid-cols-1 gap-12 sm:grid-cols-2 md:grid-cols-4">
-            {items.map((it, i) => {
-              const num = String(i + 1).padStart(2, "0");
-              return (
-                <motion.div
-                  key={it.title}
-                  initial={{ opacity: 0, y: 8 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0.4 }}
-                  transition={{ delay: i * 0.05 }}
-                  className="relative flex flex-col items-center text-center"
-                >
-                  {/* bullet azul alinhado com a linha */}
-                  <div className="absolute -top-[2px] flex flex-col items-center">
-                    <div className="h-4 w-4 rounded-full bg-[color:var(--ac-blue-500,#38bdf8)] ring-2 ring-white border border-slate-200" />
-                  </div>
+            return (
+              <motion.article key={item.title} initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.25 }} transition={{ delay: index * 0.08 }} className="group rounded-[28px] border border-white/80 bg-white p-7 shadow-[0_15px_40px_rgba(6,107,157,.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_50px_rgba(6,107,157,.14)]">
+                <div className="flex h-20 w-20 items-center justify-center rounded-[24px] bg-gradient-to-br from-[#078FCA] to-[#08B7D4] shadow-lg shadow-cyan-900/10">
+                  <Icon className="h-10 w-10 text-white" strokeWidth={1.8} />
+                </div>
 
-                  {/* ícone + número abaixo */}
-                  <div className="mt-8 flex items-center gap-2">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-sky-50">
-                      {it.icon}
-                    </div>
-                    <span className="text-lg font-semibold text-slate-400">{num}</span>
-                  </div>
+                <div className="mt-7 flex items-center gap-3">
+                  <span className="text-xs font-bold tracking-[0.18em] text-[#08A8CF]">
+                    0{index + 1}
+                  </span>
+                  <div className="h-px flex-1 bg-slate-200" />
+                </div>
 
-                  <h3 className="mt-3 text-base font-semibold text-slate-900">{it.title}</h3>
-                  <p className="mt-1 max-w-[26ch] text-sm leading-relaxed text-slate-600">
-                    {it.desc}
-                  </p>
-                </motion.div>
-              );
-            })}
-          </div>
+                <h3 className="mt-5 text-2xl font-extrabold tracking-tight text-[#173F76]">
+                  {item.title}
+                </h3>
+
+                <p className="mt-3 text-base leading-relaxed text-slate-600">
+                  {item.desc}
+                </p>
+              </motion.article>
+            );
+          })}
+        </div>
+
+        <div className="mt-12 text-center">
+          <p className="text-2xl font-extrabold text-[#173F76] sm:text-3xl">
+            Mais produtividade. Mais qualidade.
+          </p>
         </div>
       </div>
     </section>
