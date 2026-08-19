@@ -1,10 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  CalendarClock,
-  Plus,
-} from "lucide-react";
+import { CalendarClock, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -49,17 +46,11 @@ export default function ServicePlansClient({
   checklistTemplates,
   measurementTemplates,
 }: ServicePlansClientProps) {
-  const [pending, startTransition] =
-    React.useTransition();
+  const [pending, startTransition] = React.useTransition();
 
-  const [plans, setPlans] =
-    React.useState<ServicePlan[]>(initialPlans);
-
-  const [searchQuery, setSearchQuery] =
-    React.useState("");
-
-  const [showForm, setShowForm] =
-    React.useState(false);
+  const [plans, setPlans] = React.useState<ServicePlan[]>(initialPlans);
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [showForm, setShowForm] = React.useState(false);
 
   React.useEffect(() => {
     setPlans(initialPlans);
