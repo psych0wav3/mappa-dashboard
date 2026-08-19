@@ -1,40 +1,60 @@
 import * as React from "react";
+import Image from "next/image";
 import type { Metadata } from "next";
+
 import Navbar from "@/components/site/Navbar";
 import Footer from "@/components/site/Footer";
+import ResourcePageHero from "@/components/site/ResourcePageHero";
+import ResourcePageNav from "@/components/site/ResourcePageNav";
 import TechniciansFeatureBlocks from "@/components/site/TechniciansFeatureBlocks";
-import BackofficeFeatureTable from "@/components/site/BackofficeFeatureTable";
 
 export const metadata: Metadata = {
-  title: "Back Office — Aqua Mappa",
-  description: "Painel web: rotas, checklists, clientes e faturamento.",
+  title: "Recursos para Técnicos — Aqua Mappa",
+  description: "Rotas, serviços, checklists, fotos e medições na mão do técnico.",
 };
 
-export default function BackofficePage() {
+export default function TechniciansPage() {
   return (
     <div className="min-h-screen bg-white text-slate-900">
       <Navbar />
 
-      {/* Seção com fundo azul em degradê */}
-      <section
-        className="w-full bg-gradient-to-r from-[#0077C8] to-[#00AEEF] text-white"
-      >
-        <div className="mx-auto max-w-5xl px-4 py-20 sm:px-6 text-center sm:text-left">
-          <h1 className="text-pretty text-4xl font-extrabold tracking-tight">
-            Recursos para Técnicos
-          </h1>
-          <p className="mt-3 max-w-3xl text-lg text-white/90">
-            App mobile simples e rápido: o técnico reduz deslocamentos e papelada,
-            segue o checklist, registra fotos e leituras químicas em poucos toques.
-          </p>
-        </div>
-      </section>
+      <ResourcePageHero
+        eyebrow="App dos técnicos"
+        title={
+          <>
+            Menos papelada.{" "}
+            <span className="text-[#173F76]">
+              Mais serviço feito.
+            </span>
+          </>
+        }
+        description="O técnico recebe sua rota, executa o atendimento e registra tudo diretamente pelo celular, em um fluxo simples e organizado."
+        whatsappMessage="Olá! Gostaria de conhecer o aplicativo do Aqua Mappa para técnicos."
+        visual={
+          <div className="absolute inset-0 overflow-hidden">
+            <div className="absolute bottom-[-85px] right-[25px] h-[470px] w-[390px]">
+              <Image
+                src="/personagem-aqua-mappa.png"
+                alt="Técnico Aqua Mappa"
+                fill
+                className="object-contain object-bottom"
+                priority
+              />
+            </div>
 
-      {/* Blocos da área */}
+            <div className="absolute bottom-8 left-3 flex gap-5 text-sm font-semibold text-white/80">
+              <span>Rotas</span>
+              <span>•</span>
+              <span>Checklists</span>
+              <span>•</span>
+              <span>Fotos e medições</span>
+            </div>
+          </div>
+        }
+      />
+
       <TechniciansFeatureBlocks />
-
-      <BackofficeFeatureTable />
-
+      <ResourcePageNav current="tecnicos" />
       <Footer />
     </div>
   );

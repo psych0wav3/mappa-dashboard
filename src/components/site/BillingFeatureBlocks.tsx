@@ -1,145 +1,93 @@
-// components/site/BillingFeatureBlocks.tsx
 "use client";
 
 import * as React from "react";
-import { Banknote, CreditCard, Clock3, Lock } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { ArrowRight, CalendarClock, Check, CreditCard, Receipt, Repeat2, WalletCards } from "lucide-react";
 
-type Bullet = { icon: React.ReactNode; text: string };
-type Img = { src: string; alt: string };
+import { getAquaMappaWhatsAppUrl } from "@/lib/contact";
 
-function Block({
-  title,
-  desc,
-  bullets,
-  img,
-  disabled = false,
-  flip = false,
-}: {
-  title: string;
-  desc: string;
-  bullets: Bullet[];
-  img: Img;
-  disabled?: boolean;
-  /** Alterna a posição: imagem ↔ texto (para manter o zigue-zague da página de Clientes) */
-  flip?: boolean;
-}) {
+export default function BillingFeatureBlocks() {
+  const whatsappUrl = getAquaMappaWhatsAppUrl(
+    "Olá! Gostaria de saber quando os recursos de cobrança e pagamentos do Aqua Mappa estarão disponíveis.",
+  );
+
   return (
-    <div
-      className={cn(
-        "mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-4 py-10 sm:px-6 md:grid-cols-2",
-      )}
-    >
-      {/* Imagem */}
-      <div
-        className={cn(
-          "flex justify-center md:justify-start",
-          flip && "md:order-2 md:justify-end",
-        )}
-      >
-        <div className="aspect-[4/3] w-full max-w-[520px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={img.src}
-            alt={img.alt}
-            className={cn(
-              "h-full w-full object-cover",
-              disabled && "opacity-70 grayscale",
-            )}
-          />
+    <section className="overflow-hidden bg-white py-20 sm:py-24">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+        <div className="mx-auto max-w-3xl text-center">
+          <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-amber-700">
+            Em desenvolvimento
+          </span>
+
+          <h2 className="mt-5 text-balance text-4xl font-extrabold tracking-tight text-[#173F76] sm:text-5xl">
+            Do serviço realizado ao recebimento.
+          </h2>
+
+          <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-slate-600">
+            O objetivo é reduzir tarefas manuais e conectar o financeiro aos serviços que já acontecem dentro do Aqua Mappa.
+          </p>
+        </div>
+
+        <div className="relative mx-auto mt-16 max-w-5xl">
+          <div className="absolute left-[15%] right-[15%] top-7 hidden h-px bg-gradient-to-r from-sky-100 via-[#08A8CF] to-sky-100 md:block" />
+
+          <div className="relative grid gap-8 md:grid-cols-4">
+            <FlowItem number="01" icon={<Check className="h-5 w-5" />} title="Serviço realizado" description="O atendimento é concluído e registrado na operação." />
+            <FlowItem number="02" icon={<Receipt className="h-5 w-5" />} title="Faturamento" description="O serviço poderá alimentar o processo de faturamento." />
+            <FlowItem number="03" icon={<CreditCard className="h-5 w-5" />} title="Cobrança" description="Cobranças e recorrências dentro do mesmo fluxo." />
+            <FlowItem number="04" icon={<WalletCards className="h-5 w-5" />} title="Recebimento" description="Mais visibilidade sobre o que foi recebido e o que está pendente." />
+          </div>
+        </div>
+
+        <div className="mt-20 grid gap-10 border-y border-slate-200 py-10 md:grid-cols-3">
+          <FutureFeature icon={<Receipt className="h-6 w-6" />} title="Faturas a partir dos serviços" description="Reduza retrabalho conectando o que foi executado ao processo financeiro." />
+          <FutureFeature icon={<Repeat2 className="h-6 w-6" />} title="Cobranças recorrentes" description="Uma experiência pensada para empresas que trabalham com manutenção recorrente." />
+          <FutureFeature icon={<CalendarClock className="h-6 w-6" />} title="Mais visibilidade financeira" description="Acompanhe o fluxo com mais clareza sem separar operação e financeiro." />
         </div>
       </div>
+    </section>
+  );
+}
 
-      {/* Texto */}
-      <div className={cn(flip && "md:order-1")}>
-        <h3 className="text-2xl font-semibold tracking-tight text-slate-900">
-          {title}
-        </h3>
-        <p className="mt-2 text-slate-600">{desc}</p>
+function FlowItem({ number, icon, title, description }: { number: string; icon: React.ReactNode; title: string; description: string }) {
+  return (
+    <div className="relative text-center">
+      <span className="relative z-10 mx-auto grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-[#0789C8] to-[#08B3D3] text-white shadow-md">
+        {icon}
+      </span>
 
-        <ul className="mt-4 space-y-2">
-          {bullets.map((b, i) => (
-            <li key={i} className="flex items-start gap-3 text-[15px]">
-              <span className="mt-0.5 grid h-6 w-6 place-items-center rounded-full bg-sky-50 text-sky-700 ring-1 ring-sky-100">
-                {b.icon}
-              </span>
-              <span className={cn(disabled && "opacity-70")}>{b.text}</span>
-            </li>
-          ))}
-        </ul>
+      <p className="mt-5 text-[10px] font-bold tracking-[0.18em] text-[#08A8CF]">
+        {number}
+      </p>
 
-        {disabled && (
-          <div className="mt-5 inline-flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700">
-            <Clock3 className="h-4 w-4" />
-            Em desenvolvimento — disponível em breve
-          </div>
-        )}
-      </div>
+      <h3 className="mt-2 text-lg font-extrabold text-[#173F76]">
+        {title}
+      </h3>
+
+      <p className="mt-2 text-sm leading-relaxed text-slate-500">
+        {description}
+      </p>
     </div>
   );
 }
 
-export default function BillingFeatureBlocks() {
+function FutureFeature({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
   return (
-    <section
-      className={cn(
-        "relative overflow-hidden py-16",
-        // leve faixa azul no fundo (igual tom da página de Clientes)
-        "before:absolute before:inset-0 before:-z-10 before:bg-[radial-gradient(60%_60%_at_50%_-10%,rgba(0,119,200,0.08)_0%,rgba(0,174,239,0)_70%)]"
-      )}
-    >
-      <div className="mx-auto grid max-w-6xl gap-16">
-        {/* Bloco 1: Imagem à esquerda, texto à direita */}
-        <Block
-          title="Ofereça múltiplas formas de pagamento"
-          desc="Cartão de crédito, Pix/transferência, carteira digital e registro de pagamentos manuais — tudo integrado ao histórico do cliente."
-          bullets={[
-            {
-              icon: <CreditCard className="h-3.5 w-3.5" />,
-              text: "Cartão e carteiras digitais (ex.: Apple/Google Pay)",
-            },
-            {
-              icon: <Banknote className="h-3.5 w-3.5" />,
-              text: "Pix/transferência e registro de dinheiro/cheque",
-            },
-            {
-              icon: <Lock className="h-3.5 w-3.5" />,
-              text: "Processamento seguro e transparente de taxas",
-            },
-          ]}
-          img={{
-            src: "https://images.unsplash.com/photo-1633265486064-086b219458ec?q=80&w=1200&auto=format&fit=crop",
-            alt: "Opções de pagamento no painel",
-          }}
-          disabled
-        />
+    <div>
+      <span className="text-[#08A8CF]">
+        {icon}
+      </span>
 
-        {/* Bloco 2: alternado (imagem à direita, texto à esquerda) */}
-        <Block
-          flip
-          title="Melhore o fluxo de caixa com faturamento automático e Autopay"
-          desc="Gere faturas com base nas visitas e nas ordens de serviço e ative cobrança automática para clientes recorrentes."
-          bullets={[
-            {
-              icon: <Clock3 className="h-3.5 w-3.5" />,
-              text: "Geração automática de faturas por período",
-            },
-            {
-              icon: <CreditCard className="h-3.5 w-3.5" />,
-              text: "Autopay (cobrança recorrente) para clientes elegíveis",
-            },
-            {
-              icon: <Banknote className="h-3.5 w-3.5" />,
-              text: "Conciliação simples e relatórios de recebíveis",
-            },
-          ]}
-          img={{
-            src: "https://images.unsplash.com/photo-1553729459-efe14ef6055d?q=80&w=1200&auto=format&fit=crop",
-            alt: "Faturamento recorrente e autopay",
-          }}
-          disabled
-        />
-      </div>
-    </section>
+      <h3 className="mt-4 text-xl font-extrabold text-[#173F76]">
+        {title}
+      </h3>
+
+      <p className="mt-2 text-sm leading-relaxed text-slate-600">
+        {description}
+      </p>
+
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.13em] text-amber-600">
+        Em desenvolvimento
+      </p>
+    </div>
   );
 }

@@ -2,142 +2,208 @@
 
 import * as React from "react";
 import Image from "next/image";
-import {
-  MapPinned,
-  CheckSquare,
-  Contact,
-  FlaskConical,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Camera, Check, CheckCircle2, ClipboardCheck, FlaskConical, MapPinned } from "lucide-react";
 
-/** Bloco reutilizável (imagem quadrada e layout alternado) */
-function Block({
-  kicker,
-  title,
-  desc,
-  bullets,
-  img,
-  flip = false,
-}: {
-  kicker: string;
+type StoryProps = {
+  eyebrow: string;
   title: string;
-  desc: string;
-  bullets: { icon: React.ReactNode; text: string }[];
-  img: { src: string; alt: string };
+  description: string;
+  bullets: string[];
+  visual: React.ReactNode;
   flip?: boolean;
-}) {
+};
+
+export default function TechniciansFeatureBlocks() {
   return (
-    <div
-      className={cn(
-        "mx-auto grid max-w-6xl items-center gap-10 px-4 py-10 sm:px-6 md:grid-cols-2",
-        flip && "md:[&>*:first-child]:order-2"
-      )}
-    >
-      {/* imagem quadrada e menor, centralizada */}
-      <div className="flex items-center justify-center">
-        <div className="relative aspect-square w-[300px] sm:w-[340px] rounded-2xl border border-slate-200 bg-white shadow-md overflow-hidden">
-          <Image
-            src={img.src}
-            alt={img.alt}
-            fill
-            className="object-cover"
-            sizes="340px"
-          />
-        </div>
+    <section className="overflow-hidden bg-white">
+      <div className="mx-auto max-w-6xl px-4 pb-4 pt-20 text-center sm:px-6 sm:pt-24">
+        <span className="text-xs font-bold uppercase tracking-[0.18em] text-[#08A8CF]">
+          Feito para quem está em campo
+        </span>
+
+        <h2 className="mx-auto mt-3 max-w-3xl text-balance text-4xl font-extrabold tracking-tight text-[#173F76] sm:text-5xl">
+          O atendimento inteiro na mão do técnico.
+        </h2>
+
+        <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-slate-600">
+          A rotina fica simples: saber onde ir, o que fazer e o que precisa ser registrado.
+        </p>
       </div>
 
-      <div>
-        <div className="text-[11px] font-medium tracking-wide text-slate-500 uppercase">
-          {kicker}
-        </div>
-        <h3 className="mt-1 text-pretty text-2xl font-bold tracking-tight text-slate-900">
-          {title}
-        </h3>
-        <p className="mt-2 text-slate-600">{desc}</p>
+      <Story
+        eyebrow="Rota do dia"
+        title="Sua rota do dia na mão."
+        description="O técnico visualiza os atendimentos programados e segue a rotina definida pela empresa sem depender de papel, planilhas ou mensagens espalhadas."
+        bullets={[
+          "Atendimentos organizados por dia",
+          "Informações do cliente disponíveis no app",
+          "Mais clareza para a rotina em campo",
+        ]}
+        visual={<PhoneVisual />}
+      />
 
-        <ul className="mt-4 grid gap-2">
-          {bullets.map((b, i) => (
-            <li key={i} className="inline-flex items-start gap-2 text-[15px] text-slate-700">
-              <span className="mt-0.5 grid h-6 w-6 place-items-center rounded-full bg-sky-50 text-sky-600 border border-sky-100">
-                {b.icon}
-              </span>
-              <span className="leading-snug">{b.text}</span>
-            </li>
-          ))}
-        </ul>
+      <Story
+        flip
+        eyebrow="Execução padronizada"
+        title="Tudo que precisa ser feito, na ordem certa."
+        description="Checklists ajudam a padronizar a execução e deixam claro o que precisa ser concluído em cada atendimento."
+        bullets={[
+          "Checklists por tipo de serviço",
+          "Itens obrigatórios e orientações",
+          "Registro simples da execução",
+        ]}
+        visual={<ChecklistVisual />}
+      />
+
+      <Story
+        eyebrow="Registro do atendimento"
+        title="Serviço realizado. Tudo registrado."
+        description="Fotos, medições e observações permanecem ligadas ao atendimento e ao histórico da piscina."
+        bullets={[
+          "Fotos do serviço",
+          "Medições e parâmetros da piscina",
+          "Histórico organizado por cliente",
+        ]}
+        visual={<MeasurementVisual />}
+      />
+    </section>
+  );
+}
+
+function Story({ eyebrow, title, description, bullets, visual, flip = false }: StoryProps) {
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-16">
+      <div className={`grid items-center gap-12 lg:grid-cols-2 lg:gap-16 ${flip ? "lg:[&>div:first-child]:order-2" : ""}`}>
+        <div>
+          {visual}
+        </div>
+
+        <div>
+          <span className="text-xs font-bold uppercase tracking-[0.17em] text-[#08A8CF]">
+            {eyebrow}
+          </span>
+
+          <h3 className="mt-3 text-balance text-3xl font-extrabold tracking-tight text-[#173F76] sm:text-4xl">
+            {title}
+          </h3>
+
+          <p className="mt-4 max-w-xl text-lg leading-relaxed text-slate-600">
+            {description}
+          </p>
+
+          <div className="mt-7 grid gap-3">
+            {bullets.map((bullet) => (
+              <div key={bullet} className="flex items-center gap-3 text-sm font-medium text-slate-700">
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#E8F8FC] text-[#079CCB]">
+                  <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                </span>
+                {bullet}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-export default function TechniciansFeatureBlocks() {
+function PhoneVisual() {
   return (
-    <section className="py-10">
-      {/* 1. Rotas em campo */}
-      <Block
-        kicker="Rotas em campo (online e offline)"
-        title="Roteirização no celular, com ou sem internet"
-        desc="O técnico visualiza a rota do dia, navega até a piscina, registra check-in/checkout e continua trabalhando mesmo sem sinal — os dados sincronizam quando a conexão volta."
-        bullets={[
-          { icon: <MapPinned className="h-3.5 w-3.5" />, text: "Navegação e rota do dia" },
-          { icon: <MapPinned className="h-3.5 w-3.5" />, text: "Check-in/checkout com carimbo de data" },
-          { icon: <MapPinned className="h-3.5 w-3.5" />, text: "Operação offline com sincronização" },
-        ]}
-        img={{
-          src: "https://images.unsplash.com/photo-1494526585095-c41746248156?q=80&w=800&auto=format&fit=crop",
-          alt: "Rota no app do técnico",
-        }}
-      />
+    <div className="relative min-h-[420px] overflow-hidden rounded-[30px] bg-gradient-to-br from-[#087BC2] to-[#08B5D1]">
+      <div className="absolute -right-20 top-8 h-60 w-60 rounded-full bg-white/10 blur-3xl" />
 
-      {/* 2. Checklists e tarefas */}
-      <Block
-        flip
-        kicker="Execução padronizada"
-        title="Checklists, tarefas e fotos — tudo em poucos toques"
-        desc="Defina checklists por cliente, local ou tipo de serviço. Exija foto para concluir uma etapa, personalize ordem e respostas e garanta a consistência do serviço."
-        bullets={[
-          { icon: <CheckSquare className="h-3.5 w-3.5" />, text: "Checklists por cliente/local/serviço" },
-          { icon: <CheckSquare className="h-3.5 w-3.5" />, text: "Respostas personalizadas e obrigatórias" },
-          { icon: <CheckSquare className="h-3.5 w-3.5" />, text: "Fotos antes/depois por etapa" },
-        ]}
-        img={{
-          src: "https://images.unsplash.com/photo-1512914890250-88ac89de4742?q=80&w=800&auto=format&fit=crop",
-          alt: "Checklist do técnico",
-        }}
-      />
+      <div className="absolute left-1/2 top-7 h-[370px] w-[220px] -translate-x-1/2 overflow-hidden rounded-[38px] border-[7px] border-[#13243d] bg-[#101828] shadow-[0_25px_55px_rgba(2,31,55,.30)]">
+        <div className="absolute left-1/2 top-3 z-20 h-6 w-24 -translate-x-1/2 rounded-full bg-[#0b1320]" />
 
-      {/* 3. Cadastro completo do cliente na mão */}
-      <Block
-        kicker="Informações do cliente na palma da mão"
-        title="Histórico, leituras e observações sempre acessíveis"
-        desc="O técnico vê tudo: códigos de portão, preferências, equipamentos, fotos e histórico de leituras. Menos retornos ao escritório e mais autonomia em campo."
-        bullets={[
-          { icon: <Contact className="h-3.5 w-3.5" />, text: "Dados do cliente e das piscinas" },
-          { icon: <Contact className="h-3.5 w-3.5" />, text: "Histórico de visitas e fotos" },
-          { icon: <Contact className="h-3.5 w-3.5" />, text: "Observações e instruções especiais" },
-        ]}
-        img={{
-          src: "https://images.unsplash.com/photo-1499951360447-b19be8fe80f5?q=80&w=800&auto=format&fit=crop",
-          alt: "Informações do cliente no app",
-        }}
-      />
+        <div className="absolute inset-[7px] overflow-hidden rounded-[28px] bg-white">
+          <Image src="/hero.png" alt="Aplicativo Aqua Mappa" fill className="object-cover object-top" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
-      {/* 4. Leituras e dosagens em 1 toque */}
-      <Block
-        flip
-        kicker="Leituras e dosagens"
-        title="Registre leituras e dosagens com 1 toque"
-        desc="Registre pH, cloro, alcalinidade e demais parâmetros rapidamente — e informe dosagens com base nas leituras, tudo direto no app."
-        bullets={[
-          { icon: <FlaskConical className="h-3.5 w-3.5" />, text: "Leituras rápidas de parâmetros" },
-          { icon: <FlaskConical className="h-3.5 w-3.5" />, text: "Dosagens sugeridas e registradas" },
-          { icon: <FlaskConical className="h-3.5 w-3.5" />, text: "Histórico por cliente e por piscina" },
-        ]}
-        img={{
-          src: "https://images.unsplash.com/photo-1518779578993-ec3579fee39f?q=80&w=800&auto=format&fit=crop",
-          alt: "Leituras e dosagens",
-        }}
-      />
-    </section>
+function ChecklistVisual() {
+  const items = [
+    ["Conferir aspecto da água", true],
+    ["Registrar nível de cloro", true],
+    ["Verificar pH", true],
+    ["Adicionar observações", false],
+  ];
+
+  return (
+    <div className="min-h-[400px] rounded-[30px] bg-[#F5FBFE] p-7">
+      <div className="mx-auto max-w-[450px] rounded-[24px] border border-slate-100 bg-white p-6 shadow-[0_22px_50px_rgba(4,72,108,.12)]">
+        <div className="flex items-center gap-3 border-b border-slate-100 pb-5">
+          <span className="grid h-11 w-11 place-items-center rounded-full bg-gradient-to-br from-[#0789C8] to-[#08B3D3] text-white">
+            <ClipboardCheck className="h-5 w-5" />
+          </span>
+
+          <div>
+            <p className="font-extrabold text-[#173F76]">Checklist do atendimento</p>
+            <p className="text-xs text-slate-500">Piscina residencial</p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4">
+          {items.map(([label, checked]) => (
+            <div key={String(label)} className="flex items-center gap-3">
+              <span className={`grid h-7 w-7 place-items-center rounded-full ${checked ? "bg-[#E7F8FC] text-[#08A8CF]" : "border border-slate-200 text-slate-300"}`}>
+                {checked && <CheckCircle2 className="h-4 w-4" />}
+              </span>
+
+              <span className={`text-sm ${checked ? "font-medium text-slate-700" : "text-slate-500"}`}>
+                {label}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MeasurementVisual() {
+  return (
+    <div className="min-h-[400px] rounded-[30px] bg-gradient-to-br from-[#EAF7FD] to-white p-7">
+      <div className="mx-auto grid max-w-[470px] gap-4">
+        <div className="flex items-center justify-between rounded-[22px] bg-white px-5 py-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 place-items-center rounded-full bg-[#E7F8FC] text-[#079CCB]">
+              <FlaskConical className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-xs text-slate-400">pH</p>
+              <p className="font-extrabold text-[#173F76]">7,4</p>
+            </div>
+          </div>
+          <span className="text-xs font-bold text-emerald-600">OK</span>
+        </div>
+
+        <div className="flex items-center justify-between rounded-[22px] bg-white px-5 py-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 place-items-center rounded-full bg-[#E7F8FC] text-[#079CCB]">
+              <FlaskConical className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-xs text-slate-400">Cloro</p>
+              <p className="font-extrabold text-[#173F76]">2,0 ppm</p>
+            </div>
+          </div>
+          <span className="text-xs font-bold text-emerald-600">OK</span>
+        </div>
+
+        <div className="flex items-center gap-3 rounded-[22px] bg-white px-5 py-4 shadow-sm">
+          <span className="grid h-10 w-10 place-items-center rounded-full bg-[#E7F8FC] text-[#079CCB]">
+            <Camera className="h-5 w-5" />
+          </span>
+
+          <div>
+            <p className="font-bold text-[#173F76]">Fotos do atendimento</p>
+            <p className="text-xs text-slate-500">4 registros adicionados</p>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
