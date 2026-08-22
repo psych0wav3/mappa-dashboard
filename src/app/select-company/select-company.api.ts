@@ -1,8 +1,7 @@
+import { BROWSER_API_BASE } from "@/lib/browser-api";
 import { SESSION_KEYS } from "@/lib/mappa/session";
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5264";
+const API_URL = BROWSER_API_BASE;
 
 export type CompanyStatus = "ACTIVE" | "INACTIVE";
 

@@ -1,6 +1,8 @@
 // src/lib/api.ts
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5264";
+import { BROWSER_API_BASE } from "@/lib/browser-api";
+
+const API_URL = BROWSER_API_BASE;
 
 export async function apiFetch<T>(
   endpoint: string,

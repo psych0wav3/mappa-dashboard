@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { getBackendApiBaseUrl } from "@/lib/browser-api";
+
 import {
   getHttpErrorCode,
   isRetryableHttpStatus,
@@ -14,9 +16,7 @@ import {
 } from "./session";
 
 const API_URL =
-  process.env.API_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5264";
+  getBackendApiBaseUrl() || "http://localhost:5264";
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 

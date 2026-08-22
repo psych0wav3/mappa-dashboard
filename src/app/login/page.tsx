@@ -28,6 +28,7 @@ import {
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { BROWSER_API_BASE } from "@/lib/browser-api";
 
 const SESSION_STORAGE_KEYS = [
   "mappa_access_token",
@@ -148,7 +149,7 @@ export default function LoginPage() {
     try {
       const response =
         await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`,
+          `${BROWSER_API_BASE}/api/auth/login`,
           {
             method: "POST",
 
