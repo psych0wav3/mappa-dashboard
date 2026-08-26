@@ -5,18 +5,22 @@ import * as React from "react";
 export default function LabelSlot({
   children,
   ready,
+  collapsed = false,
 }: {
   children: React.ReactNode;
   ready: boolean;
+  collapsed?: boolean;
 }) {
   return (
     <span
-      className="text-[0.95rem] font-medium whitespace-nowrap overflow-hidden"
+      className="overflow-hidden whitespace-nowrap text-[0.95rem] font-medium"
       style={{
         display: "inline-block",
-        maxWidth: "calc(var(--sidebar-w) - 80px)",
-        transition: ready ? "max-width 300ms ease, opacity 300ms ease" : "none",
-        opacity: "calc((var(--sidebar-w) - 80px) / 200)",
+        maxWidth: collapsed ? 0 : 220,
+        opacity: collapsed ? 0 : 1,
+        transition: ready
+          ? "max-width 300ms ease, opacity 300ms ease"
+          : "none",
       }}
     >
       {children}

@@ -131,7 +131,10 @@ function normalizeTemplate(
       ? template.measurementFields
       : [];
 
-  const fields = apiFields.map(normalizeTemplateField);
+  const fields = apiFields
+    .map(normalizeTemplateField)
+    .filter((field) => field.isActive !== false)
+    .sort((a, b) => a.displayOrder - b.displayOrder);
 
   return {
     id: template.id,
@@ -164,7 +167,10 @@ function validateInput(input: SaveMeasurementTemplateInput) {
     description: input.description?.trim() || null,
     isActive: input.isActive !== false,
     fields: input.fields.map((field, index) => ({
-      id: field.id,
+      id:
+        field.id && !field.id.startsWith("local-")
+          ? field.id
+          : null,
       name: field.fieldName || field.label,
       label: field.label,
       fieldType: toApiFieldType(field.fieldType),
@@ -184,7 +190,7 @@ export async function listMeasurementTemplates(): Promise<
   const companyId = await getCompanyId();
 
   const data = await mappaFetch<unknown>(
-    `/api/companies/${companyId}/measurement-templates`,
+    `/api/companies/${companyId}/measurement-templates?activeOnly=false`,
   );
 
   return extractItems<ApiMeasurementTemplate>(data)
@@ -242,6 +248,35 @@ export async function updateMeasurementTemplate(params: {
 
   revalidatePath("/settings/measurement-templates");
   revalidatePath("/settings/measurement-fields");
+
+  return normalizeTemplate(updated);
+}
+
+export async function updateMeasurementTemplateStatus(params: {
+  templateId: string;
+  isActive: boolean;
+}): Promise<MeasurementTemplate> {
+  const companyId = await getCompanyId();
+
+  if (!params.templateId) {
+    throw new Error(
+      "ID do template de medição não informado.",
+    );
+  }
+
+  const updated = await mappaFetch<ApiMeasurementTemplate>(
+    `/api/companies/${companyId}/measurement-templates/${params.templateId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        isActive: params.isActive,
+      }),
+    },
+  );
+
+  revalidatePath("/settings/measurement-templates");
+  revalidatePath("/settings/measurement-fields");
+  revalidatePath("/workorders/new");
 
   return normalizeTemplate(updated);
 }

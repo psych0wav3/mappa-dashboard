@@ -4,6 +4,8 @@ const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "http://localhost:5264";
 
+export type CompanyStatus = "ACTIVE" | "INACTIVE";
+
 export type CompanyItem = {
   id: string;
   name: string;
@@ -11,7 +13,9 @@ export type CompanyItem = {
   document: string | null;
   email: string | null;
   phone: string | null;
+  whatsapp: string | null;
   status: string | null;
+  createdAt: string | null;
 };
 
 export type SessionUser = {
@@ -37,6 +41,14 @@ export type CreateCompanyAdminInput = {
   phone: string;
 };
 
+export type UpdateCompanyInput = {
+  name: string;
+  tradeName: string;
+  document: string;
+  email: string;
+  phone: string;
+};
+
 export type UpdateMyProfileInput = {
   name: string;
   email: string;
@@ -57,7 +69,10 @@ function onlyDigits(value: string) {
   return value.replace(/\D/g, "");
 }
 
-function readString(record: Record<string, unknown>, ...keys: string[]) {
+function readString(
+  record: Record<string, unknown>,
+  ...keys: string[]
+) {
   for (const key of keys) {
     const value = record[key];
 
@@ -77,7 +92,10 @@ async function readApiError(response: Response) {
   }
 
   try {
-    const payload = JSON.parse(text) as Record<string, unknown>;
+    const payload = JSON.parse(text) as Record<
+      string,
+      unknown
+    >;
 
     const message =
       readString(payload, "message", "Message") ||
@@ -98,10 +116,22 @@ async function readApiError(response: Response) {
       }
 
       if (first && typeof first === "object") {
-        const firstRecord = first as Record<string, unknown>;
+        const firstRecord = first as Record<
+          string,
+          unknown
+        >;
+
         const firstMessage =
-          readString(firstRecord, "message", "Message") ||
-          readString(firstRecord, "errorMessage", "ErrorMessage");
+          readString(
+            firstRecord,
+            "message",
+            "Message",
+          ) ||
+          readString(
+            firstRecord,
+            "errorMessage",
+            "ErrorMessage",
+          );
 
         if (firstMessage) {
           return firstMessage;
@@ -113,11 +143,17 @@ async function readApiError(response: Response) {
   return text;
 }
 
-async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+async function apiFetch<T>(
+  path: string,
+  options?: RequestInit,
+): Promise<T> {
   const token = localStorage.getItem(SESSION_KEYS.token);
 
   if (!token) {
-    throw new SelectCompanyApiError(401, "Sessão não encontrada.");
+    throw new SelectCompanyApiError(
+      401,
+      "Sessão não encontrada.",
+    );
   }
 
   const response = await fetch(`${API_URL}${path}`, {
@@ -131,7 +167,10 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new SelectCompanyApiError(response.status, await readApiError(response));
+    throw new SelectCompanyApiError(
+      response.status,
+      await readApiError(response),
+    );
   }
 
   if (response.status === 204) {
@@ -147,7 +186,9 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return JSON.parse(text) as T;
 }
 
-function normalizeCompany(value: unknown): CompanyItem | null {
+function normalizeCompany(
+  value: unknown,
+): CompanyItem | null {
   if (!value || typeof value !== "object") {
     return null;
   }
@@ -156,7 +197,11 @@ function normalizeCompany(value: unknown): CompanyItem | null {
 
   const id = readString(record, "id", "Id");
   const name = readString(record, "name", "Name");
-  const tradeName = readString(record, "tradeName", "TradeName");
+  const tradeName = readString(
+    record,
+    "tradeName",
+    "TradeName",
+  );
 
   if (!id || !name) {
     return null;
@@ -166,14 +211,30 @@ function normalizeCompany(value: unknown): CompanyItem | null {
     id,
     name,
     tradeName,
-    document: readString(record, "document", "Document"),
+    document: readString(
+      record,
+      "document",
+      "Document",
+    ),
     email: readString(record, "email", "Email"),
     phone: readString(record, "phone", "Phone"),
+    whatsapp: readString(
+      record,
+      "whatsapp",
+      "Whatsapp",
+    ),
     status: readString(record, "status", "Status"),
+    createdAt: readString(
+      record,
+      "createdAt",
+      "CreatedAt",
+    ),
   };
 }
 
-function normalizeSessionUser(value: unknown): SessionUser | null {
+function normalizeSessionUser(
+  value: unknown,
+): SessionUser | null {
   if (!value || typeof value !== "object") {
     return null;
   }
@@ -201,7 +262,9 @@ function normalizeSessionUser(value: unknown): SessionUser | null {
 
 export function getStoredSessionUser(): SessionUser | null {
   try {
-    const raw = localStorage.getItem(SESSION_KEYS.user);
+    const raw = localStorage.getItem(
+      SESSION_KEYS.user,
+    );
 
     if (!raw) {
       return null;
@@ -219,77 +282,209 @@ function persistSessionUser(user: SessionUser) {
   const next = {
     ...current,
     ...user,
-    roles: user.roles?.length ? user.roles : current?.roles ?? [],
+    roles: user.roles?.length
+      ? user.roles
+      : current?.roles ?? [],
   };
 
-  localStorage.setItem(SESSION_KEYS.user, JSON.stringify(next));
+  localStorage.setItem(
+    SESSION_KEYS.user,
+    JSON.stringify(next),
+  );
 }
 
-export async function listCompanies(): Promise<CompanyItem[]> {
-  const payload = await apiFetch<unknown>("/api/companies");
+export async function listCompanies(): Promise<
+  CompanyItem[]
+> {
+  const payload =
+    await apiFetch<unknown>("/api/companies");
 
   const rawItems =
     Array.isArray(payload)
       ? payload
       : payload && typeof payload === "object"
-        ? ((payload as Record<string, unknown>).items ??
-          (payload as Record<string, unknown>).Items)
+        ? ((payload as Record<string, unknown>)
+            .items ??
+          (payload as Record<string, unknown>)
+            .Items)
         : [];
 
   if (!Array.isArray(rawItems)) {
     return [];
   }
 
-  return rawItems.map(normalizeCompany).filter((company): company is CompanyItem => Boolean(company));
+  return rawItems
+    .map(normalizeCompany)
+    .filter(
+      (company): company is CompanyItem =>
+        Boolean(company),
+    );
 }
 
-export async function createCompany(input: CreateCompanyInput): Promise<CompanyItem> {
-  const payload = await apiFetch<unknown>("/api/companies", {
-    method: "POST",
-    body: JSON.stringify({
-      name: input.name.trim(),
-      tradeName: input.tradeName.trim() || null,
-      document: onlyDigits(input.document) || null,
-      email: input.email.trim().toLowerCase() || null,
-      phone: onlyDigits(input.phone) || null,
-    }),
-  });
+export async function getCompanyById(
+  companyId: string,
+): Promise<CompanyItem> {
+  const payload = await apiFetch<unknown>(
+    `/api/companies/${companyId}`,
+  );
 
   const company = normalizeCompany(payload);
 
   if (!company) {
-    throw new Error("A empresa foi criada, mas a API retornou uma resposta inválida.");
+    throw new Error(
+      "A API retornou dados inválidos para a empresa.",
+    );
   }
 
   return company;
 }
 
-export async function createCompanyAdmin(companyId: string, input: CreateCompanyAdminInput) {
-  return apiFetch<unknown>(`/api/companies/${companyId}/admins`, {
-    method: "POST",
-    body: JSON.stringify({
-      name: input.name.trim(),
-      email: input.email.trim().toLowerCase(),
-      password: input.password,
-      phone: onlyDigits(input.phone) || null,
-    }),
-  });
+export async function createCompany(
+  input: CreateCompanyInput,
+): Promise<CompanyItem> {
+  const payload = await apiFetch<unknown>(
+    "/api/companies",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        name: input.name.trim(),
+        tradeName:
+          input.tradeName.trim() || null,
+        document:
+          onlyDigits(input.document) || null,
+        email:
+          input.email.trim().toLowerCase() ||
+          null,
+        phone:
+          onlyDigits(input.phone) || null,
+      }),
+    },
+  );
+
+  const company = normalizeCompany(payload);
+
+  if (!company) {
+    throw new Error(
+      "A empresa foi criada, mas a API retornou uma resposta inválida.",
+    );
+  }
+
+  return company;
 }
 
-export async function updateMyProfile(input: UpdateMyProfileInput): Promise<SessionUser> {
-  const payload = await apiFetch<unknown>("/api/me/profile", {
-    method: "PATCH",
-    body: JSON.stringify({
-      name: input.name.trim(),
-      email: input.email.trim().toLowerCase(),
-      phone: onlyDigits(input.phone) || null,
-    }),
-  });
+export async function updateCompany(
+  companyId: string,
+  input: UpdateCompanyInput,
+): Promise<CompanyItem> {
+  const payload = await apiFetch<unknown>(
+    `/api/companies/${companyId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        /*
+         * Já deixamos todos os dados preparados.
+         *
+         * A API atual ainda altera somente:
+         * tradeName, email e phone.
+         *
+         * Quando o Geovane ampliar o PATCH para
+         * name/document, o frontend não precisará
+         * ser alterado.
+         */
+        name: input.name.trim(),
+        tradeName: input.tradeName.trim(),
+        document:
+          onlyDigits(input.document) || null,
+        email:
+          input.email.trim().toLowerCase() ||
+          null,
+        phone:
+          onlyDigits(input.phone) || null,
+      }),
+    },
+  );
+
+  const company = normalizeCompany(payload);
+
+  if (!company) {
+    throw new Error(
+      "A empresa foi atualizada, mas a API retornou uma resposta inválida.",
+    );
+  }
+
+  return company;
+}
+
+export async function updateCompanyStatus(
+  companyId: string,
+  status: CompanyStatus,
+): Promise<CompanyItem> {
+  const payload = await apiFetch<unknown>(
+    `/api/companies/${companyId}/status`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        status,
+      }),
+    },
+  );
+
+  const company = normalizeCompany(payload);
+
+  if (!company) {
+    throw new Error(
+      "O status foi alterado, mas a API retornou uma resposta inválida.",
+    );
+  }
+
+  return company;
+}
+
+export async function createCompanyAdmin(
+  companyId: string,
+  input: CreateCompanyAdminInput,
+) {
+  return apiFetch<unknown>(
+    `/api/companies/${companyId}/admins`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        name: input.name.trim(),
+        email: input.email
+          .trim()
+          .toLowerCase(),
+        password: input.password,
+        phone:
+          onlyDigits(input.phone) || null,
+      }),
+    },
+  );
+}
+
+export async function updateMyProfile(
+  input: UpdateMyProfileInput,
+): Promise<SessionUser> {
+  const payload = await apiFetch<unknown>(
+    "/api/me/profile",
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: input.name.trim(),
+        email: input.email
+          .trim()
+          .toLowerCase(),
+        phone:
+          onlyDigits(input.phone) || null,
+      }),
+    },
+  );
 
   const user = normalizeSessionUser(payload);
 
   if (!user) {
-    throw new Error("A conta foi atualizada, mas a API retornou uma resposta inválida.");
+    throw new Error(
+      "A conta foi atualizada, mas a API retornou uma resposta inválida.",
+    );
   }
 
   persistSessionUser(user);
@@ -297,7 +492,10 @@ export async function updateMyProfile(input: UpdateMyProfileInput): Promise<Sess
   return user;
 }
 
-export async function updateMyPassword(currentPassword: string, newPassword: string) {
+export async function updateMyPassword(
+  currentPassword: string,
+  newPassword: string,
+) {
   return apiFetch<unknown>("/api/me/password", {
     method: "PATCH",
     body: JSON.stringify({

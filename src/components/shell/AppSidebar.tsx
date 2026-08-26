@@ -82,7 +82,7 @@ export default function AppSidebar({
     try {
       const isDesktop =
         window.matchMedia(
-          "(min-width: 1024px)",
+          "(min-width: 1280px)",
         ).matches;
 
       const target = isDesktop
@@ -135,7 +135,7 @@ export default function AppSidebar({
     try {
       const isDesktop =
         window.matchMedia(
-          "(min-width: 1024px)",
+          "(min-width: 1280px)",
         ).matches;
 
       if (
@@ -174,6 +174,40 @@ export default function AppSidebar({
   }, [collapsed]);
 
   useEffect(() => {
+    const mediaQuery = window.matchMedia(
+      "(min-width: 1280px)",
+    );
+
+    const syncResponsiveWidth = () => {
+      const width = mediaQuery.matches
+        ? collapsed
+          ? WIDTH_COLLAPSED
+          : WIDTH_EXPANDED
+        : 0;
+
+      document.documentElement.style.setProperty(
+        "--sidebar-w",
+        `${width}px`,
+      );
+
+      dispatchSidebarWidth(width);
+    };
+
+    syncResponsiveWidth();
+    mediaQuery.addEventListener(
+      "change",
+      syncResponsiveWidth,
+    );
+
+    return () => {
+      mediaQuery.removeEventListener(
+        "change",
+        syncResponsiveWidth,
+      );
+    };
+  }, [collapsed]);
+
+  useEffect(() => {
     if (open) {
       onClose();
     }
@@ -184,7 +218,7 @@ export default function AppSidebar({
   return (
     <>
       <div
-        className={`fixed inset-0 z-[100] bg-black/40 transition-opacity lg:hidden ${
+        className={`fixed inset-0 z-[100] bg-black/40 transition-opacity xl:hidden ${
           open
             ? "opacity-100"
             : "pointer-events-none opacity-0"
@@ -194,7 +228,7 @@ export default function AppSidebar({
       />
 
       <aside
-        className={`fixed inset-y-0 left-0 z-[110] w-[80vw] max-w-[320px] text-white shadow-xl transition-transform lg:hidden ${
+        className={`fixed inset-y-0 left-0 z-[110] w-[80vw] max-w-[320px] text-white shadow-xl transition-transform xl:hidden ${
           open
             ? "translate-x-0"
             : "-translate-x-full"
@@ -220,7 +254,7 @@ export default function AppSidebar({
       </aside>
 
       <aside
-        className={`fixed inset-y-0 left-0 z-[80] hidden flex-col text-white shadow-lg lg:flex ${
+        className={`fixed inset-y-0 left-0 z-[80] hidden flex-col text-white shadow-lg xl:flex ${
           ready
             ? "transition-all duration-300"
             : ""
@@ -486,7 +520,7 @@ const settingsItems = useMemo(() => [
               className="shrink-0"
             />
 
-            <LabelSlot ready={ready}>
+            <LabelSlot ready={ready} collapsed={collapsed}>
               {label}
             </LabelSlot>
           </div>
@@ -502,7 +536,7 @@ const settingsItems = useMemo(() => [
         active={active}
         collapsed={collapsed}
       >
-        <LabelSlot ready={ready}>
+        <LabelSlot ready={ready} collapsed={collapsed}>
           {label}
         </LabelSlot>
       </SidebarLink>
@@ -571,7 +605,7 @@ const settingsItems = useMemo(() => [
           A
         </div>
 
-        <LabelSlot ready={ready}>
+        <LabelSlot ready={ready} collapsed={collapsed}>
           <span className="text-lg font-semibold text-white">
             Aqua Mappa
           </span>

@@ -48,7 +48,7 @@ export default async function RootLayout({
             (function () {
               try {
                 var isDesktop = window
-                  .matchMedia("(min-width: 1024px)")
+                  .matchMedia("(min-width: 1280px)")
                   .matches;
 
                 var collapsedLS = null;

@@ -86,14 +86,15 @@ export default function SidebarDropdown({
       >
         <div className={`flex items-center ${collapsed ? "gap-0" : "gap-3"}`}>
           <Icon size={18} aria-hidden className="shrink-0" />
-          <LabelSlot ready={ready}>{label}</LabelSlot>
+          <LabelSlot ready={ready} collapsed={collapsed}>{label}</LabelSlot>
         </div>
 
         <div
           style={{
-            width: "calc(var(--sidebar-w) - 80px)",
+            width: collapsed ? 0 : 20,
+            opacity: collapsed ? 0 : 1,
             overflow: "hidden",
-            transition: ready ? "width 300ms ease" : "none",
+            transition: ready ? "width 300ms ease, opacity 300ms ease" : "none",
           }}
         >
           <ChevronDown
@@ -114,7 +115,7 @@ export default function SidebarDropdown({
           transition: ready
             ? "max-height 300ms ease, opacity 300ms ease"
             : "none",
-          opacity: "calc((var(--sidebar-w) - 80px) / 200)",
+          opacity: collapsed ? 0 : open ? 1 : 0,
           pointerEvents: open && !collapsed ? "auto" : "none",
         }}
       >

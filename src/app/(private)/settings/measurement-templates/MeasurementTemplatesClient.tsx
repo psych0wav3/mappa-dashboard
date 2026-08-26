@@ -5,6 +5,7 @@ import {
   Activity,
   Pencil,
   Plus,
+  Power,
   Save,
   Trash2,
   X,
@@ -18,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import {
   createMeasurementTemplate,
   updateMeasurementTemplate,
+  updateMeasurementTemplateStatus,
   type MeasurementFieldType,
   type MeasurementTemplate,
   type MeasurementTemplateField,
@@ -65,12 +67,92 @@ function createLocalId() {
     typeof crypto !== "undefined" &&
     "randomUUID" in crypto
   ) {
-    return crypto.randomUUID();
+    return `local-${crypto.randomUUID()}`;
   }
 
-  return `field-${Date.now()}-${Math.random()
+  return `local-field-${Date.now()}-${Math.random()
     .toString(16)
     .slice(2)}`;
+}
+
+type ConfirmModalState = {
+  template: MeasurementTemplate;
+} | null;
+
+function DeactivateConfirmationModal({
+  state,
+  pending,
+  onClose,
+  onConfirm,
+}: {
+  state: ConfirmModalState;
+  pending: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  if (!state) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4">
+      <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">
+              Desativar template?
+            </h2>
+
+            <p className="mt-2 text-sm text-slate-600">
+              O template desativado não ficará disponível para novas ordens e visitas.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={pending}
+            className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            aria-label="Fechar modal"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="text-sm font-semibold text-slate-900">
+            {state.template.name}
+          </div>
+
+          <div className="mt-1 text-xs text-slate-500">
+            {state.template.fieldsCount} campo
+            {state.template.fieldsCount === 1 ? "" : "s"} configurado
+            {state.template.fieldsCount === 1 ? "" : "s"}
+          </div>
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={pending}
+          >
+            Cancelar
+          </Button>
+
+          <Button
+            type="button"
+            onClick={onConfirm}
+            disabled={pending}
+            className="bg-amber-500 text-white hover:bg-amber-600"
+          >
+            {pending ? "Desativando..." : "Sim, desativar"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function MeasurementTemplatesClient({
@@ -87,6 +169,9 @@ export default function MeasurementTemplatesClient({
 
   const [editingTemplate, setEditingTemplate] =
     React.useState<MeasurementTemplate | null>(null);
+
+  const [confirmModal, setConfirmModal] =
+    React.useState<ConfirmModalState>(null);
 
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
@@ -288,8 +373,94 @@ export default function MeasurementTemplatesClient({
     });
   }
 
+  function activateTemplate(
+    template: MeasurementTemplate,
+  ) {
+    startTransition(async () => {
+      try {
+        const updated =
+          await updateMeasurementTemplateStatus({
+            templateId: template.id,
+            isActive: true,
+          });
+
+        setTemplates((current) =>
+          current.map((item) =>
+            item.id === updated.id ? updated : item,
+          ),
+        );
+
+        toast.success(
+          "Template de medição ativado com sucesso.",
+        );
+      } catch (error: unknown) {
+        toast.error(
+          getErrorMessage(
+            error,
+            "Erro ao ativar template de medição.",
+          ),
+        );
+      }
+    });
+  }
+
+  function confirmDeactivate(
+    template: MeasurementTemplate,
+  ) {
+    setConfirmModal({ template });
+  }
+
+  function handleConfirmDeactivate() {
+    if (!confirmModal) {
+      return;
+    }
+
+    const template = confirmModal.template;
+
+    startTransition(async () => {
+      try {
+        const updated =
+          await updateMeasurementTemplateStatus({
+            templateId: template.id,
+            isActive: false,
+          });
+
+        setTemplates((current) =>
+          current.map((item) =>
+            item.id === updated.id ? updated : item,
+          ),
+        );
+
+        if (editingTemplate?.id === updated.id) {
+          setEditingTemplate(updated);
+          setIsActive(false);
+        }
+
+        setConfirmModal(null);
+
+        toast.success(
+          "Template de medição desativado com sucesso.",
+        );
+      } catch (error: unknown) {
+        toast.error(
+          getErrorMessage(
+            error,
+            "Erro ao desativar template de medição.",
+          ),
+        );
+      }
+    });
+  }
+
   return (
     <div className="space-y-5">
+      <DeactivateConfirmationModal
+        state={confirmModal}
+        pending={pending}
+        onClose={() => setConfirmModal(null)}
+        onConfirm={handleConfirmDeactivate}
+      />
+
       <FormPageHeader icon={Activity} title="Templates de Medição" description="Configure modelos de medições para uso nas ordens e visitas." actions={<Button type="button" className="btn-brand text-white" onClick={() => { if (showForm && !isEditing) { resetForm(); setShowForm(false); return; } openCreateForm(); }}><Plus className="mr-2 h-4 w-4" />Novo template</Button>} />
 
       {showForm && (
@@ -640,7 +811,9 @@ export default function MeasurementTemplatesClient({
 
               {pending
                 ? "Salvando..."
-                : "Salvar template"}
+                : isEditing
+                  ? "Salvar alterações"
+                  : "Salvar template"}
             </Button>
           </div>
         </section>
@@ -717,7 +890,35 @@ export default function MeasurementTemplatesClient({
                   </td>
 
                   <td className="p-3">
-                    <div className="flex justify-end">
+                    <div className="flex justify-end gap-2">
+                      {template.isActive ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() =>
+                            confirmDeactivate(template)
+                          }
+                          disabled={pending}
+                          className="h-8 w-8 bg-amber-500 p-0 text-white hover:bg-amber-600"
+                          title="Desativar template"
+                        >
+                          <Power className="h-3.5 w-3.5" />
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() =>
+                            activateTemplate(template)
+                          }
+                          disabled={pending}
+                          className="h-8 w-8 bg-emerald-600 p-0 text-white hover:bg-emerald-700"
+                          title="Ativar template"
+                        >
+                          <Power className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+
                       <Button
                         type="button"
                         variant="outline"
@@ -726,6 +927,7 @@ export default function MeasurementTemplatesClient({
                         onClick={() =>
                           openEditForm(template)
                         }
+                        disabled={pending}
                         title="Editar template"
                       >
                         <Pencil className="h-3.5 w-3.5" />
