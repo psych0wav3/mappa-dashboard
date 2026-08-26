@@ -280,3 +280,30 @@ export async function updateMeasurementTemplateStatus(params: {
 
   return normalizeTemplate(updated);
 }
+
+export async function deleteMeasurementTemplate(
+  templateId: string,
+) {
+  const companyId = await getCompanyId();
+
+  if (!templateId) {
+    throw new Error(
+      "ID do template de medição não informado.",
+    );
+  }
+
+  await mappaFetch<null>(
+    `/api/companies/${companyId}/measurement-templates/${templateId}`,
+    {
+      method: "DELETE",
+    },
+  );
+
+  revalidatePath("/settings/measurement-templates");
+  revalidatePath("/settings/measurement-fields");
+  revalidatePath("/workorders/new");
+
+  return {
+    ok: true,
+  };
+}

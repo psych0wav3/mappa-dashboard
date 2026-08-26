@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 
 import {
   createMeasurementTemplate,
+  deleteMeasurementTemplate,
   updateMeasurementTemplate,
   updateMeasurementTemplateStatus,
   type MeasurementFieldType,
@@ -75,11 +76,18 @@ function createLocalId() {
     .slice(2)}`;
 }
 
-type ConfirmModalState = {
-  template: MeasurementTemplate;
-} | null;
+type ConfirmModalState =
+  | {
+      type: "DEACTIVATE";
+      template: MeasurementTemplate;
+    }
+  | {
+      type: "DELETE";
+      template: MeasurementTemplate;
+    }
+  | null;
 
-function DeactivateConfirmationModal({
+function ConfirmationModal({
   state,
   pending,
   onClose,
@@ -94,17 +102,23 @@ function DeactivateConfirmationModal({
     return null;
   }
 
+  const isDelete = state.type === "DELETE";
+
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-base font-semibold text-slate-900">
-              Desativar template?
+              {isDelete
+                ? "Excluir template de medição?"
+                : "Desativar template de medição?"}
             </h2>
 
             <p className="mt-2 text-sm text-slate-600">
-              O template desativado não ficará disponível para novas ordens e visitas.
+              {isDelete
+                ? "Essa ação removerá o template da configuração da empresa. Se ele já tiver sido usado em ordens antigas, a API deverá preservar o histórico ou bloquear a exclusão."
+                : "O template desativado não ficará disponível para novas ordens e visitas."}
             </p>
           </div>
 
@@ -145,9 +159,19 @@ function DeactivateConfirmationModal({
             type="button"
             onClick={onConfirm}
             disabled={pending}
-            className="bg-amber-500 text-white hover:bg-amber-600"
+            className={
+              isDelete
+                ? "bg-red-600 text-white hover:bg-red-700"
+                : "bg-amber-500 text-white hover:bg-amber-600"
+            }
           >
-            {pending ? "Desativando..." : "Sim, desativar"}
+            {pending
+              ? isDelete
+                ? "Excluindo..."
+                : "Desativando..."
+              : isDelete
+                ? "Sim, excluir"
+                : "Sim, desativar"}
           </Button>
         </div>
       </div>
@@ -188,6 +212,7 @@ export default function MeasurementTemplatesClient({
     React.useState<MeasurementFieldType>("NUMBER");
 
   const [fieldUnit, setFieldUnit] = React.useState("");
+
   const [fieldRequired, setFieldRequired] =
     React.useState(true);
 
@@ -250,6 +275,7 @@ export default function MeasurementTemplatesClient({
 
   function addField() {
     const cleanLabel = fieldLabel.trim();
+
     const cleanFieldName =
       fieldName.trim() || slugify(cleanLabel);
 
@@ -386,7 +412,9 @@ export default function MeasurementTemplatesClient({
 
         setTemplates((current) =>
           current.map((item) =>
-            item.id === updated.id ? updated : item,
+            item.id === updated.id
+              ? updated
+              : item,
           ),
         );
 
@@ -407,45 +435,93 @@ export default function MeasurementTemplatesClient({
   function confirmDeactivate(
     template: MeasurementTemplate,
   ) {
-    setConfirmModal({ template });
+    setConfirmModal({
+      type: "DEACTIVATE",
+      template,
+    });
   }
 
-  function handleConfirmDeactivate() {
+  function confirmDelete(
+    template: MeasurementTemplate,
+  ) {
+    setConfirmModal({
+      type: "DELETE",
+      template,
+    });
+  }
+
+  function handleConfirmModalAction() {
     if (!confirmModal) {
       return;
     }
 
-    const template = confirmModal.template;
+    const modalState = confirmModal;
 
     startTransition(async () => {
       try {
-        const updated =
-          await updateMeasurementTemplateStatus({
-            templateId: template.id,
-            isActive: false,
-          });
+        if (modalState.type === "DEACTIVATE") {
+          const updated =
+            await updateMeasurementTemplateStatus({
+              templateId:
+                modalState.template.id,
+              isActive: false,
+            });
 
-        setTemplates((current) =>
-          current.map((item) =>
-            item.id === updated.id ? updated : item,
-          ),
-        );
+          setTemplates((current) =>
+            current.map((item) =>
+              item.id === updated.id
+                ? updated
+                : item,
+            ),
+          );
 
-        if (editingTemplate?.id === updated.id) {
-          setEditingTemplate(updated);
-          setIsActive(false);
+          if (
+            editingTemplate?.id ===
+            updated.id
+          ) {
+            setEditingTemplate(updated);
+            setIsActive(false);
+          }
+
+          toast.success(
+            "Template de medição desativado com sucesso.",
+          );
+        }
+
+        if (modalState.type === "DELETE") {
+          await deleteMeasurementTemplate(
+            modalState.template.id,
+          );
+
+          setTemplates((current) =>
+            current.filter(
+              (item) =>
+                item.id !==
+                modalState.template.id,
+            ),
+          );
+
+          if (
+            editingTemplate?.id ===
+            modalState.template.id
+          ) {
+            resetForm();
+            setShowForm(false);
+          }
+
+          toast.success(
+            "Template de medição excluído com sucesso.",
+          );
         }
 
         setConfirmModal(null);
-
-        toast.success(
-          "Template de medição desativado com sucesso.",
-        );
       } catch (error: unknown) {
         toast.error(
           getErrorMessage(
             error,
-            "Erro ao desativar template de medição.",
+            modalState.type === "DELETE"
+              ? "Não foi possível excluir o template de medição. Aguardando suporte da API."
+              : "Erro ao desativar template de medição.",
           ),
         );
       }
@@ -454,14 +530,39 @@ export default function MeasurementTemplatesClient({
 
   return (
     <div className="space-y-5">
-      <DeactivateConfirmationModal
+      <ConfirmationModal
         state={confirmModal}
         pending={pending}
         onClose={() => setConfirmModal(null)}
-        onConfirm={handleConfirmDeactivate}
+        onConfirm={handleConfirmModalAction}
       />
 
-      <FormPageHeader icon={Activity} title="Templates de Medição" description="Configure modelos de medições para uso nas ordens e visitas." actions={<Button type="button" className="btn-brand text-white" onClick={() => { if (showForm && !isEditing) { resetForm(); setShowForm(false); return; } openCreateForm(); }}><Plus className="mr-2 h-4 w-4" />Novo template</Button>} />
+      <FormPageHeader
+        icon={Activity}
+        title="Templates de Medição"
+        description="Configure modelos de medições para uso nas ordens e visitas."
+        actions={
+          <Button
+            type="button"
+            className="btn-brand text-white"
+            onClick={() => {
+              if (
+                showForm &&
+                !isEditing
+              ) {
+                resetForm();
+                setShowForm(false);
+                return;
+              }
+
+              openCreateForm();
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Novo template
+          </Button>
+        }
+      />
 
       {showForm && (
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -474,8 +575,8 @@ export default function MeasurementTemplatesClient({
               </h2>
 
               <p className="text-xs text-slate-500">
-                Crie o template com os campos que o técnico
-                deverá preencher.
+                Crie o template com os campos que o
+                técnico deverá preencher.
               </p>
             </div>
 
@@ -514,16 +615,22 @@ export default function MeasurementTemplatesClient({
 
               <select
                 value={
-                  isActive ? "ACTIVE" : "INACTIVE"
+                  isActive
+                    ? "ACTIVE"
+                    : "INACTIVE"
                 }
                 onChange={(event) =>
                   setIsActive(
-                    event.target.value === "ACTIVE",
+                    event.target.value ===
+                      "ACTIVE",
                   )
                 }
                 className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-sky-400"
               >
-                <option value="ACTIVE">Ativo</option>
+                <option value="ACTIVE">
+                  Ativo
+                </option>
+
                 <option value="INACTIVE">
                   Inativo
                 </option>
@@ -538,7 +645,9 @@ export default function MeasurementTemplatesClient({
               <textarea
                 value={description}
                 onChange={(event) =>
-                  setDescription(event.target.value)
+                  setDescription(
+                    event.target.value,
+                  )
                 }
                 className="min-h-20 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-sky-400"
                 placeholder="Observações sobre quando usar este template."
@@ -554,14 +663,17 @@ export default function MeasurementTemplatesClient({
                 </h3>
 
                 <p className="text-xs text-slate-500">
-                  Adicione pH, cloro, alcalinidade ou
-                  qualquer medição usada na visita.
+                  Adicione pH, cloro,
+                  alcalinidade ou qualquer
+                  medição usada na visita.
                 </p>
               </div>
 
               <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
                 {fields.length} campo
-                {fields.length === 1 ? "" : "s"}
+                {fields.length === 1
+                  ? ""
+                  : "s"}
               </span>
             </div>
 
@@ -590,7 +702,9 @@ export default function MeasurementTemplatesClient({
                 <Input
                   value={fieldName}
                   onChange={(event) =>
-                    setFieldName(event.target.value)
+                    setFieldName(
+                      event.target.value,
+                    )
                   }
                   placeholder="Ex.: ph"
                 />
@@ -610,7 +724,9 @@ export default function MeasurementTemplatesClient({
 
                     setFieldType(nextType);
 
-                    if (nextType !== "NUMBER") {
+                    if (
+                      nextType !== "NUMBER"
+                    ) {
                       setFieldUnit("");
                     }
                   }}
@@ -619,9 +735,11 @@ export default function MeasurementTemplatesClient({
                   <option value="NUMBER">
                     Número
                   </option>
+
                   <option value="TEXT">
                     Texto
                   </option>
+
                   <option value="BOOLEAN">
                     Sim/Não
                   </option>
@@ -636,10 +754,14 @@ export default function MeasurementTemplatesClient({
                 <Input
                   value={fieldUnit}
                   onChange={(event) =>
-                    setFieldUnit(event.target.value)
+                    setFieldUnit(
+                      event.target.value,
+                    )
                   }
                   placeholder="Ex.: ppm"
-                  disabled={fieldType !== "NUMBER"}
+                  disabled={
+                    fieldType !== "NUMBER"
+                  }
                 />
               </div>
 
@@ -665,6 +787,7 @@ export default function MeasurementTemplatesClient({
                   <option value="REQUIRED">
                     Obrigatório
                   </option>
+
                   <option value="OPTIONAL">
                     Opcional
                   </option>
@@ -761,7 +884,9 @@ export default function MeasurementTemplatesClient({
                             size="sm"
                             className="h-8 w-8 border-slate-200 p-0 text-slate-500 hover:bg-red-50 hover:text-red-600"
                             onClick={() =>
-                              removeField(field.id)
+                              removeField(
+                                field.id,
+                              )
                             }
                             title="Remover campo"
                           >
@@ -778,8 +903,8 @@ export default function MeasurementTemplatesClient({
                         colSpan={6}
                         className="p-8 text-center text-sm text-slate-500"
                       >
-                        Nenhum campo adicionado ao
-                        template ainda.
+                        Nenhum campo adicionado
+                        ao template ainda.
                       </td>
                     </tr>
                   )}
@@ -820,64 +945,36 @@ export default function MeasurementTemplatesClient({
       )}
 
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="overflow-hidden rounded-xl border border-slate-200">
-          <table className="w-full table-fixed text-sm">
-            <colgroup>
-              <col className="w-[34%]" />
-              <col className="w-[34%]" />
-              <col className="w-[12%]" />
-              <col className="w-[10%]" />
-              <col className="w-[10%]" />
-            </colgroup>
+        <div className="mb-3 flex items-center gap-2">
+          <Activity className="h-4 w-4 text-sky-600" />
 
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="p-3 text-left font-semibold text-slate-700">
-                  Template
-                </th>
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">
+              Templates cadastrados
+            </h2>
 
-                <th className="p-3 text-left font-semibold text-slate-700">
-                  Descrição
-                </th>
+            <p className="text-xs text-slate-500">
+              Templates ativos aparecem para
+              novas OS e para o app do técnico.
+            </p>
+          </div>
+        </div>
 
-                <th className="p-3 text-left font-semibold text-slate-700">
-                  Campos
-                </th>
+        <div className="space-y-3">
+          {templates.map((template) => (
+            <div
+              key={template.id}
+              className="rounded-xl border border-slate-200 bg-white p-4"
+            >
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-semibold text-slate-900">
+                      {template.name}
+                    </h3>
 
-                <th className="p-3 text-left font-semibold text-slate-700">
-                  Status
-                </th>
-
-                <th className="p-3 text-right font-semibold text-slate-700">
-                  Ações
-                </th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {templates.map((template) => (
-                <tr
-                  key={template.id}
-                  className="border-t border-slate-200"
-                >
-                  <td className="truncate p-3 font-medium text-slate-900">
-                    {template.name}
-                  </td>
-
-                  <td className="truncate p-3 text-slate-600">
-                    {template.description || "-"}
-                  </td>
-
-                  <td className="p-3 text-slate-600">
-                    <div className="flex items-center gap-1.5">
-                      <Activity className="h-3.5 w-3.5 text-sky-600" />
-                      {template.fieldsCount}
-                    </div>
-                  </td>
-
-                  <td className="p-3">
                     <span
-                      className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+                      className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${
                         template.isActive
                           ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                           : "border-slate-200 bg-slate-50 text-slate-500"
@@ -887,69 +984,151 @@ export default function MeasurementTemplatesClient({
                         ? "Ativo"
                         : "Inativo"}
                     </span>
-                  </td>
 
-                  <td className="p-3">
-                    <div className="flex justify-end gap-2">
-                      {template.isActive ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() =>
-                            confirmDeactivate(template)
-                          }
-                          disabled={pending}
-                          className="h-8 w-8 bg-amber-500 p-0 text-white hover:bg-amber-600"
-                          title="Desativar template"
-                        >
-                          <Power className="h-3.5 w-3.5" />
-                        </Button>
-                      ) : (
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() =>
-                            activateTemplate(template)
-                          }
-                          disabled={pending}
-                          className="h-8 w-8 bg-emerald-600 p-0 text-white hover:bg-emerald-700"
-                          title="Ativar template"
-                        >
-                          <Power className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
+                    <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700">
+                      {template.fields.length}{" "}
+                      campo
+                      {template.fields.length ===
+                      1
+                        ? ""
+                        : "s"}
+                    </span>
+                  </div>
 
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() =>
-                          openEditForm(template)
-                        }
-                        disabled={pending}
-                        title="Editar template"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                  {template.description && (
+                    <p className="mt-1 text-sm text-slate-500">
+                      {
+                        template.description
+                      }
+                    </p>
+                  )}
+                </div>
 
-              {templates.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="p-10 text-center text-sm text-slate-500"
+                <div className="flex items-center gap-2">
+                  {template.isActive ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() =>
+                        confirmDeactivate(
+                          template,
+                        )
+                      }
+                      disabled={pending}
+                      className="h-9 w-9 bg-amber-500 p-0 text-white hover:bg-amber-600"
+                      title="Desativar template"
+                    >
+                      <Power className="h-4 w-4" />
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() =>
+                        activateTemplate(
+                          template,
+                        )
+                      }
+                      disabled={pending}
+                      className="h-9 w-9 bg-emerald-600 p-0 text-white hover:bg-emerald-700"
+                      title="Ativar template"
+                    >
+                      <Power className="h-4 w-4" />
+                    </Button>
+                  )}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      openEditForm(template)
+                    }
+                    disabled={pending}
+                    className="h-9 w-9 p-0"
+                    title="Editar template"
                   >
-                    Nenhum template de medição
-                    cadastrado ainda.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      confirmDelete(template)
+                    }
+                    disabled={pending}
+                    className="h-9 w-9 border-slate-200 p-0 text-slate-500 hover:bg-red-50 hover:text-red-600"
+                    title="Excluir template"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                {template.fields.map(
+                  (field) => (
+                    <div
+                      key={field.id}
+                      className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                    >
+                      <div className="flex items-start gap-2">
+                        <Activity className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
+
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium text-slate-800">
+                            {field.label}
+                          </div>
+
+                          <div className="mt-1 flex flex-wrap gap-1.5 text-[11px]">
+                            <span className="rounded-full bg-white px-2 py-0.5 text-slate-600 ring-1 ring-slate-200">
+                              {fieldTypeLabel(
+                                field.fieldType,
+                              )}
+                            </span>
+
+                            {field.unit && (
+                              <span className="rounded-full bg-white px-2 py-0.5 text-slate-600 ring-1 ring-slate-200">
+                                {
+                                  field.unit
+                                }
+                              </span>
+                            )}
+
+                            <span className="rounded-full bg-white px-2 py-0.5 text-slate-600 ring-1 ring-slate-200">
+                              {field.isRequired
+                                ? "Obrigatório"
+                                : "Opcional"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ),
+                )}
+
+                {template.fields.length ===
+                  0 && (
+                  <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-6 text-center text-sm text-slate-500">
+                    Nenhum campo cadastrado.
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {templates.length === 0 && (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center">
+              <Activity className="mx-auto h-8 w-8 text-slate-400" />
+
+              <p className="mt-2 text-sm text-slate-500">
+                Nenhum template de medição
+                cadastrado ainda.
+              </p>
+            </div>
+          )}
         </div>
       </section>
     </div>
