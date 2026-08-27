@@ -61,5 +61,5 @@ export async function middleware(req: NextRequest) {
 
 // ⚠ MUITO IMPORTANTE: nada de "as const", "as string[]" aqui
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon\\.ico|assets).*)"],
+  matcher: ["/((?!api|mappa-api|_next/static|_next/image|favicon\\.ico|assets).*)"],
 };

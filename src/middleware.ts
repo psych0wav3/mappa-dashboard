@@ -139,6 +139,6 @@ export async function middleware(
 
 export const config = {
   matcher: [
-    "/((?!api|_next|.*\\..*).*)",
+    "/((?!api|mappa-api|_next|.*\\..*).*)",
   ],
 };

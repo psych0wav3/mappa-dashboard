@@ -23,7 +23,6 @@ import { getErrorMessage } from "@/lib/mappa/errors";
 
 import {
   createChecklistTemplate,
-  deleteChecklistTemplate,
   updateChecklistTemplate,
   updateChecklistTemplateStatus,
   type ChecklistItemType,
@@ -35,16 +34,9 @@ type DraftItem = ChecklistTemplateItem & {
   localId: string;
 };
 
-type ConfirmModalState =
-  | {
-      type: "DEACTIVATE";
-      template: ChecklistTemplate;
-    }
-  | {
-      type: "DELETE";
-      template: ChecklistTemplate;
-    }
-  | null;
+type ConfirmModalState = {
+  template: ChecklistTemplate;
+} | null;
 
 function makeId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -100,23 +92,17 @@ function ConfirmationModal({
     return null;
   }
 
-  const isDelete = state.type === "DELETE";
-
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-base font-semibold text-slate-900">
-              {isDelete
-                ? "Excluir checklist?"
-                : "Desativar checklist?"}
+              Desativar checklist?
             </h2>
 
             <p className="mt-2 text-sm text-slate-600">
-              {isDelete
-                ? "Essa ação pode remover o checklist da configuração da empresa. Se ele já foi usado em OS antigas, confirme com o backend se o histórico será preservado."
-                : "O checklist desativado não aparecerá para novas OS nem para o app do técnico."}
+              O checklist desativado não aparecerá para novas OS nem para o app do técnico.
             </p>
           </div>
 
@@ -158,19 +144,9 @@ function ConfirmationModal({
             type="button"
             onClick={onConfirm}
             disabled={pending}
-            className={
-              isDelete
-                ? "bg-red-600 text-white hover:bg-red-700"
-                : "bg-amber-500 text-white hover:bg-amber-600"
-            }
+            className="bg-amber-500 text-white hover:bg-amber-600"
           >
-            {pending
-              ? isDelete
-                ? "Excluindo..."
-                : "Desativando..."
-              : isDelete
-                ? "Sim, excluir"
-                : "Sim, desativar"}
+            {pending ? "Desativando..." : "Sim, desativar"}
           </Button>
         </div>
       </div>
@@ -442,19 +418,7 @@ export default function ChecklistTemplatesClient({
   function confirmDeactivate(
     template: ChecklistTemplate,
   ) {
-    setConfirmModal({
-      type: "DEACTIVATE",
-      template,
-    });
-  }
-
-  function confirmDelete(
-    template: ChecklistTemplate,
-  ) {
-    setConfirmModal({
-      type: "DELETE",
-      template,
-    });
+    setConfirmModal({ template });
   }
 
   function handleConfirmModalAction() {
@@ -466,50 +430,23 @@ export default function ChecklistTemplatesClient({
 
     startTransition(async () => {
       try {
-        if (modalState.type === "DEACTIVATE") {
-          const updated =
-            await updateChecklistTemplateStatus({
-              templateId: modalState.template.id,
-              isActive: false,
-            });
+        const updated =
+          await updateChecklistTemplateStatus({
+            templateId: modalState.template.id,
+            isActive: false,
+          });
 
-          setTemplates((current) =>
-            current.map((item) =>
-              item.id === updated.id
-                ? updated
-                : item,
-            ),
-          );
+        setTemplates((current) =>
+          current.map((item) =>
+            item.id === updated.id
+              ? updated
+              : item,
+          ),
+        );
 
-          toast.success(
-            "Checklist desativado com sucesso.",
-          );
-        }
-
-        if (modalState.type === "DELETE") {
-          await deleteChecklistTemplate(
-            modalState.template.id,
-          );
-
-          setTemplates((current) =>
-            current.filter(
-              (item) =>
-                item.id !== modalState.template.id,
-            ),
-          );
-
-          if (
-            editingTemplate?.id ===
-            modalState.template.id
-          ) {
-            resetForm();
-            setShowForm(false);
-          }
-
-          toast.success(
-            "Checklist excluído com sucesso.",
-          );
-        }
+        toast.success(
+          "Checklist desativado com sucesso.",
+        );
 
         setConfirmModal(null);
       } catch (error: unknown) {
@@ -866,20 +803,6 @@ export default function ChecklistTemplatesClient({
                     title="Editar checklist"
                   >
                     <Pencil className="h-4 w-4" />
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      confirmDelete(template)
-                    }
-                    disabled={pending}
-                    className="h-9 w-9 border-slate-200 p-0 text-slate-500 hover:bg-red-50 hover:text-red-600"
-                    title="Excluir checklist"
-                  >
-                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </div>

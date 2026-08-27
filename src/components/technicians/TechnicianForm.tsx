@@ -28,8 +28,8 @@ type TechnicianFormProps = {
   id?: string;
   defaultValues?: TechnicianDefaults;
   trigger?: React.ReactNode;
-  onDeactivate?: () => void;
-  onReactivate?: () => void;
+  onDeactivate?: () => Promise<boolean>;
+  onReactivate?: () => Promise<boolean>;
   onDelete?: () =>
     | Promise<boolean | void>
     | boolean
@@ -124,8 +124,13 @@ export default function TechnicianForm({
       return;
     }
 
-    onDeactivate();
-    setOpen(false);
+    startTransition(async () => {
+      const updated = await onDeactivate();
+
+      if (updated) {
+        setOpen(false);
+      }
+    });
   }
 
   function handleReactivate() {
@@ -133,8 +138,13 @@ export default function TechnicianForm({
       return;
     }
 
-    onReactivate();
-    setOpen(false);
+    startTransition(async () => {
+      const updated = await onReactivate();
+
+      if (updated) {
+        setOpen(false);
+      }
+    });
   }
 
   function handleDelete() {

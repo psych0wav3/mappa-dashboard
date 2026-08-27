@@ -14,7 +14,7 @@ export function normalizeEmployee(employee: ApiEmployee): Tech {
     lastName,
     email: employee.email,
     phone: employee.phone ?? null,
-    active: employee.status !== "INACTIVE",
+    active: employee.status === "ACTIVE",
     role: "TECH",
   };
 }

@@ -17,104 +17,18 @@ import {
 
 import { toast } from "sonner";
 
-import type {
-  Client,
+import {
+  updateClientStatus,
+  type Client,
 } from "@/app/(private)/clients/actions";
 
+import {
+  getErrorMessage,
+} from "@/lib/mappa/errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 import ClientForm from "./ClientForm";
-
-const INACTIVE_STORAGE_KEY =
-  "aqua-mappa:inactive-clients";
-
-function readInactiveIds() {
-  if (
-    typeof window ===
-    "undefined"
-  ) {
-    return new Set<string>();
-  }
-
-  try {
-    const raw =
-      window.localStorage.getItem(
-        INACTIVE_STORAGE_KEY,
-      );
-
-    const parsed =
-      raw
-        ? JSON.parse(raw)
-        : [];
-
-    if (
-      !Array.isArray(parsed)
-    ) {
-      return new Set<string>();
-    }
-
-    return new Set(
-      parsed.filter(
-        (
-          item,
-        ): item is string =>
-          typeof item ===
-          "string",
-      ),
-    );
-  } catch {
-    return new Set<string>();
-  }
-}
-
-function writeInactiveIds(
-  ids: Set<string>,
-) {
-  if (
-    typeof window ===
-    "undefined"
-  ) {
-    return;
-  }
-
-  window.localStorage.setItem(
-    INACTIVE_STORAGE_KEY,
-    JSON.stringify(
-      Array.from(ids),
-    ),
-  );
-}
-
-function applyLocalInactiveStatus(
-  data: Client[],
-) {
-  const inactiveIds =
-    readInactiveIds();
-
-  return data.map(
-    (client) => {
-      const locallyInactive =
-        inactiveIds.has(
-          client.id,
-        );
-
-      const active =
-        client.active &&
-        !locallyInactive;
-
-      return {
-        ...client,
-
-        active,
-
-        status: active
-          ? ("ACTIVE" as const)
-          : ("INACTIVE" as const),
-      };
-    },
-  );
-}
 
 function getInitials(
   name: string,
@@ -216,12 +130,7 @@ export default function ClientTable({
     setRows,
   ] = React.useState<
     Client[]
-  >([]);
-
-  const [
-    storageReady,
-    setStorageReady,
-  ] = React.useState(false);
+  >(initialData ?? []);
 
   const [
     tab,
@@ -236,13 +145,7 @@ export default function ClientTable({
   ] = React.useState("");
 
   React.useEffect(() => {
-    setRows(
-      applyLocalInactiveStatus(
-        initialData ?? [],
-      ),
-    );
-
-    setStorageReady(true);
+    setRows(initialData ?? []);
   }, [initialData]);
 
   const counts =
@@ -346,131 +249,65 @@ export default function ClientTable({
   ) {
     setRows((current) =>
       current.map(
-        (item) => {
-          if (
-            item.id !==
-            updatedClient.id
-          ) {
-            return item;
-          }
-
-          /*
-           * Mantém o estado exibido
-           * na tabela.
-           *
-           * Isso evita que o GET de
-           * detalhes reative
-           * visualmente um cliente
-           * inativado localmente.
-           */
-          return {
-            ...updatedClient,
-
-            active:
-              item.active,
-
-            status:
-              item.active
-                ? "ACTIVE"
-                : "INACTIVE",
-          };
-        },
+        (item) =>
+          item.id === updatedClient.id
+            ? updatedClient
+            : item,
       ),
     );
   }
 
-  function handleDeactivate(
+  async function handleDeactivate(
     customerId: string,
   ) {
-    const inactiveIds =
-      readInactiveIds();
+    try {
+      const updated = await updateClientStatus(
+        customerId,
+        "INACTIVE",
+      );
 
-    inactiveIds.add(
-      customerId,
-    );
-
-    writeInactiveIds(
-      inactiveIds,
-    );
-
-    setRows((current) =>
-      current.map(
-        (client) =>
-          client.id ===
-          customerId
-            ? {
-                ...client,
-
-                active:
-                  false,
-
-                status:
-                  "INACTIVE",
-              }
-            : client,
-      ),
-    );
-
-    setTab("inactive");
-
-    toast.success(
-      "Cliente inativado.",
-    );
+      updateClientInList(updated);
+      setTab("inactive");
+      toast.success("Cliente inativado.");
+      return true;
+    } catch (error) {
+      toast.error(
+        getErrorMessage(
+          error,
+          "Não foi possível inativar o cliente.",
+        ),
+      );
+      return false;
+    }
   }
 
-  function handleReactivate(
+  async function handleReactivate(
     customerId: string,
   ) {
-    const inactiveIds =
-      readInactiveIds();
+    try {
+      const updated = await updateClientStatus(
+        customerId,
+        "ACTIVE",
+      );
 
-    inactiveIds.delete(
-      customerId,
-    );
-
-    writeInactiveIds(
-      inactiveIds,
-    );
-
-    setRows((current) =>
-      current.map(
-        (client) =>
-          client.id ===
-          customerId
-            ? {
-                ...client,
-
-                active:
-                  true,
-
-                status:
-                  "ACTIVE",
-              }
-            : client,
-      ),
-    );
-
-    setTab("active");
-
-    toast.success(
-      "Cliente reativado.",
-    );
+      updateClientInList(updated);
+      setTab("active");
+      toast.success("Cliente reativado.");
+      return true;
+    } catch (error) {
+      toast.error(
+        getErrorMessage(
+          error,
+          "Não foi possível reativar o cliente.",
+        ),
+      );
+      return false;
+    }
   }
 
   function removeClientFromList(
     customerId: string,
   ) {
-    const inactiveIds =
-      readInactiveIds();
-
-    inactiveIds.delete(
-      customerId,
-    );
-
-    writeInactiveIds(
-      inactiveIds,
-    );
-
     setRows((current) =>
       current.filter(
         (client) =>
@@ -490,16 +327,6 @@ export default function ClientTable({
         ? "border-sky-600 bg-sky-600 text-white shadow-sm"
         : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
     ].join(" ");
-  }
-
-  if (!storageReady) {
-    return (
-      <div className="space-y-5">
-        <div className="h-32 animate-pulse rounded-2xl border border-slate-200 bg-white" />
-
-        <div className="h-96 animate-pulse rounded-2xl border border-slate-200 bg-white" />
-      </div>
-    );
   }
 
   return (

@@ -19,7 +19,6 @@ import { getErrorMessage } from "@/lib/mappa/errors";
 
 import {
   createMeasurementTemplate,
-  deleteMeasurementTemplate,
   updateMeasurementTemplate,
   updateMeasurementTemplateStatus,
   type MeasurementFieldType,
@@ -59,16 +58,9 @@ function createLocalId() {
     .slice(2)}`;
 }
 
-type ConfirmModalState =
-  | {
-      type: "DEACTIVATE";
-      template: MeasurementTemplate;
-    }
-  | {
-      type: "DELETE";
-      template: MeasurementTemplate;
-    }
-  | null;
+type ConfirmModalState = {
+  template: MeasurementTemplate;
+} | null;
 
 function ConfirmationModal({
   state,
@@ -85,23 +77,17 @@ function ConfirmationModal({
     return null;
   }
 
-  const isDelete = state.type === "DELETE";
-
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 px-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-base font-semibold text-slate-900">
-              {isDelete
-                ? "Excluir template de medição?"
-                : "Desativar template de medição?"}
+              Desativar template de medição?
             </h2>
 
             <p className="mt-2 text-sm text-slate-600">
-              {isDelete
-                ? "Essa ação removerá o template da configuração da empresa. Se ele já tiver sido usado em ordens antigas, a API deverá preservar o histórico ou bloquear a exclusão."
-                : "O template desativado não ficará disponível para novas ordens e visitas."}
+              O template desativado não ficará disponível para novas ordens e visitas.
             </p>
           </div>
 
@@ -142,19 +128,9 @@ function ConfirmationModal({
             type="button"
             onClick={onConfirm}
             disabled={pending}
-            className={
-              isDelete
-                ? "bg-red-600 text-white hover:bg-red-700"
-                : "bg-amber-500 text-white hover:bg-amber-600"
-            }
+            className="bg-amber-500 text-white hover:bg-amber-600"
           >
-            {pending
-              ? isDelete
-                ? "Excluindo..."
-                : "Desativando..."
-              : isDelete
-                ? "Sim, excluir"
-                : "Sim, desativar"}
+            {pending ? "Desativando..." : "Sim, desativar"}
           </Button>
         </div>
       </div>
@@ -418,19 +394,7 @@ export default function MeasurementTemplatesClient({
   function confirmDeactivate(
     template: MeasurementTemplate,
   ) {
-    setConfirmModal({
-      type: "DEACTIVATE",
-      template,
-    });
-  }
-
-  function confirmDelete(
-    template: MeasurementTemplate,
-  ) {
-    setConfirmModal({
-      type: "DELETE",
-      template,
-    });
+    setConfirmModal({ template });
   }
 
   function handleConfirmModalAction() {
@@ -442,69 +406,35 @@ export default function MeasurementTemplatesClient({
 
     startTransition(async () => {
       try {
-        if (modalState.type === "DEACTIVATE") {
-          const updated =
-            await updateMeasurementTemplateStatus({
-              templateId:
-                modalState.template.id,
-              isActive: false,
-            });
+        const updated =
+          await updateMeasurementTemplateStatus({
+            templateId: modalState.template.id,
+            isActive: false,
+          });
 
-          setTemplates((current) =>
-            current.map((item) =>
-              item.id === updated.id
-                ? updated
-                : item,
-            ),
-          );
+        setTemplates((current) =>
+          current.map((item) =>
+            item.id === updated.id
+              ? updated
+              : item,
+          ),
+        );
 
-          if (
-            editingTemplate?.id ===
-            updated.id
-          ) {
-            setEditingTemplate(updated);
-            setIsActive(false);
-          }
-
-          toast.success(
-            "Template de medição desativado com sucesso.",
-          );
+        if (editingTemplate?.id === updated.id) {
+          setEditingTemplate(updated);
+          setIsActive(false);
         }
 
-        if (modalState.type === "DELETE") {
-          await deleteMeasurementTemplate(
-            modalState.template.id,
-          );
-
-          setTemplates((current) =>
-            current.filter(
-              (item) =>
-                item.id !==
-                modalState.template.id,
-            ),
-          );
-
-          if (
-            editingTemplate?.id ===
-            modalState.template.id
-          ) {
-            resetForm();
-            setShowForm(false);
-          }
-
-          toast.success(
-            "Template de medição excluído com sucesso.",
-          );
-        }
+        toast.success(
+          "Template de medição desativado com sucesso.",
+        );
 
         setConfirmModal(null);
       } catch (error: unknown) {
         toast.error(
           getErrorMessage(
             error,
-            modalState.type === "DELETE"
-              ? "Não foi possível excluir o template de medição. Aguardando suporte da API."
-              : "Erro ao desativar template de medição.",
+            "Erro ao desativar template de medição.",
           ),
         );
       }
@@ -1032,20 +962,6 @@ export default function MeasurementTemplatesClient({
                     title="Editar template"
                   >
                     <Pencil className="h-4 w-4" />
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      confirmDelete(template)
-                    }
-                    disabled={pending}
-                    className="h-9 w-9 border-slate-200 p-0 text-slate-500 hover:bg-red-50 hover:text-red-600"
-                    title="Excluir template"
-                  >
-                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </div>

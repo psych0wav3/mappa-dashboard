@@ -10,10 +10,6 @@ yarn-error.log*
 .pnp*
 .pnp.js
 
-# Env / secrets
-.env
-.env.*
-!.env.example
 
 # OS/Editor
 .DS_Store

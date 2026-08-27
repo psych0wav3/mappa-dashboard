@@ -18,19 +18,11 @@ type UseClientDetailsParams = {
   clientId: string;
   summary: Client;
   onUpdated?: (client: Client) => void;
-  onDeactivate?: () => void;
-  onReactivate?: () => void;
+  onDeactivate?: () => Promise<boolean>;
+  onReactivate?: () => Promise<boolean>;
   onDeleted?: () => void;
   onClose: () => void;
 };
-
-function applyClientStatus(client: Client, active: boolean): Client {
-  return {
-    ...client,
-    active,
-    status: active ? "ACTIVE" : "INACTIVE",
-  };
-}
 
 export default function useClientDetails({
   open,
@@ -45,6 +37,7 @@ export default function useClientDetails({
   const [client, setClient] = React.useState<Client>(summary);
   const [loading, setLoading] = React.useState(false);
   const [savingAddress, setSavingAddress] = React.useState(false);
+  const [updatingStatus, setUpdatingStatus] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
 
   const onUpdatedRef = React.useRef(onUpdated);
@@ -64,16 +57,9 @@ export default function useClientDetails({
 
   const loadClientDetails = React.useCallback(async () => {
     const details = await getClientById(clientId);
-
-    const normalizedDetails = applyClientStatus(
-      details,
-      summary.active,
-    );
-
-    updateClient(normalizedDetails);
-
-    return normalizedDetails;
-  }, [clientId, summary.active, updateClient]);
+    updateClient(details);
+    return details;
+  }, [clientId, updateClient]);
 
   React.useEffect(() => {
     if (!open) {
@@ -92,12 +78,7 @@ export default function useClientDetails({
           return;
         }
 
-        const normalizedDetails = applyClientStatus(
-          details,
-          summary.active,
-        );
-
-        updateClient(normalizedDetails);
+        updateClient(details);
       } catch (error) {
         if (!mounted) {
           return;
@@ -124,7 +105,6 @@ export default function useClientDetails({
   }, [
     clientId,
     open,
-    summary.active,
     updateClient,
   ]);
 
@@ -163,41 +143,53 @@ export default function useClientDetails({
     ],
   );
 
-  const handleDeactivate = React.useCallback(() => {
+  const handleDeactivate = React.useCallback(async () => {
     if (!onDeactivate) {
       return;
     }
 
-    onDeactivate();
+    setUpdatingStatus(true);
 
-    setClient((current) =>
-      applyClientStatus(
-        current,
-        false,
-      ),
-    );
+    try {
+      const updated = await onDeactivate();
 
-    onClose();
+      if (updated) {
+        setClient((current) => ({
+          ...current,
+          active: false,
+          status: "INACTIVE",
+        }));
+        onClose();
+      }
+    } finally {
+      setUpdatingStatus(false);
+    }
   }, [
     onClose,
     onDeactivate,
   ]);
 
-  const handleReactivate = React.useCallback(() => {
+  const handleReactivate = React.useCallback(async () => {
     if (!onReactivate) {
       return;
     }
 
-    onReactivate();
+    setUpdatingStatus(true);
 
-    setClient((current) =>
-      applyClientStatus(
-        current,
-        true,
-      ),
-    );
+    try {
+      const updated = await onReactivate();
 
-    onClose();
+      if (updated) {
+        setClient((current) => ({
+          ...current,
+          active: true,
+          status: "ACTIVE",
+        }));
+        onClose();
+      }
+    } finally {
+      setUpdatingStatus(false);
+    }
   }, [
     onClose,
     onReactivate,
@@ -253,6 +245,7 @@ export default function useClientDetails({
     deleting,
     busy:
       savingAddress ||
+      updatingStatus ||
       deleting,
     handleAddAddress,
     handleDeactivate,

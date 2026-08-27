@@ -22,10 +22,10 @@ type TechnicianListProps = {
   technicians: Technician[];
   onDeactivate: (
     id: string,
-  ) => void;
+  ) => Promise<boolean>;
   onReactivate: (
     id: string,
-  ) => void;
+  ) => Promise<boolean>;
   onDelete: (
     id: string,
   ) => Promise<boolean>;

@@ -5,9 +5,6 @@ import type {
   TechnicianTab,
 } from "./technician.types";
 
-const INACTIVE_STORAGE_KEY =
-  "aqua-mappa:inactive-technicians";
-
 export function getTechnicianName(
   technician?: TechnicianDefaults,
 ) {
@@ -62,79 +59,6 @@ export function getTechnicianInitials(
 
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toLocaleUpperCase(
     "pt-BR",
-  );
-}
-
-export function readInactiveTechnicianIds() {
-  if (
-    typeof window ===
-    "undefined"
-  ) {
-    return new Set<string>();
-  }
-
-  try {
-    const raw =
-      window.localStorage.getItem(
-        INACTIVE_STORAGE_KEY,
-      );
-
-    const parsed =
-      raw
-        ? JSON.parse(raw)
-        : [];
-
-    if (!Array.isArray(parsed)) {
-      return new Set<string>();
-    }
-
-    return new Set(
-      parsed.filter(
-        (
-          item,
-        ): item is string =>
-          typeof item ===
-          "string",
-      ),
-    );
-  } catch {
-    return new Set<string>();
-  }
-}
-
-export function writeInactiveTechnicianIds(
-  ids: Set<string>,
-) {
-  if (
-    typeof window ===
-    "undefined"
-  ) {
-    return;
-  }
-
-  window.localStorage.setItem(
-    INACTIVE_STORAGE_KEY,
-    JSON.stringify(
-      Array.from(ids),
-    ),
-  );
-}
-
-export function applyLocalInactiveStatus(
-  technicians: Technician[],
-) {
-  const inactiveIds =
-    readInactiveTechnicianIds();
-
-  return technicians.map(
-    (technician) => ({
-      ...technician,
-      active:
-        technician.active &&
-        !inactiveIds.has(
-          technician.id,
-        ),
-    }),
   );
 }
 
