@@ -345,7 +345,7 @@ model Company {
   id         String @id @default(cuid())
   name       String
   slug       String @unique
-  ownerId    String // id do usuário Supabase dono da empresa
+  ownerId    String // id do usuário dono da empresa
   plan       String // "starter" | "pro" | ...
   planStatus String @default("active")
   poolCount  Int?
@@ -361,7 +361,7 @@ model Company {
 model CompanyUser {
   id        String      @id @default(cuid())
   companyId String
-  userId    String // id do usuário no Supabase (auth.users.id)
+  userId    String // id do usuário
   role      CompanyRole @default(ADMIN)
   createdAt DateTime    @default(now())
 

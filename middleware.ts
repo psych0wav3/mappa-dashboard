@@ -1,65 +1,79 @@
-// src/middleware.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-//teste
 
-// Rotas públicas que não exigem login
-const PUBLIC_PATHS: string[] = [
+const PUBLIC_PATHS = [
   "/login",
   "/forgot-password",
   "/verify-reset-code",
   "/reset-password",
   "/auth/signout",
-  "/favicon.ico",
-  "/assets",
-  "/_next",
 ];
 
-const AUTH_FLOW_PATHS: string[] = [
+const AUTH_FLOW_PATHS = [
   "/login",
   "/forgot-password",
   "/verify-reset-code",
   "/reset-password",
 ];
 
-function isPublicPath(pathname: string) {
-  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p));
+function matchesPath(pathname: string, path: string) {
+  return pathname === path || pathname.startsWith(`${path}/`);
 }
 
-function isAuthFlowPath(pathname: string) {
-  return AUTH_FLOW_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`),
-  );
+function isSuperAdmin(role?: string) {
+  const normalized = String(role ?? "")
+    .trim()
+    .replace(/([a-z])([A-Z])/g, "$1_$2")
+    .replace(/\s+/g, "_")
+    .toUpperCase();
+
+  return normalized === "SUPER_ADMIN" || normalized === "SUPERADMIN";
 }
 
-export async function middleware(req: NextRequest) {
+export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
+  const hasAccess = Boolean(req.cookies.get("mappa_access_token")?.value);
+  const role = req.cookies.get("mappa_role")?.value;
+  const companyId = req.cookies.get("mappa_company_id")?.value;
+  const superAdminWithoutCompany =
+    hasAccess && isSuperAdmin(role) && !companyId;
+  const isPublic = PUBLIC_PATHS.some((path) => matchesPath(pathname, path));
+  const isAuthRoute = AUTH_FLOW_PATHS.some((path) =>
+    matchesPath(pathname, path),
+  );
+  const isCompanySelection = matchesPath(pathname, "/select-company");
 
-  // considera logado se existir cookie de access/refresh do Supabase
-  const hasAccess = !!(req.cookies.get("sb-access-token") || req.cookies.get("sb:token"));
-
-  const isPublic = isPublicPath(pathname);
-  const isAuthRoute = isAuthFlowPath(pathname);
-
-  // Não logado tentando acessar rota privada -> /login?redirectTo=...
-  if (!hasAccess && !isPublic) {
+  if (!hasAccess && !isPublic && pathname !== "/") {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
-    url.searchParams.set("redirectTo", pathname + (search || ""));
+    url.searchParams.set("redirectTo", pathname + search);
     return NextResponse.redirect(url);
   }
 
-  // Logado indo para fluxo de auth -> manda para /dashboard
-  if (hasAccess && isAuthRoute) {
+  if (hasAccess && (isAuthRoute || pathname === "/")) {
+    const url = req.nextUrl.clone();
+    url.pathname = superAdminWithoutCompany ? "/select-company" : "/dashboard";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
+  if (superAdminWithoutCompany && !isCompanySelection && !isPublic) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/select-company";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
+  if (hasAccess && isCompanySelection && !isSuperAdmin(role)) {
     const url = req.nextUrl.clone();
     url.pathname = "/dashboard";
+    url.search = "";
     return NextResponse.redirect(url);
   }
 
   return NextResponse.next();
 }
 
-// ⚠ MUITO IMPORTANTE: nada de "as const", "as string[]" aqui
 export const config = {
-  matcher: ["/((?!api|mappa-api|_next/static|_next/image|favicon\\.ico|assets).*)"],
+  matcher: ["/((?!api|mappa-api|_next|.*\\..*).*)"],
 };

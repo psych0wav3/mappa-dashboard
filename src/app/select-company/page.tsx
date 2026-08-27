@@ -2,15 +2,41 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Building2, Loader2, LogOut, PowerOff, Search, UserRound } from "lucide-react";
+import {
+  ArrowRight,
+  Building2,
+  Loader2,
+  LogOut,
+  Pencil,
+  Plus,
+  Power,
+  PowerOff,
+  Search,
+  UserRound,
+} from "lucide-react";
 import { toast } from "sonner";
 import MyAccountDialog from "@/components/account/MyAccountDialog";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getClientRole, isSuperAdminRole, SESSION_KEYS, setSessionCookie } from "@/lib/mappa/session";
-import { CompanyItem, listCompanies, SelectCompanyApiError } from "./select-company.api";
+import EditCompanyDialog from "./EditCompanyDialog";
+import NewCompanyDialog from "./NewCompanyDialog";
+import {
+  CompanyItem,
+  CompanyStatus,
+  listCompanies,
+  SelectCompanyApiError,
+  updateCompanyStatus,
+} from "./select-company.api";
 
-const isActive = (company: CompanyItem) => company.status?.toUpperCase() !== "INACTIVE";
+function normalizeStatus(status: string | null): CompanyStatus {
+  return status?.toUpperCase() === "INACTIVE" ? "INACTIVE" : "ACTIVE";
+}
+
+function statusLabel(status: string | null) {
+  return normalizeStatus(status) === "ACTIVE" ? "Ativa" : "Inativa";
+}
 
 export default function SelectCompanyPage() {
   const router = useRouter();
@@ -19,6 +45,10 @@ export default function SelectCompanyPage() {
   const [loading, setLoading] = React.useState(true);
   const [selectingId, setSelectingId] = React.useState<string | null>(null);
   const [accountOpen, setAccountOpen] = React.useState(false);
+  const [newCompanyOpen, setNewCompanyOpen] = React.useState(false);
+  const [editingCompany, setEditingCompany] = React.useState<CompanyItem | null>(null);
+  const [statusCompany, setStatusCompany] = React.useState<CompanyItem | null>(null);
+  const [statusPending, setStatusPending] = React.useState(false);
 
   const signOut = React.useCallback(() => {
     Object.values(SESSION_KEYS).forEach((key) => {
@@ -42,13 +72,35 @@ export default function SelectCompanyPage() {
     void load();
   }, [router, signOut]);
 
-  const filtered = React.useMemo(() => {
+  const filteredCompanies = React.useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
     return term ? companies.filter((company) => [company.tradeName, company.name, company.document, company.email].filter(Boolean).some((value) => String(value).toLocaleLowerCase("pt-BR").includes(term))) : companies;
   }, [companies, search]);
 
+  function upsertCompany(company: CompanyItem) {
+    setCompanies((current) => {
+      const exists = current.some((item) => item.id === company.id);
+      const next = exists
+        ? current.map((item) => (item.id === company.id ? { ...item, ...company } : item))
+        : [...current, company];
+
+      return next.sort((first, second) =>
+        (first.tradeName || first.name).localeCompare(
+          second.tradeName || second.name,
+          "pt-BR",
+        ),
+      );
+    });
+  }
+
   function selectCompany(company: CompanyItem) {
-    if (selectingId || !isActive(company)) return;
+    if (selectingId) return;
+    if (normalizeStatus(company.status) === "INACTIVE") {
+      toast.error("Esta empresa está inativa.", {
+        description: "Reative a empresa antes de acessar o painel.",
+      });
+      return;
+    }
     setSelectingId(company.id);
     const name = company.tradeName || company.name;
     localStorage.setItem(SESSION_KEYS.companyId, company.id);

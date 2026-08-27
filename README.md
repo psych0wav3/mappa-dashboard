@@ -17,7 +17,7 @@ Focado em **gestão de técnicos, clientes, visitas e rotas**, com recursos avan
 
 - **Backend**
   - [Prisma ORM](https://www.prisma.io/)  
-  - [Postgres](https://www.postgresql.org/) (hospedado no Supabase)
+  - [Postgres](https://www.postgresql.org/)
 
 - **Integrações**
   - Google Maps JavaScript API (mapas, geocodificação, autocomplete, advanced markers)
@@ -131,7 +131,7 @@ App rodará em http://localhost:3000
 - Botões de ação diretos para cada etapa.
 
 ### 6. Infraestrutura e Integração
-- **Banco**: PostgreSQL (via Supabase).
+- **Banco**: PostgreSQL.
 - **ORM**: Prisma, com tipagem forte e migrations.
 - **Frontend**: Next.js (App Router) + React + Tailwind + shadcn/ui.
 - **Mapas**: Google Maps API (Markers, Advanced Markers, Autocomplete).
@@ -141,7 +141,7 @@ App rodará em http://localhost:3000
 ## 📅 Roadmap Interno
 
 - [ ] **Rotas**
-  - [ ] Finalizar integração de status em tempo real no **Dashboard de Rotas** (via Supabase Realtime).
+  - [ ] Finalizar integração de status em tempo real no **Dashboard de Rotas**.
   - [ ] Melhorar visualização de métricas (distância total, tempo estimado).
   - [ ] Implementar otimização automática de rotas.
 
@@ -166,7 +166,6 @@ App rodará em http://localhost:3000
 - [ ] **Onboarding & Quickstart**
   - [ ] Finalizar guia inicial com integração de rotas e clientes.
   - [ ] Adicionar dicas de uso (tooltips interativos).
-
 
 
 
