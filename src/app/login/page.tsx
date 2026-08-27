@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import Image from "next/image";
 import Link from "next/link";
 
 import {
@@ -13,18 +14,13 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  LockKeyhole,
+  ShieldCheck,
 } from "lucide-react";
 
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -360,57 +356,53 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-screen grid-cols-1 md:grid-cols-2">
-      <div className="relative hidden md:block">
-        <div className="absolute inset-0 btn-brand" />
+    <main className="grid min-h-screen grid-cols-1 bg-white md:grid-cols-2">
+      <section className="relative hidden overflow-hidden bg-[linear-gradient(150deg,#0A4B84_0%,#0077C8_58%,#00BBD3_100%)] p-12 text-white md:flex md:flex-col">
+        <div className="pointer-events-none absolute -right-64 -top-64 h-[580px] w-[580px] rounded-full border border-white/10" />
+        <div className="pointer-events-none absolute -bottom-72 -left-72 h-[520px] w-[520px] rounded-full border border-white/10" />
 
-        <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-20" />
-
-        <div className="relative flex h-full w-full flex-col p-8 text-white">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/20 backdrop-blur">
-              <span className="font-bold">
-                A
-              </span>
-            </div>
-
-            <div className="text-xl font-semibold tracking-tight">
-              Aqua Mappa
-            </div>
-          </div>
-
-          <div className="flex flex-1 items-center">
-            <div className="space-y-4">
-              <h2 className="text-4xl font-bold leading-tight">
-                Gerencie rotas,
-                <br />
-
-                visitas e relatórios
-              </h2>
-
-              <p className="max-w-md text-white/80">
-                Dashboard para criar
-                agendas, acompanhar
-                técnicos e centralizar
-                fotos, checklists e
-                medições.
-              </p>
-            </div>
-          </div>
+        <div className="relative -ml-[42px] -mt-12 h-48 w-[512px]">
+          <Image src="/logo-aqua-mappa_dark.png" alt="Aqua Mappa" fill priority className="object-contain" />
         </div>
-      </div>
 
-      <div className="flex items-center justify-center p-6 md:p-10">
-        <Card className="w-full max-w-sm border-0 shadow-2xl">
-          <CardHeader>
-            <CardTitle>
-              Entrar
-            </CardTitle>
-          </CardHeader>
+        <div className="relative my-auto max-w-xl">
+          <span className="mb-6 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-wide ring-1 ring-white/10 backdrop-blur-sm">
+            <ShieldCheck size={16} />
+            Gestão operacional
+          </span>
 
-          <CardContent>
+          <h1 className="text-[44px] font-bold leading-[1.12] tracking-[-0.04em]">
+            Gestão completa da
+            <br />
+            sua operação em campo
+          </h1>
+
+          <p className="mt-5 max-w-lg text-base leading-7 text-white/75">
+            Organize agendas, acompanhe técnicos e centralize fotos,
+            checklists e medições em um só lugar.
+          </p>
+        </div>
+
+        <p className="relative text-xs text-white/55">Aqua Mappa · Dashboard</p>
+      </section>
+
+      <section className="flex items-center justify-center px-6 py-10 sm:px-10">
+        <div className="w-full max-w-[390px] md:translate-y-[29px]">
+          <div className="relative -ml-5 mb-7 h-24 w-64 md:hidden">
+            <Image src="/logo-aqua-mappa.png" alt="Aqua Mappa" fill priority className="object-contain" />
+          </div>
+
+          <div className="mb-5 grid h-[46px] w-[46px] place-items-center rounded-[15px] bg-sky-50 text-[#0077C8]">
+            <LockKeyhole size={22} />
+          </div>
+
+          <div className="mb-8">
+            <h2 className="text-[27px] font-bold tracking-[-0.035em] text-neutral-900">Acessar dashboard</h2>
+            <p className="mt-2 text-sm text-neutral-500">Entre com sua conta Aqua Mappa.</p>
+          </div>
+
             <form
-              className="space-y-4"
+              className="space-y-5"
               onSubmit={
                 handleSubmit
               }
@@ -435,6 +427,7 @@ export default function LoginPage() {
                     )
                   }
                   required
+                  className="h-11 rounded-xl"
                 />
               </div>
 
@@ -463,7 +456,7 @@ export default function LoginPage() {
                       )
                     }
                     required
-                    className="pr-10"
+                    className="h-11 rounded-xl pr-10"
                   />
 
                   <button
@@ -496,7 +489,7 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
-                className="w-full"
+                className="btn-brand h-11 w-full rounded-xl font-semibold text-white"
                 disabled={loading}
               >
                 {loading ? (
@@ -510,22 +503,26 @@ export default function LoginPage() {
                 )}
               </Button>
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between pt-1">
                 <p className="text-xs text-neutral-500">
                   Problemas para entrar?
                 </p>
 
                 <Link
                   href="/forgot-password"
-                  className="text-xs underline"
+                  className="text-xs font-medium text-[#0077C8] hover:underline"
                 >
                   Esqueci minha senha
                 </Link>
               </div>
+
+              <p className="flex items-center justify-center gap-1.5 pt-2 text-[11px] text-neutral-400">
+                <ShieldCheck size={14} />
+                Acesso seguro à plataforma Aqua Mappa.
+              </p>
             </form>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+        </div>
+      </section>
+    </main>
   );
 }
