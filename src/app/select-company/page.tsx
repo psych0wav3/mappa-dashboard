@@ -209,17 +209,6 @@ export default function SelectCompanyPage() {
 
       setStatusCompany(null);
     } catch (error) {
-      if (
-        error instanceof SelectCompanyApiError &&
-        (error.status === 404 || error.status === 405)
-      ) {
-        toast.error("A alteração de status ainda depende da API.", {
-          description:
-            "O frontend já está preparado para PATCH /api/companies/{companyId}/status.",
-        });
-        return;
-      }
-
       toast.error("Não foi possível alterar o status da empresa.", {
         description:
           error instanceof Error

@@ -424,7 +424,7 @@ export async function updateCompanyStatus(
   status: CompanyStatus,
 ): Promise<CompanyItem> {
   const payload = await apiFetch<unknown>(
-    `/api/companies/${companyId}/status`,
+    `/api/companies/${companyId}`,
     {
       method: "PATCH",
       body: JSON.stringify({

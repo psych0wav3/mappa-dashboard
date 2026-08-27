@@ -491,6 +491,32 @@ export async function addClientAddress(customerId: string, input: AddClientAddre
   return normalizeAddress(address);
 }
 
+export async function updateClientStatus(
+  customerId: string,
+  status: ClientStatus,
+) {
+  const { companyId } = await getAuthFromCookies();
+
+  if (!customerId) {
+    throw new Error("ID do cliente não informado.");
+  }
+
+  const updated = await mappaFetch<ApiCustomer>(
+    `/api/companies/${companyId}/customers/${customerId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    },
+  );
+
+  revalidatePath("/clients");
+  revalidatePath("/workorders");
+  revalidatePath("/service-plans");
+  revalidatePath("/routes/new");
+
+  return normalizeCustomer(updated);
+}
+
 export async function deleteClient(customerId: string) {
   const { companyId } = await getAuthFromCookies();
 

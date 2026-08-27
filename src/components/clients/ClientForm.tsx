@@ -32,8 +32,8 @@ type ClientFormProps = {
   summary: Client;
   trigger: React.ReactNode;
   onUpdated?: (client: Client) => void;
-  onDeactivate?: () => void;
-  onReactivate?: () => void;
+  onDeactivate?: () => Promise<boolean>;
+  onReactivate?: () => Promise<boolean>;
   onDeleted?: () => void;
 };
 

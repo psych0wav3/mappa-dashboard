@@ -18,6 +18,7 @@ import { getErrorMessage } from "@/lib/mappa/errors";
 
 import {
   deleteTechnician,
+  updateTechnicianStatus,
 } from "@/app/(private)/technicians/actions";
 
 import TechnicianFilters from "./TechnicianFilters";
@@ -30,11 +31,8 @@ import type {
 } from "./technician.types";
 
 import {
-  applyLocalInactiveStatus,
   filterTechnicians,
   getTechnicianCounts,
-  readInactiveTechnicianIds,
-  writeInactiveTechnicianIds,
 } from "./technician.utils";
 
 type TechnicianTableProps = {
@@ -73,11 +71,7 @@ export default function TechnicianTable({
   ] = useState("");
 
   useEffect(() => {
-    setRows(
-      applyLocalInactiveStatus(
-        initialData ?? [],
-      ),
-    );
+    setRows(initialData ?? []);
 
     setTab("active");
     setQuery("");
@@ -138,68 +132,48 @@ export default function TechnicianTable({
       ],
     );
 
-  function handleDeactivate(
+  async function handleDeactivate(
     id: string,
   ) {
-    const inactiveIds =
-      readInactiveTechnicianIds();
+    try {
+      const updated = await updateTechnicianStatus(id, "INACTIVE");
 
-    inactiveIds.add(id);
-
-    writeInactiveTechnicianIds(
-      inactiveIds,
-    );
-
-    setRows(
-      (current) =>
-        current.map(
-          (technician) =>
-            technician.id === id
-              ? {
-                  ...technician,
-                  active: false,
-                }
-              : technician,
+      setRows((current) =>
+        current.map((technician) =>
+          technician.id === id ? updated : technician,
         ),
-    );
-
-    setTab("inactive");
-
-    toast.success(
-      "Técnico inativado.",
-    );
+      );
+      setTab("inactive");
+      toast.success("Técnico inativado.");
+      return true;
+    } catch (error) {
+      toast.error(
+        getErrorMessage(error, "Não foi possível inativar o técnico."),
+      );
+      return false;
+    }
   }
 
-  function handleReactivate(
+  async function handleReactivate(
     id: string,
   ) {
-    const inactiveIds =
-      readInactiveTechnicianIds();
+    try {
+      const updated = await updateTechnicianStatus(id, "ACTIVE");
 
-    inactiveIds.delete(id);
-
-    writeInactiveTechnicianIds(
-      inactiveIds,
-    );
-
-    setRows(
-      (current) =>
-        current.map(
-          (technician) =>
-            technician.id === id
-              ? {
-                  ...technician,
-                  active: true,
-                }
-              : technician,
+      setRows((current) =>
+        current.map((technician) =>
+          technician.id === id ? updated : technician,
         ),
-    );
-
-    setTab("active");
-
-    toast.success(
-      "Técnico reativado.",
-    );
+      );
+      setTab("active");
+      toast.success("Técnico reativado.");
+      return true;
+    } catch (error) {
+      toast.error(
+        getErrorMessage(error, "Não foi possível reativar o técnico."),
+      );
+      return false;
+    }
   }
 
   async function handleDelete(
@@ -208,15 +182,6 @@ export default function TechnicianTable({
     try {
       await deleteTechnician(
         id,
-      );
-
-      const inactiveIds =
-        readInactiveTechnicianIds();
-
-      inactiveIds.delete(id);
-
-      writeInactiveTechnicianIds(
-        inactiveIds,
       );
 
       setRows(

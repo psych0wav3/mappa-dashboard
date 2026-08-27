@@ -1,6 +1,6 @@
 import { isMappaApiError, MappaApiError } from "@/lib/mappa/errors";
 
-type TechnicianRequestContext = "create" | "delete";
+type TechnicianRequestContext = "create" | "update" | "delete";
 
 function throwTechnicianApiError(error: unknown, context: TechnicianRequestContext): never {
   if (!isMappaApiError(error)) throw error;
