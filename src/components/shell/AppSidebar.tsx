@@ -10,6 +10,7 @@ import {
   usePathname,
   useRouter,
 } from "next/navigation";
+import Image from "next/image";
 import type { LucideIcon } from "lucide-react";
 import {
   Building2,
@@ -30,7 +31,6 @@ import {
 import LabelSlot from "./LabelSlot";
 import SidebarDropdown from "./SidebarDropdown";
 import { SidebarLink } from "./SidebarLink";
-import { getClientRole } from "@/lib/mappa/session";
 
 const LS_KEY = "sidebar:collapsed";
 const WIDTH_EXPANDED = 280;
@@ -390,26 +390,6 @@ function SidebarContent({
     [],
   );
 
-  const [planLabel, setPlanLabel] =
-    useState<string | null>(null);
-
-  useEffect(() => {
-    try {
-      const role = getClientRole() ?? "COMPANY_ADMIN";
-
-      const labels: Record<string, string> = {
-        SUPER_ADMIN: "Super Admin",
-        COMPANY_ADMIN: "Admin",
-        EMPLOYEE: "Funcionário",
-        CUSTOMER: "Cliente",
-      };
-
-      setPlanLabel(labels[role] ?? role);
-    } catch {
-      setPlanLabel(null);
-    }
-  }, []);
-
 const settingsItems = useMemo(() => [
   {
     href: "/account",
@@ -589,50 +569,18 @@ const settingsItems = useMemo(() => [
   return (
     <div className="flex h-full flex-col">
       <div
-        className={`flex h-[64px] items-center gap-3 border-b border-white/20 px-4 ${
+        className={`flex h-[72px] items-center gap-3 overflow-hidden border-b border-white/20 px-3 ${
           collapsed
             ? "justify-center"
             : ""
         }`}
       >
-        <div
-          className="grid h-10 w-10 select-none place-items-center rounded-lg bg-white text-lg font-bold"
-          style={{
-            color:
-              "var(--ac-blue-700)",
-          }}
-        >
-          A
-        </div>
-
-        <LabelSlot ready={ready} collapsed={collapsed}>
-          <span className="text-lg font-semibold text-white">
-            Aqua Mappa
-          </span>
-        </LabelSlot>
+        {collapsed ? (
+          <Image src="/icon.png" alt="Aqua Mappa" width={48} height={48} className="h-12 w-12 shrink-0 object-contain" />
+        ) : (
+          <Image src="/logo-aqua-mappa_dark.png" alt="Aqua Mappa" width={218} height={72} className="h-[72px] w-[218px] shrink-0 object-contain object-left" priority />
+        )}
       </div>
-
-      {planLabel && (
-        <div
-          className={`px-4 pt-2 ${
-            collapsed
-              ? "flex justify-center"
-              : ""
-          }`}
-        >
-          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-3 py-1 text-[0.7rem] font-medium text-emerald-100">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_3px_rgba(16,185,129,0.4)]" />
-
-            {collapsed ? (
-              <span>{planLabel}</span>
-            ) : (
-              <span>
-                Plano {planLabel} ativo
-              </span>
-            )}
-          </div>
-        </div>
-      )}
 
       <nav className="flex-1 space-y-1 overflow-y-auto p-2">
         {links.map((link) =>

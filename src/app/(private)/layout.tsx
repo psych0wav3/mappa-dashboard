@@ -18,12 +18,13 @@ export default async function PrivateLayout({ children }: { children: ReactNode 
   const companyId = cookieStore.get(SESSION_KEYS.companyId)?.value;
 
   if (!token) redirect("/login");
-  if (isSuperAdminRole(role) && !companyId) redirect("/select-company");
+  const isSuperAdmin = isSuperAdminRole(role);
+  if (isSuperAdmin && !companyId) redirect("/select-company");
 
   return (
     <div className="min-h-screen bg-neutral-50">
       <Shell>
-        <PendingAgreementsGate>{children}</PendingAgreementsGate>
+        {isSuperAdmin ? children : <PendingAgreementsGate>{children}</PendingAgreementsGate>}
       </Shell>
     </div>
   );
