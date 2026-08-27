@@ -1,15 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { ArrowRight, CalendarClock, Check, CreditCard, Receipt, Repeat2, WalletCards } from "lucide-react";
+import { CalendarClock, Check, CreditCard, Receipt, Repeat2, WalletCards } from "lucide-react";
 
-import { getAquaMappaWhatsAppUrl } from "@/lib/contact";
 
 export default function BillingFeatureBlocks() {
-  const whatsappUrl = getAquaMappaWhatsAppUrl(
-    "Olá! Gostaria de saber quando os recursos de cobrança e pagamentos do Aqua Mappa estarão disponíveis.",
-  );
-
   return (
     <section className="overflow-hidden bg-white py-20 sm:py-24">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">

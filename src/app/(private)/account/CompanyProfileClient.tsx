@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { getErrorMessage } from "@/lib/mappa/errors";
+
 import FormSection from "@/components/form-layout/FormSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -339,9 +341,10 @@ export default function CompanyProfileClient({
           );
         } catch (error) {
           toast.error(
-            error instanceof Error
-              ? error.message
-              : "Não foi possível atualizar os dados da empresa.",
+            getErrorMessage(
+              error,
+              "Não foi possível atualizar os dados da empresa.",
+            ),
           );
         }
       },

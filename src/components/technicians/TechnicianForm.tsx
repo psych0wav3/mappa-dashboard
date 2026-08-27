@@ -7,6 +7,8 @@ import { useTransition } from "react";
 
 import { toast } from "sonner";
 
+import { getErrorMessage } from "@/lib/mappa/errors";
+
 import { Button } from "@/components/ui/button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
@@ -177,9 +179,10 @@ export default function TechnicianForm({
           );
 
           toast.error(
-            error instanceof Error
-              ? error.message
-              : "Erro ao excluir técnico.",
+            getErrorMessage(
+              error,
+              "Erro ao excluir técnico.",
+            ),
           );
         }
       },

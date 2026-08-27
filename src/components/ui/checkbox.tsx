@@ -9,7 +9,7 @@ export interface CheckboxProps
 
 export const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
   ({ className = "", indeterminate, ...props }, ref) => {
-    const innerRef = React.useRef<HTMLInputElement>(null);
+    const innerRef = React.useRef<HTMLInputElement | null>(null);
     React.useEffect(() => {
       if (innerRef.current && indeterminate != null) {
         innerRef.current.indeterminate = indeterminate;
@@ -19,9 +19,13 @@ export const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
     return (
       <input
         ref={(node) => {
-          innerRef.current = node!;
-          if (typeof ref === "function") ref(node!);
-          else if (ref) (ref as React.MutableRefObject<HTMLInputElement | null>).current = node;
+          innerRef.current = node;
+
+          if (typeof ref === "function") {
+            ref(node);
+          } else if (ref) {
+            (ref as React.MutableRefObject<HTMLInputElement | null>).current = node;
+          }
         }}
         type="checkbox"
         className={

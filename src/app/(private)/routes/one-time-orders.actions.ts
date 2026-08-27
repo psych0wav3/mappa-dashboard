@@ -2,6 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 
+import {
+  getErrorMessage,
+  isMappaApiError,
+} from "@/lib/mappa/errors";
+
 import type { AvailableRouteWorkOrder } from "./routes.types";
 
 import {
@@ -61,11 +66,26 @@ export async function listOneTimeServiceOrdersForRoute(): Promise<AvailableRoute
   return orders.map(mapOneTimeOrder);
 }
 
+export type ListOneTimeServiceOrdersForDateResult =
+  | {
+      ok: true;
+      orders: AvailableRouteWorkOrder[];
+    }
+  | {
+      ok: false;
+      orders: [];
+      error: string;
+    };
+
 export async function listOneTimeServiceOrdersForDate(
   scheduledDate: string,
-): Promise<AvailableRouteWorkOrder[]> {
+): Promise<ListOneTimeServiceOrdersForDateResult> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(scheduledDate)) {
-    return [];
+    return {
+      ok: false,
+      orders: [],
+      error: "Data inválida para consultar as OS avulsas.",
+    };
   }
 
   try {
@@ -73,14 +93,33 @@ export async function listOneTimeServiceOrdersForDate(
       scheduledDate,
     });
 
-    return orders.map(mapOneTimeOrder);
+    return {
+      ok: true,
+      orders: orders.map(mapOneTimeOrder),
+    };
   } catch (error) {
+    if (!isMappaApiError(error)) {
+      throw error;
+    }
+
     console.error(
       "[listOneTimeServiceOrdersForDate]",
-      error,
+      {
+        code: error.code,
+        status: error.status,
+        retryable: error.retryable,
+        message: error.message,
+      },
     );
 
-    return [];
+    return {
+      ok: false,
+      orders: [],
+      error: getErrorMessage(
+        error,
+        "Não foi possível carregar as OS avulsas desta data.",
+      ),
+    };
   }
 }
 
@@ -95,58 +134,57 @@ export async function removeOneTimeOrderFromDailyRoute(params: {
   routeId: string;
   serviceOrderId: string;
 }): Promise<RemoveOneTimeOrderActionResult> {
+  if (!params.routeId) {
+    return {
+      ok: false,
+      error: "Rota não informada.",
+    };
+  }
+
+  if (!params.serviceOrderId) {
+    return {
+      ok: false,
+      error: "OS não informada.",
+    };
+  }
+
   try {
-    if (!params.routeId) {
-      throw new Error(
-        "Rota não informada.",
-      );
-    }
-
-    if (!params.serviceOrderId) {
-      throw new Error(
-        "OS não informada.",
-      );
-    }
-
     const response =
       await removeOneTimeOrderFromRoute({
-        routeId:
-          params.routeId,
-
-        serviceOrderId:
-          params.serviceOrderId,
+        routeId: params.routeId,
+        serviceOrderId: params.serviceOrderId,
       });
 
-    revalidatePath(
-      "/routes/dashboard",
-    );
-
-    revalidatePath(
-      "/workorders",
-    );
+    revalidatePath("/routes/dashboard");
+    revalidatePath("/workorders");
 
     return {
       ok: true,
-
-      routeDeleted:
-        response.routeDeleted,
-
+      routeDeleted: response.routeDeleted,
       remainingServiceOrders:
         response.remainingServiceOrders,
     };
   } catch (error) {
+    if (!isMappaApiError(error)) {
+      throw error;
+    }
+
     console.error(
       "[removeOneTimeOrderFromDailyRoute]",
-      error,
+      {
+        code: error.code,
+        status: error.status,
+        retryable: error.retryable,
+        message: error.message,
+      },
     );
 
     return {
       ok: false,
-
-      error:
-        error instanceof Error
-          ? error.message
-          : "Não foi possível retirar a OS da rota.",
+      error: getErrorMessage(
+        error,
+        "Não foi possível retirar a OS da rota.",
+      ),
     };
   }
 }

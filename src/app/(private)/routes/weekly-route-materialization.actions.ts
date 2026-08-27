@@ -5,6 +5,11 @@ import {
 } from "next/cache";
 
 import {
+  getErrorMessage,
+  isMappaApiError,
+} from "@/lib/mappa/errors";
+
+import {
   listRoutesForDashboard,
 } from "./actions";
 
@@ -25,10 +30,51 @@ export type LoadRouteWeekResult = {
   error?: string;
 };
 
+function isIsoDate(
+  value: string,
+) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(
+    value,
+  );
+}
+
 export async function loadRouteWeek(params: {
   dateFrom: string;
   dateTo: string;
 }): Promise<LoadRouteWeekResult> {
+  /*
+   * Datas inválidas são erro esperado
+   * de entrada e podem voltar como
+   * resultado amigável.
+   */
+  if (
+    !isIsoDate(
+      params.dateFrom,
+    ) ||
+    !isIsoDate(
+      params.dateTo,
+    )
+  ) {
+    return {
+      ok: false,
+      routes: [],
+      error:
+        "Período inválido para carregar as rotas da semana.",
+    };
+  }
+
+  if (
+    params.dateTo <
+    params.dateFrom
+  ) {
+    return {
+      ok: false,
+      routes: [],
+      error:
+        "A data final da semana não pode ser anterior à data inicial.",
+    };
+  }
+
   try {
     const materialization =
       await materializeWeeklyRoutes({
@@ -49,7 +95,7 @@ export async function loadRouteWeek(params: {
     revalidatePath(
       "/workorders",
     );
-    
+
     return {
       ok: true,
       routes,
@@ -64,9 +110,37 @@ export async function loadRouteWeek(params: {
         materialization.addedServiceOrders,
     };
   } catch (error) {
+    /*
+     * Somente erros conhecidos da API
+     * são convertidos em { ok: false }.
+     *
+     * Redirect do Next, bug de código ou
+     * qualquer erro inesperado continuam
+     * subindo normalmente.
+     */
+    if (
+      !isMappaApiError(
+        error,
+      )
+    ) {
+      throw error;
+    }
+
     console.error(
       "[loadRouteWeek]",
-      error,
+      {
+        code:
+          error.code,
+
+        status:
+          error.status,
+
+        retryable:
+          error.retryable,
+
+        message:
+          error.message,
+      },
     );
 
     return {
@@ -74,9 +148,10 @@ export async function loadRouteWeek(params: {
       routes: [],
 
       error:
-        error instanceof Error
-          ? error.message
-          : "Não foi possível carregar as rotas da semana.",
+        getErrorMessage(
+          error,
+          "Não foi possível carregar as rotas da semana.",
+        ),
     };
   }
 }

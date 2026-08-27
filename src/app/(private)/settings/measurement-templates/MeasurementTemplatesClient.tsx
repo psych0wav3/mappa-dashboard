@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import FormPageHeader from "@/components/form-layout/FormPageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getErrorMessage } from "@/lib/mappa/errors";
 
 import {
   createMeasurementTemplate,
@@ -25,24 +26,6 @@ import {
   type MeasurementTemplate,
   type MeasurementTemplateField,
 } from "./actions";
-
-function getErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "message" in error &&
-    typeof error.message === "string" &&
-    error.message
-  ) {
-    return error.message;
-  }
-
-  return fallback;
-}
 
 function fieldTypeLabel(type: MeasurementFieldType) {
   const map: Record<MeasurementFieldType, string> = {

@@ -21,6 +21,7 @@ import StepFormSection from "@/components/form-layout/StepFormSection";
 import FormActionBar from "@/components/ui/FormActionBar";
 import { Input } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/MaskedInput";
+import { getErrorMessage } from "@/lib/mappa/errors";
 
 type FormState = {
   name: string;
@@ -267,9 +268,10 @@ export default function NewClientPageClient() {
       toast.success("Endereço preenchido pelo CEP.");
     } catch (error) {
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível consultar o CEP.",
+        getErrorMessage(
+          error,
+          "Não foi possível consultar o CEP.",
+        ),
       );
     } finally {
       setSearchingZipCode(false);
@@ -338,9 +340,10 @@ export default function NewClientPageClient() {
         router.refresh();
       } catch (error) {
         const message =
-          error instanceof Error
-            ? error.message
-            : "Não foi possível cadastrar o cliente.";
+          getErrorMessage(
+            error,
+            "Não foi possível cadastrar o cliente.",
+          );
 
         setErrorMessage(message);
         toast.error(message);

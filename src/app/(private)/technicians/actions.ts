@@ -1,11 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
 
-const API_URL =
-  process.env.API_URL ??
-  "http://localhost:5264";
+import {
+  extractItems,
+  getCompanyId,
+  mappaFetch,
+} from "@/lib/mappa/api";
+
+import {
+  isMappaApiError,
+  MappaApiError,
+} from "@/lib/mappa/errors";
 
 type ApiEmployee = {
   id: string;
@@ -29,105 +35,112 @@ export type Tech = {
   role: "OWNER" | "TECH";
 };
 
-type ApiError = {
-  errors?: Array<{
-    statusCode?: number;
-    message?: string;
-    code?: string;
-  }>;
-  detail?: string;
-  title?: string;
-  message?: string;
-};
+type TechnicianRequestContext =
+  | "create"
+  | "delete";
 
-async function getAuthFromCookies() {
-  const cookieStore = await cookies();
-
-  const token = cookieStore.get(
-    "mappa_access_token",
-  )?.value;
-
-  const companyId = cookieStore.get(
-    "mappa_company_id",
-  )?.value;
-
-  if (!token) {
-    throw new Error(
-      "Token não encontrado. Faça login novamente.",
-    );
+function throwTechnicianApiError(
+  error: unknown,
+  context: TechnicianRequestContext,
+): never {
+  /*
+   * Não transformamos erros que não
+   * vieram da camada de API.
+   *
+   * Assim redirects internos do Next
+   * e erros inesperados continuam
+   * subindo normalmente.
+   */
+  if (!isMappaApiError(error)) {
+    throw error;
   }
 
-  if (!companyId) {
-    const role = cookieStore.get(
-      "mappa_role",
-    )?.value;
+  const normalizedMessage =
+    error.message.toLowerCase();
 
+  let message = error.message;
+
+  /*
+   * Cadastro duplicado.
+   *
+   * Nunca exibimos nomes de constraints,
+   * mensagens do Postgres ou detalhes
+   * internos para o usuário.
+   */
+  if (
+    context === "create" &&
+    error.status === 409
+  ) {
     if (
-      role === "SUPER_ADMIN" ||
-      role === "SUPERADMIN"
+      normalizedMessage.includes(
+        "uq_users_email",
+      ) ||
+      normalizedMessage.includes(
+        "duplicate key",
+      ) ||
+      normalizedMessage.includes(
+        "users_email",
+      ) ||
+      normalizedMessage.includes(
+        "email",
+      ) ||
+      normalizedMessage.includes(
+        "e-mail",
+      )
     ) {
-      throw new Error(
-        "Selecione uma empresa no topo para continuar.",
-      );
+      message =
+        "Já existe um usuário cadastrado com esse e-mail.";
     }
-
-    throw new Error(
-      "Empresa não encontrada. Faça login novamente.",
-    );
   }
 
-  return {
-    token,
-    companyId,
-  };
+  /*
+   * Regra já existente:
+   * técnico com registros vinculados
+   * não deve ser excluído.
+   */
+  if (
+    context === "delete" &&
+    error.status === 409
+  ) {
+    message =
+      "Não é possível excluir este técnico porque ele possui registros vinculados.";
+  }
+
+  if (error.status === 404) {
+    message =
+      "Técnico não encontrado.";
+  }
+
+  /*
+   * Se não precisarmos alterar a
+   * mensagem original, preservamos o
+   * próprio MappaApiError.
+   */
+  if (message === error.message) {
+    throw error;
+  }
+
+  throw new MappaApiError({
+    message,
+    code: error.code,
+    status: error.status,
+    retryable: error.retryable,
+    details: error.details,
+    cause: error,
+  });
 }
 
-function parseApiError(
-  status: number,
-  text: string,
-) {
+async function runTechnicianRequest<T>(
+  context: TechnicianRequestContext,
+  request: () => Promise<T>,
+): Promise<T> {
   try {
-    const json = JSON.parse(
-      text,
-    ) as ApiError;
-
-    const message =
-      json.errors?.[0]?.message ||
-      json.detail ||
-      json.title ||
-      json.message ||
-      text;
-
-    if (status === 401) {
-      return "Sessão expirada ou não autorizada. Faça login novamente.";
-    }
-
-    if (status === 403) {
-      return "Você não tem permissão para executar esta ação.";
-    }
-
-    if (status === 409) {
-      return (
-        message ||
-        "Já existe um usuário cadastrado com esse e-mail."
-      );
-    }
-
-    return `Erro ${status}: ${message}`;
-  } catch {
-    if (status === 401) {
-      return "Sessão expirada ou não autorizada. Faça login novamente.";
-    }
-
-    if (status === 403) {
-      return "Você não tem permissão para executar esta ação.";
-    }
-
-    if (status === 409) {
-      return "Já existe um usuário cadastrado com esse e-mail ou o técnico possui registros vinculados.";
-    }
-
-    return `Erro ${status}: ${text}`;
+    return await request();
+  } catch (error) {
+    throwTechnicianApiError(
+      error,
+      context,
+    );
   }
 }
 
@@ -140,9 +153,13 @@ function splitName(
     .filter(Boolean);
 
   return {
-    firstName: parts[0] ?? "",
+    firstName:
+      parts[0] ?? "",
+
     lastName:
-      parts.slice(1).join(" "),
+      parts
+        .slice(1)
+        .join(" "),
   };
 }
 
@@ -152,137 +169,89 @@ function normalizeEmployee(
   const {
     firstName,
     lastName,
-  } = splitName(employee.name);
+  } = splitName(
+    employee.name,
+  );
 
   return {
-    id: employee.userId || employee.id,
+    id:
+      employee.userId ||
+      employee.id,
+
     firstName,
+
     lastName,
-    email: employee.email,
-    phone: employee.phone ?? null,
+
+    email:
+      employee.email,
+
+    phone:
+      employee.phone ??
+      null,
+
     active:
-      employee.status !== "INACTIVE",
-    role: "TECH",
+      employee.status !==
+      "INACTIVE",
+
+    role:
+      "TECH",
   };
 }
 
 function extractEmployees(
   payload: unknown,
 ): ApiEmployee[] {
-  if (Array.isArray(payload)) {
-    return payload as ApiEmployee[];
-  }
-
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "items" in payload &&
-    Array.isArray(
-      (payload as { items?: unknown })
-        .items,
-    )
-  ) {
-    return (
-      payload as {
-        items: ApiEmployee[];
-      }
-    ).items;
-  }
-
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "employees" in payload &&
-    Array.isArray(
-      (
-        payload as {
-          employees?: unknown;
-        }
-      ).employees,
-    )
-  ) {
-    return (
-      payload as {
-        employees: ApiEmployee[];
-      }
-    ).employees;
-  }
-
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "data" in payload &&
-    Array.isArray(
-      (payload as { data?: unknown }).data,
-    )
-  ) {
-    return (
-      payload as {
-        data: ApiEmployee[];
-      }
-    ).data;
-  }
-
-  return [];
+  return extractItems<ApiEmployee>(
+    payload,
+    ["employees"],
+  );
 }
 
 export async function listTechnicians(): Promise<
   Tech[]
 > {
-  const { token, companyId } =
-    await getAuthFromCookies();
+  const companyId =
+    await getCompanyId();
 
-  const response = await fetch(
-    `${API_URL}/api/companies/${companyId}/employees`,
-    {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      cache: "no-store",
-    },
-  );
-
-  const text = await response.text();
-
-  if (!response.ok) {
-    throw new Error(
-      parseApiError(
-        response.status,
-        text,
-      ),
+  const payload =
+    await mappaFetch<unknown>(
+      `/api/companies/${companyId}/employees`,
     );
-  }
-
-  const json = text
-    ? JSON.parse(text)
-    : [];
 
   const employees =
-    extractEmployees(json);
+    extractEmployees(
+      payload,
+    );
 
   return employees
-    .map(normalizeEmployee)
-    .sort((first, second) => {
-      const firstName = [
-        first.firstName,
-        first.lastName,
-      ]
-        .filter(Boolean)
-        .join(" ");
+    .map(
+      normalizeEmployee,
+    )
+    .sort(
+      (
+        first,
+        second,
+      ) => {
+        const firstName = [
+          first.firstName,
+          first.lastName,
+        ]
+          .filter(Boolean)
+          .join(" ");
 
-      const secondName = [
-        second.firstName,
-        second.lastName,
-      ]
-        .filter(Boolean)
-        .join(" ");
+        const secondName = [
+          second.firstName,
+          second.lastName,
+        ]
+          .filter(Boolean)
+          .join(" ");
 
-      return firstName.localeCompare(
-        secondName,
-        "pt-BR",
-      );
-    });
+        return firstName.localeCompare(
+          secondName,
+          "pt-BR",
+        );
+      },
+    );
 }
 
 export async function createTechnician(
@@ -293,50 +262,61 @@ export async function createTechnician(
     phone?: string;
   },
 ) {
-  const { token, companyId } =
-    await getAuthFromCookies();
+  const companyId =
+    await getCompanyId();
 
-  const response = await fetch(
-    `${API_URL}/api/companies/${companyId}/employees`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type":
-          "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        name: data.name.trim(),
-        email: data.email
-          .trim()
-          .toLocaleLowerCase("pt-BR"),
-        password:
-          data.password.trim(),
-        phone:
-          data.phone?.trim() || "",
-      }),
-      cache: "no-store",
-    },
+  const payload = {
+    name:
+      data.name.trim(),
+
+    email:
+      data.email
+        .trim()
+        .toLocaleLowerCase(
+          "pt-BR",
+        ),
+
+    password:
+      data.password.trim(),
+
+    phone:
+      data.phone?.trim() ||
+      "",
+  };
+
+  const created =
+    await runTechnicianRequest(
+      "create",
+      () =>
+        mappaFetch<
+          ApiEmployee | null
+        >(
+          `/api/companies/${companyId}/employees`,
+          {
+            method:
+              "POST",
+
+            body:
+              JSON.stringify(
+                payload,
+              ),
+          },
+        ),
+    );
+
+  revalidatePath(
+    "/technicians",
   );
 
-  const text = await response.text();
+  revalidatePath(
+    "/dashboard",
+  );
 
-  if (!response.ok) {
-    throw new Error(
-      parseApiError(
-        response.status,
-        text,
-      ),
-    );
-  }
+  revalidatePath(
+    "/routes/builder",
+  );
 
-  revalidatePath("/technicians");
-  revalidatePath("/dashboard");
-  revalidatePath("/routes/builder");
-
-  return text
-    ? JSON.parse(text)
-    : true;
+  return created ?? true;
 }
 
 export async function deleteTechnician(
@@ -348,34 +328,32 @@ export async function deleteTechnician(
     );
   }
 
-  const { token, companyId } =
-    await getAuthFromCookies();
+  const companyId =
+    await getCompanyId();
 
-  const response = await fetch(
-    `${API_URL}/api/companies/${companyId}/employees/${employeeUserId}`,
-    {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      cache: "no-store",
-    },
+  await runTechnicianRequest(
+    "delete",
+    () =>
+      mappaFetch<null>(
+        `/api/companies/${companyId}/employees/${employeeUserId}`,
+        {
+          method:
+            "DELETE",
+        },
+      ),
   );
 
-  const text = await response.text();
+  revalidatePath(
+    "/technicians",
+  );
 
-  if (!response.ok) {
-    throw new Error(
-      parseApiError(
-        response.status,
-        text,
-      ),
-    );
-  }
+  revalidatePath(
+    "/dashboard",
+  );
 
-  revalidatePath("/technicians");
-  revalidatePath("/dashboard");
-  revalidatePath("/routes/builder");
+  revalidatePath(
+    "/routes/builder",
+  );
 
   return true;
 }

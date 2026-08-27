@@ -1,13 +1,9 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 
 import {
-  createPortal,
-} from "react-dom";
-
-import {
-  AlertCircle,
   Loader2,
   MessageSquareText,
 } from "lucide-react";
@@ -17,11 +13,14 @@ import {
   type WorkOrderListItem,
 } from "@/app/(private)/workorders/actions";
 
-import {
-  Button,
-} from "@/components/ui/button";
+import WorkOrderPricingModal from "@/app/(private)/workorders/pricing/WorkOrderPricingModal";
 
+import InlineErrorState from "@/components/feedback/InlineErrorState";
+
+import { Button } from "@/components/ui/button";
 import useAppModalPosition from "@/components/ui/useAppModalPosition";
+
+import { getErrorMessage } from "@/lib/mappa/errors";
 
 import {
   normalizeWorkOrderStatus,
@@ -30,7 +29,6 @@ import {
 import WorkOrderDetailsHeader from "./WorkOrderDetailsHeader";
 import WorkOrderDetailsItems from "./WorkOrderDetailsItems";
 import WorkOrderDetailsOverview from "./WorkOrderDetailsOverview";
-import WorkOrderDetailsPricingForm from "./WorkOrderDetailsPricingForm";
 
 import {
   parseWorkOrderDescription,
@@ -67,37 +65,39 @@ export default function WorkOrderDetailsModal({
   const [
     mounted,
     setMounted,
-  ] =
-    React.useState(false);
+  ] = React.useState(false);
 
   const [
     order,
     setOrder,
-  ] =
-    React.useState<
-      WorkOrderListItem | null
-    >(initialOrder);
+  ] = React.useState<
+    WorkOrderListItem | null
+  >(initialOrder);
 
   const [
     loading,
     setLoading,
-  ] =
-    React.useState(false);
+  ] = React.useState(false);
 
   const [
     errorMessage,
     setErrorMessage,
-  ] =
-    React.useState<
-      string | null
-    >(null);
+  ] = React.useState<
+    string | null
+  >(null);
 
-  const {
-    style,
-  } =
-    useAppModalPosition(
-      open,
-    );
+  const [
+    reloadKey,
+    setReloadKey,
+  ] = React.useState(0);
+
+  const [
+    pricingOpen,
+    setPricingOpen,
+  ] = React.useState(false);
+
+  const { style } =
+    useAppModalPosition(open);
 
   React.useEffect(() => {
     setMounted(true);
@@ -114,8 +114,7 @@ export default function WorkOrderDetailsModal({
     let active = true;
 
     setOrder(
-      initialOrder?.id ===
-        orderId
+      initialOrder?.id === orderId
         ? initialOrder
         : null,
     );
@@ -139,9 +138,10 @@ export default function WorkOrderDetailsModal({
         }
 
         setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Não foi possível carregar os detalhes da ordem.",
+          getErrorMessage(
+            error,
+            "Não foi possível carregar os detalhes da ordem.",
+          ),
         );
       })
       .finally(() => {
@@ -157,6 +157,7 @@ export default function WorkOrderDetailsModal({
     initialOrder,
     open,
     orderId,
+    reloadKey,
   ]);
 
   React.useEffect(() => {
@@ -167,6 +168,15 @@ export default function WorkOrderDetailsModal({
     function handleKeyDown(
       event: KeyboardEvent,
     ) {
+      /*
+       * Se o modal de precificação
+       * estiver aberto, ele é quem deve
+       * responder ao Escape.
+       */
+      if (pricingOpen) {
+        return;
+      }
+
       if (
         event.key === "Escape"
       ) {
@@ -197,6 +207,7 @@ export default function WorkOrderDetailsModal({
   }, [
     onOpenChange,
     open,
+    pricingOpen,
   ]);
 
   const parsedDescription =
@@ -236,19 +247,89 @@ export default function WorkOrderDetailsModal({
     updated: WorkOrderListItem,
   ) {
     setOrder(updated);
-    onOrderUpdated?.(updated);
+
+    onOrderUpdated?.(
+      updated,
+    );
   }
 
-  function handleGoToPricing() {
-    const target =
-      document.getElementById(
-        "work-order-pricing-form",
+  function handleRetry() {
+    setReloadKey(
+      (current) =>
+        current + 1,
+    );
+  }
+
+  function handleOpenPricing() {
+    if (
+      !order ||
+      !isPendingPricing
+    ) {
+      return;
+    }
+
+    setPricingOpen(true);
+  }
+
+  async function handlePricingSuccess(
+    serviceOrderId: string,
+  ) {
+    setPricingOpen(false);
+
+    /*
+     * A precificação foi concluída.
+     *
+     * Buscamos novamente a OS para que
+     * o modal de detalhes e a tabela
+     * recebam o status e os itens
+     * atualizados vindos da API.
+     */
+    try {
+      const updated =
+        await getWorkOrderById(
+          serviceOrderId,
+        );
+
+      handleUpdated(
+        updated,
+      );
+    } catch (error) {
+      /*
+       * A precificação já foi salva.
+       *
+       * Uma eventual falha apenas na
+       * atualização dos detalhes não
+       * deve transformar a operação em
+       * erro para o usuário.
+       */
+      console.error(
+        "[work-order-details] A OS foi precificada, mas não foi possível recarregar os detalhes.",
+        {
+          serviceOrderId,
+          message:
+            getErrorMessage(
+              error,
+            ),
+        },
       );
 
-    target?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
+      onOpenChange(false);
+    }
+  }
+
+  function handleDetailsOpenChange(
+    nextOpen: boolean,
+  ) {
+    if (
+      !nextOpen &&
+      pricingOpen
+    ) {
+      return;
+    }
+
+    onOpenChange(
+      nextOpen,
+    );
   }
 
   if (
@@ -265,7 +346,9 @@ export default function WorkOrderDetailsModal({
         aria-label="Fechar modal"
         className="absolute inset-0 cursor-default bg-slate-950/35 backdrop-blur-[1px]"
         onClick={() =>
-          onOpenChange(false)
+          handleDetailsOpenChange(
+            false,
+          )
         }
       />
 
@@ -278,7 +361,9 @@ export default function WorkOrderDetailsModal({
       >
         <WorkOrderDetailsHeader
           onClose={() =>
-            onOpenChange(false)
+            handleDetailsOpenChange(
+              false,
+            )
           }
         />
 
@@ -296,21 +381,15 @@ export default function WorkOrderDetailsModal({
             </div>
           ) : errorMessage &&
             !order ? (
-            <div className="grid min-h-[280px] place-items-center">
-              <div className="max-w-md text-center">
-                <div className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-red-50 text-red-600">
-                  <AlertCircle className="h-5 w-5" />
-                </div>
-
-                <h3 className="mt-3 text-sm font-semibold text-slate-900">
-                  Não foi possível abrir a ordem
-                </h3>
-
-                <p className="mt-2 text-xs leading-5 text-slate-500">
-                  {errorMessage}
-                </p>
-              </div>
-            </div>
+            <InlineErrorState
+              title="Não foi possível abrir a ordem"
+              message={
+                errorMessage
+              }
+              onRetry={
+                handleRetry
+              }
+            />
           ) : order ? (
             <div className="space-y-4">
               <WorkOrderDetailsOverview
@@ -333,7 +412,9 @@ export default function WorkOrderDetailsModal({
                       </h3>
 
                       <p className="mt-2 max-h-[100px] overflow-y-auto whitespace-pre-wrap pr-2 text-xs leading-5 text-slate-600">
-                        {parsedDescription.notes}
+                        {
+                          parsedDescription.notes
+                        }
                       </p>
                     </div>
                   </div>
@@ -346,15 +427,6 @@ export default function WorkOrderDetailsModal({
                 }
                 order={order}
               />
-
-              {isPendingPricing && (
-                <WorkOrderDetailsPricingForm
-                  order={order}
-                  onUpdated={
-                    handleUpdated
-                  }
-                />
-              )}
             </div>
           ) : null}
         </div>
@@ -367,7 +439,7 @@ export default function WorkOrderDetailsModal({
                 variant="outline"
                 className="h-9 rounded-xl border-amber-300 bg-amber-50 px-4 text-xs text-amber-800 hover:bg-amber-100"
                 onClick={
-                  handleGoToPricing
+                  handleOpenPricing
                 }
               >
                 Precificar ordem
@@ -380,7 +452,9 @@ export default function WorkOrderDetailsModal({
             variant="outline"
             className="h-9 rounded-xl px-5 text-xs"
             onClick={() =>
-              onOpenChange(false)
+              handleDetailsOpenChange(
+                false,
+              )
             }
           >
             Fechar
@@ -390,8 +464,30 @@ export default function WorkOrderDetailsModal({
     </div>
   );
 
-  return createPortal(
-    modal,
-    document.body,
+  return (
+    <>
+      {createPortal(
+        modal,
+        document.body,
+      )}
+
+      <WorkOrderPricingModal
+        order={
+          isPendingPricing
+            ? order
+            : null
+        }
+        open={
+          pricingOpen &&
+          isPendingPricing
+        }
+        onOpenChange={
+          setPricingOpen
+        }
+        onSuccess={
+          handlePricingSuccess
+        }
+      />
+    </>
   );
 }

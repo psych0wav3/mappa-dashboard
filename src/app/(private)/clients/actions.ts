@@ -1,14 +1,25 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
 
-const API_URL =
-  process.env.API_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5264";
+import {
+  extractItems,
+  getCompanyId,
+  mappaFetch,
+} from "@/lib/mappa/api";
 
-export type ClientStatus = "ACTIVE" | "INACTIVE";
+import {
+  isMappaApiError,
+  MappaApiError,
+} from "@/lib/mappa/errors";
+
+import {
+  safeData,
+} from "@/lib/mappa/safe-load";
+
+export type ClientStatus =
+  | "ACTIVE"
+  | "INACTIVE";
 
 export type ClientAddress = {
   id: string;
@@ -71,17 +82,6 @@ export type AddClientAddressInput = {
   isMain?: boolean;
 };
 
-type ApiError = {
-  errors?: Array<{
-    statusCode?: number;
-    message?: string;
-    code?: string;
-  }>;
-  detail?: string;
-  title?: string;
-  message?: string;
-};
-
 type ApiAddress = {
   id?: string | null;
   street?: string | null;
@@ -109,157 +109,117 @@ type ApiCustomer = {
   addresses?: ApiAddress[] | null;
 };
 
-async function getAuthFromCookies() {
-  const cookieStore = await cookies();
+type ClientRequestContext =
+  | "create"
+  | "get"
+  | "address"
+  | "delete";
 
-  const token =
-    cookieStore.get("mappa_access_token")?.value;
-
-  const companyId =
-    cookieStore.get("mappa_company_id")?.value;
-
-  if (!token) {
-    throw new Error(
-      "Token não encontrado. Faça login novamente.",
-    );
+function throwClientApiError(
+  error: unknown,
+  context: ClientRequestContext,
+): never {
+  /*
+   * Erros que não vieram da nossa camada
+   * de API não devem ser transformados.
+   *
+   * Isso é importante principalmente para
+   * redirects internos do Next.js e bugs
+   * inesperados.
+   */
+  if (!isMappaApiError(error)) {
+    throw error;
   }
 
-  if (!companyId) {
-    const role = cookieStore.get(
-      "mappa_role",
-    )?.value;
+  const normalizedMessage =
+    error.message.toLowerCase();
 
-    if (
-      role === "SUPER_ADMIN" ||
-      role === "SUPERADMIN"
-    ) {
-      throw new Error(
-        "Selecione uma empresa no topo para continuar.",
-      );
-    }
+  let message = error.message;
 
-    throw new Error(
-      "Empresa não encontrada. Faça login novamente.",
-    );
-  }
-
-  return {
-    token,
-    companyId,
-  };
-}
-
-function parseApiError(
-  status: number,
-  text: string,
-) {
-  if (status === 401) {
-    return "Sua sessão expirou. Faça login novamente.";
-  }
-
-  if (status === 403) {
-    return "Você não tem permissão para realizar esta ação.";
-  }
-
-  const normalizedText = text.toLowerCase();
-
+  /*
+   * Mantemos a mensagem amigável que já
+   * existia no fluxo de cadastro.
+   *
+   * A API/Postgres pode devolver nomes de
+   * constraints em determinados conflitos.
+   * Isso nunca deve aparecer para o usuário.
+   */
   if (
-    normalizedText.includes("uq_users_email") ||
-    normalizedText.includes("duplicate key") ||
-    normalizedText.includes("users_email")
+    context === "create" &&
+    (
+      normalizedMessage.includes(
+        "uq_users_email",
+      ) ||
+      normalizedMessage.includes(
+        "duplicate key",
+      ) ||
+      normalizedMessage.includes(
+        "users_email",
+      )
+    )
   ) {
-    return "Já existe um usuário cadastrado com este e-mail.";
+    message =
+      "Já existe um usuário cadastrado com este e-mail.";
   }
 
-  if (status === 409) {
-    return "Não é possível excluir este cliente porque ele possui ordens de serviço vinculadas.";
+  /*
+   * A exclusão de um cliente com vínculos
+   * continua obedecendo a regra atual.
+   */
+  if (
+    context === "delete" &&
+    error.status === 409
+  ) {
+    message =
+      "Não é possível excluir este cliente porque ele possui ordens de serviço vinculadas.";
   }
 
-  if (status === 404) {
-    return "Cliente não encontrado.";
+  if (error.status === 404) {
+    message =
+      "Cliente não encontrado.";
   }
 
-  try {
-    const parsed = JSON.parse(text) as ApiError;
-
-    const message =
-      parsed.errors?.[0]?.message ||
-      parsed.detail ||
-      parsed.message ||
-      parsed.title;
-
-    if (message) {
-      return `Erro ${status}: ${message}`;
-    }
-  } catch {
-    // O corpo pode não ser JSON.
+  if (message === error.message) {
+    throw error;
   }
 
-  return `Erro ${status}: ${
-    text || "Não foi possível concluir a operação."
-  }`;
+  throw new MappaApiError({
+    message,
+    code: error.code,
+    status: error.status,
+    retryable: error.retryable,
+    details: error.details,
+    cause: error,
+  });
 }
 
-async function mappaFetch<T>(
-  path: string,
-  options?: RequestInit,
+async function runClientRequest<T>(
+  context: ClientRequestContext,
+  request: () => Promise<T>,
 ): Promise<T> {
-  const { token } =
-    await getAuthFromCookies();
-
-  let response: Response;
-
   try {
-    response = await fetch(
-      `${API_URL}${path}`,
-      {
-        ...options,
-        cache: "no-store",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          ...(options?.headers || {}),
-        },
-      },
+    return await request();
+  } catch (error) {
+    throwClientApiError(
+      error,
+      context,
     );
-  } catch {
-    throw new Error(
-      "Não foi possível conectar à API.",
-    );
-  }
-
-  const text = await response.text();
-
-  if (!response.ok) {
-    throw new Error(
-      parseApiError(response.status, text),
-    );
-  }
-
-  if (
-    response.status === 204 ||
-    !text
-  ) {
-    return null as T;
-  }
-
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    return text as T;
   }
 }
 
 function cleanText(
   value?: string | null,
 ) {
-  return String(value || "").trim();
+  return String(
+    value || "",
+  ).trim();
 }
 
 function optionalText(
   value?: string | null,
 ) {
-  const cleaned = cleanText(value);
+  const cleaned =
+    cleanText(value);
 
   return cleaned || null;
 }
@@ -267,7 +227,9 @@ function optionalText(
 function onlyDigits(
   value?: string | null,
 ) {
-  const digits = String(value || "").replace(
+  const digits = String(
+    value || "",
+  ).replace(
     /\D+/g,
     "",
   );
@@ -281,10 +243,14 @@ function normalizeStatus(
   const normalized = String(
     value || "ACTIVE",
   )
-    .replace(/[_\s-]/g, "")
+    .replace(
+      /[_\s-]/g,
+      "",
+    )
     .toUpperCase();
 
-  return normalized === "INACTIVE"
+  return normalized ===
+    "INACTIVE"
     ? "INACTIVE"
     : "ACTIVE";
 }
@@ -297,47 +263,71 @@ function normalizeAddress(
   }
 
   return {
-    id: address.id || "",
+    id:
+      address.id || "",
+
     street:
       address.street ||
       "Endereço não informado",
-    number: address.number ?? null,
+
+    number:
+      address.number ??
+      null,
+
     complement:
-      address.complement ?? null,
+      address.complement ??
+      null,
+
     neighborhood:
-      address.neighborhood ?? null,
+      address.neighborhood ??
+      null,
+
     city:
       address.city ||
       "Cidade não informada",
+
     state:
       address.state ||
       "Estado não informado",
+
     zipCode:
-      address.zipCode ?? null,
+      address.zipCode ??
+      null,
+
     latitude:
-      address.latitude ?? null,
+      address.latitude ??
+      null,
+
     longitude:
-      address.longitude ?? null,
+      address.longitude ??
+      null,
+
     isMain:
-      address.isMain === true,
+      address.isMain ===
+      true,
   };
 }
 
 function normalizeCustomer(
   customer: ApiCustomer,
 ): Client {
-  const addresses = Array.isArray(
-    customer.addresses,
-  )
-    ? customer.addresses
-        .map(normalizeAddress)
-        .filter(
-          (
-            address,
-          ): address is ClientAddress =>
-            Boolean(address),
-        )
-    : [];
+  const addresses =
+    Array.isArray(
+      customer.addresses,
+    )
+      ? customer.addresses
+          .map(
+            normalizeAddress,
+          )
+          .filter(
+            (
+              address,
+            ): address is ClientAddress =>
+              Boolean(
+                address,
+              ),
+          )
+      : [];
 
   const normalizedMainAddress =
     normalizeAddress(
@@ -347,7 +337,8 @@ function normalizeCustomer(
   const mainAddress =
     normalizedMainAddress ||
     addresses.find(
-      (address) => address.isMain,
+      (address) =>
+        address.isMain,
     ) ||
     addresses[0] ||
     null;
@@ -357,141 +348,139 @@ function normalizeCustomer(
     !addresses.some(
       (address) =>
         address.id &&
-        address.id === mainAddress.id,
+        address.id ===
+          mainAddress.id,
     )
-      ? [mainAddress, ...addresses]
+      ? [
+          mainAddress,
+          ...addresses,
+        ]
       : addresses;
 
-  const status = normalizeStatus(
-    customer.status,
-  );
+  const status =
+    normalizeStatus(
+      customer.status,
+    );
 
   return {
-    id: customer.id,
-    userId: customer.userId ?? null,
+    id:
+      customer.id,
+
+    userId:
+      customer.userId ??
+      null,
+
     companyId:
-      customer.companyId ?? null,
+      customer.companyId ??
+      null,
+
     name:
       customer.name ||
       "Cliente sem nome",
-    email: customer.email || "",
-    phone: customer.phone ?? null,
+
+    email:
+      customer.email ||
+      "",
+
+    phone:
+      customer.phone ??
+      null,
+
     document:
-      customer.document ?? null,
+      customer.document ??
+      null,
+
     status,
-    active: status === "ACTIVE",
+
+    active:
+      status === "ACTIVE",
+
     mainAddress,
-    addresses: mergedAddresses,
+
+    addresses:
+      mergedAddresses,
   };
 }
 
 function extractCustomers(
   payload: unknown,
 ): ApiCustomer[] {
-  if (Array.isArray(payload)) {
-    return payload as ApiCustomer[];
-  }
-
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "items" in payload &&
-    Array.isArray(
-      (payload as { items?: unknown })
-        .items,
-    )
-  ) {
-    return (
-      payload as {
-        items: ApiCustomer[];
-      }
-    ).items;
-  }
-
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "customers" in payload &&
-    Array.isArray(
-      (
-        payload as {
-          customers?: unknown;
-        }
-      ).customers,
-    )
-  ) {
-    return (
-      payload as {
-        customers: ApiCustomer[];
-      }
-    ).customers;
-  }
-
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "data" in payload &&
-    Array.isArray(
-      (payload as { data?: unknown })
-        .data,
-    )
-  ) {
-    return (
-      payload as {
-        data: ApiCustomer[];
-      }
-    ).data;
-  }
-
-  return [];
+  return extractItems<ApiCustomer>(
+    payload,
+    ["customers"],
+  );
 }
 
 function validateCreateInput(
   input: CreateClientInput,
 ) {
-  const name = cleanText(input.name);
-  const email = cleanText(
-    input.email,
-  ).toLowerCase();
+  const name =
+    cleanText(
+      input.name,
+    );
 
-  const password = cleanText(
-    input.password,
-  );
+  const email =
+    cleanText(
+      input.email,
+    ).toLowerCase();
 
-  const address = input.address;
+  const password =
+    cleanText(
+      input.password,
+    );
 
-  if (name.length < 2) {
+  const address =
+    input.address;
+
+  if (
+    name.length < 2
+  ) {
     throw new Error(
       "Informe o nome do cliente.",
     );
   }
 
-  if (!email || !email.includes("@")) {
+  if (
+    !email ||
+    !email.includes("@")
+  ) {
     throw new Error(
       "Informe um e-mail válido.",
     );
   }
 
-  if (password.length < 6) {
+  if (
+    password.length < 6
+  ) {
     throw new Error(
       "A senha inicial deve possuir pelo menos 6 caracteres.",
     );
   }
 
-  if (!cleanText(address.street)) {
+  if (
+    !cleanText(
+      address.street,
+    )
+  ) {
     throw new Error(
       "Informe o endereço principal.",
     );
   }
 
-  if (!cleanText(address.city)) {
+  if (
+    !cleanText(
+      address.city,
+    )
+  ) {
     throw new Error(
       "Informe a cidade.",
     );
   }
 
   if (
-    cleanText(address.state).length !== 2
+    cleanText(
+      address.state,
+    ).length !== 2
   ) {
     throw new Error(
       "Informe a UF com duas letras.",
@@ -500,35 +489,64 @@ function validateCreateInput(
 
   return {
     name,
+
     email,
+
     password,
-    phone: onlyDigits(input.phone),
-    document: onlyDigits(
-      input.document,
-    ),
+
+    phone:
+      onlyDigits(
+        input.phone,
+      ),
+
+    document:
+      onlyDigits(
+        input.document,
+      ),
+
     address: {
-      street: cleanText(
-        address.street,
-      ),
+      street:
+        cleanText(
+          address.street,
+        ),
+
       number:
-        optionalText(address.number),
-      complement: optionalText(
-        address.complement,
-      ),
-      neighborhood: optionalText(
-        address.neighborhood,
-      ),
-      city: cleanText(address.city),
-      state: cleanText(
-        address.state,
-      ).toUpperCase(),
-      zipCode: onlyDigits(
-        address.zipCode,
-      ),
+        optionalText(
+          address.number,
+        ),
+
+      complement:
+        optionalText(
+          address.complement,
+        ),
+
+      neighborhood:
+        optionalText(
+          address.neighborhood,
+        ),
+
+      city:
+        cleanText(
+          address.city,
+        ),
+
+      state:
+        cleanText(
+          address.state,
+        ).toUpperCase(),
+
+      zipCode:
+        onlyDigits(
+          address.zipCode,
+        ),
+
       latitude:
-        address.latitude ?? null,
+        address.latitude ??
+        null,
+
       longitude:
-        address.longitude ?? null,
+        address.longitude ??
+        null,
     },
   };
 }
@@ -536,20 +554,30 @@ function validateCreateInput(
 function validateAddressInput(
   input: AddClientAddressInput,
 ) {
-  if (!cleanText(input.street)) {
+  if (
+    !cleanText(
+      input.street,
+    )
+  ) {
     throw new Error(
       "Informe o endereço.",
     );
   }
 
-  if (!cleanText(input.city)) {
+  if (
+    !cleanText(
+      input.city,
+    )
+  ) {
     throw new Error(
       "Informe a cidade.",
     );
   }
 
   if (
-    cleanText(input.state).length !== 2
+    cleanText(
+      input.state,
+    ).length !== 2
   ) {
     throw new Error(
       "Informe a UF com duas letras.",
@@ -557,28 +585,52 @@ function validateAddressInput(
   }
 
   return {
-    street: cleanText(input.street),
+    street:
+      cleanText(
+        input.street,
+      ),
+
     number:
-      optionalText(input.number),
-    complement: optionalText(
-      input.complement,
-    ),
-    neighborhood: optionalText(
-      input.neighborhood,
-    ),
-    city: cleanText(input.city),
-    state: cleanText(
-      input.state,
-    ).toUpperCase(),
-    zipCode: onlyDigits(
-      input.zipCode,
-    ),
+      optionalText(
+        input.number,
+      ),
+
+    complement:
+      optionalText(
+        input.complement,
+      ),
+
+    neighborhood:
+      optionalText(
+        input.neighborhood,
+      ),
+
+    city:
+      cleanText(
+        input.city,
+      ),
+
+    state:
+      cleanText(
+        input.state,
+      ).toUpperCase(),
+
+    zipCode:
+      onlyDigits(
+        input.zipCode,
+      ),
+
     latitude:
-      input.latitude ?? null,
+      input.latitude ??
+      null,
+
     longitude:
-      input.longitude ?? null,
+      input.longitude ??
+      null,
+
     isMain:
-      input.isMain === true,
+      input.isMain ===
+      true,
   };
 }
 
@@ -588,164 +640,264 @@ export async function listClients(
     status?: ClientStatus;
   },
 ): Promise<Client[]> {
-  const { companyId } = await getAuthFromCookies();
+  const companyId =
+    await getCompanyId();
 
-  const params = new URLSearchParams();
+  const params =
+    new URLSearchParams();
 
-  if (options?.search?.trim()) {
+  if (
+    options?.search?.trim()
+  ) {
     params.set(
       "search",
       options.search.trim(),
     );
   }
 
-  if (options?.status) {
+  if (
+    options?.status
+  ) {
     params.set(
       "status",
       options.status,
     );
   }
 
-  const query = params.toString();
+  const query =
+    params.toString();
 
-  const data = await mappaFetch<unknown>(
-    `/api/companies/${companyId}/customers${
-      query ? `?${query}` : ""
-    }`,
-  );
+  const data =
+    await mappaFetch<unknown>(
+      `/api/companies/${companyId}/customers${
+        query
+          ? `?${query}`
+          : ""
+      }`,
+    );
 
-  const summaries = extractCustomers(data);
+  const summaries =
+    extractCustomers(
+      data,
+    );
 
   /*
-   * O GET da listagem retorna somente os dados resumidos.
-   * Buscamos cada cliente por ID para obter mainAddress e addresses.
+   * O endpoint de listagem retorna
+   * dados resumidos.
+   *
+   * Para montar endereço principal e
+   * demais endereços buscamos os
+   * detalhes individualmente.
+   *
+   * Um erro conhecido da API em apenas
+   * um detalhe NÃO deve derrubar a
+   * listagem inteira.
+   *
+   * Porém redirects do Next ou erros de
+   * programação não podem ser engolidos.
    */
-  const hydratedCustomers = await Promise.all(
-    summaries.map(async (summary) => {
-      try {
-        return await mappaFetch<ApiCustomer>(
-          `/api/companies/${companyId}/customers/${summary.id}`,
-        );
-      } catch (error) {
-        console.error(
-          `Não foi possível carregar os detalhes do cliente ${summary.id}:`,
-          error,
-        );
+  const hydratedCustomers =
+    await Promise.all(
+      summaries.map(
+        (summary) =>
+          safeData({
+            resource:
+              `detalhes do cliente ${summary.id}`,
 
-        return summary;
-      }
-    }),
-  );
+            fallback:
+              summary,
+
+            loader:
+              () =>
+                mappaFetch<ApiCustomer>(
+                  `/api/companies/${companyId}/customers/${summary.id}`,
+                ),
+          }),
+      ),
+    );
 
   return hydratedCustomers
-    .map(normalizeCustomer)
-    .sort((first, second) =>
-      first.name.localeCompare(
-        second.name,
-        "pt-BR",
-      ),
+    .map(
+      normalizeCustomer,
+    )
+    .sort(
+      (
+        first,
+        second,
+      ) =>
+        first.name.localeCompare(
+          second.name,
+          "pt-BR",
+        ),
     );
 }
 
 export async function getClientById(
   customerId: string,
 ): Promise<Client> {
-  const { companyId } =
-    await getAuthFromCookies();
+  const companyId =
+    await getCompanyId();
 
-  if (!customerId) {
+  if (
+    !customerId
+  ) {
     throw new Error(
       "ID do cliente não informado.",
     );
   }
 
   const customer =
-    await mappaFetch<ApiCustomer>(
-      `/api/companies/${companyId}/customers/${customerId}`,
+    await runClientRequest(
+      "get",
+      () =>
+        mappaFetch<ApiCustomer>(
+          `/api/companies/${companyId}/customers/${customerId}`,
+        ),
     );
 
-  return normalizeCustomer(customer);
+  return normalizeCustomer(
+    customer,
+  );
 }
 
 export async function createClient(
   input: CreateClientInput,
 ) {
-  const { companyId } =
-    await getAuthFromCookies();
+  const companyId =
+    await getCompanyId();
 
   const payload =
-    validateCreateInput(input);
-
-  const created =
-    await mappaFetch<ApiCustomer>(
-      `/api/companies/${companyId}/customers`,
-      {
-        method: "POST",
-        body: JSON.stringify(payload),
-      },
+    validateCreateInput(
+      input,
     );
 
-  revalidatePath("/clients");
-  revalidatePath("/workorders");
-  revalidatePath("/service-plans");
-  revalidatePath("/routes/new");
+  const created =
+    await runClientRequest(
+      "create",
+      () =>
+        mappaFetch<ApiCustomer>(
+          `/api/companies/${companyId}/customers`,
+          {
+            method:
+              "POST",
 
-  return normalizeCustomer(created);
+            body:
+              JSON.stringify(
+                payload,
+              ),
+          },
+        ),
+    );
+
+  revalidatePath(
+    "/clients",
+  );
+
+  revalidatePath(
+    "/workorders",
+  );
+
+  revalidatePath(
+    "/service-plans",
+  );
+
+  revalidatePath(
+    "/routes/new",
+  );
+
+  return normalizeCustomer(
+    created,
+  );
 }
 
 export async function addClientAddress(
   customerId: string,
   input: AddClientAddressInput,
 ) {
-  const { companyId } =
-    await getAuthFromCookies();
+  const companyId =
+    await getCompanyId();
 
-  if (!customerId) {
+  if (
+    !customerId
+  ) {
     throw new Error(
       "ID do cliente não informado.",
     );
   }
 
   const payload =
-    validateAddressInput(input);
-
-  const address =
-    await mappaFetch<ApiAddress>(
-      `/api/companies/${companyId}/customers/${customerId}/addresses`,
-      {
-        method: "POST",
-        body: JSON.stringify(payload),
-      },
+    validateAddressInput(
+      input,
     );
 
-  revalidatePath("/clients");
-  revalidatePath("/workorders");
-  revalidatePath("/service-plans");
-  revalidatePath("/routes/new");
+  const address =
+    await runClientRequest(
+      "address",
+      () =>
+        mappaFetch<ApiAddress>(
+          `/api/companies/${companyId}/customers/${customerId}/addresses`,
+          {
+            method:
+              "POST",
 
-  return normalizeAddress(address);
+            body:
+              JSON.stringify(
+                payload,
+              ),
+          },
+        ),
+    );
+
+  revalidatePath(
+    "/clients",
+  );
+
+  revalidatePath(
+    "/workorders",
+  );
+
+  revalidatePath(
+    "/service-plans",
+  );
+
+  revalidatePath(
+    "/routes/new",
+  );
+
+  return normalizeAddress(
+    address,
+  );
 }
 
 export async function deleteClient(
   customerId: string,
 ) {
-  const { companyId } =
-    await getAuthFromCookies();
+  const companyId =
+    await getCompanyId();
 
-  if (!customerId) {
+  if (
+    !customerId
+  ) {
     throw new Error(
       "ID do cliente não informado.",
     );
   }
 
-  await mappaFetch(
-    `/api/companies/${companyId}/customers/${customerId}`,
-    {
-      method: "DELETE",
-    },
+  await runClientRequest(
+    "delete",
+    () =>
+      mappaFetch<null>(
+        `/api/companies/${companyId}/customers/${customerId}`,
+        {
+          method:
+            "DELETE",
+        },
+      ),
   );
 
-  revalidatePath("/clients");
+  revalidatePath(
+    "/clients",
+  );
 
   return true;
 }

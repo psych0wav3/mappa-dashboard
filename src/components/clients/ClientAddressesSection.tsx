@@ -23,14 +23,6 @@ import ClientDetailItem from "./ClientDetailItem";
 
 import { formatAddress } from "./client-form.utils";
 
-function formatCoordinate(value?: number | null) {
-  if (value === null || value === undefined) {
-    return "Não informada";
-  }
-
-  return String(value);
-}
-
 function AddressCard({
   address,
   index,

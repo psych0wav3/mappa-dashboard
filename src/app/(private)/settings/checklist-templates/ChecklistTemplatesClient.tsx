@@ -19,6 +19,8 @@ import FormPageHeader from "@/components/form-layout/FormPageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+import { getErrorMessage } from "@/lib/mappa/errors";
+
 import {
   createChecklistTemplate,
   deleteChecklistTemplate,
@@ -46,24 +48,6 @@ type ConfirmModalState =
 
 function makeId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function getErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "message" in error &&
-    typeof error.message === "string" &&
-    error.message
-  ) {
-    return error.message;
-  }
-
-  return fallback;
 }
 
 function itemTypeLabel(type: ChecklistItemType) {

@@ -14,6 +14,8 @@ import {
 
 import { toast } from "sonner";
 
+import { getErrorMessage } from "@/lib/mappa/errors";
+
 import {
   deleteTechnician,
 } from "@/app/(private)/technicians/actions";
@@ -234,9 +236,10 @@ export default function TechnicianTable({
       return true;
     } catch (error) {
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível excluir o técnico.",
+        getErrorMessage(
+          error,
+          "Não foi possível excluir o técnico.",
+        ),
       );
 
       return false;

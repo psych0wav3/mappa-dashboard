@@ -6,6 +6,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { getErrorMessage } from "@/lib/mappa/errors";
+
 import type {
   AddClientAddressInput,
 } from "@/app/(private)/clients/actions";
@@ -97,9 +99,10 @@ export default function ClientAddressForm({
       );
     } catch (error) {
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível consultar o CEP.",
+        getErrorMessage(
+          error,
+          "Não foi possível consultar o CEP.",
+        ),
       );
     } finally {
       setConsultingZipCode(false);

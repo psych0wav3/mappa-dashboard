@@ -4,6 +4,8 @@ import {
   mappaFetch,
 } from "@/lib/mappa/api";
 
+import { safeData } from "@/lib/mappa/safe-load";
+
 import type {
   ApiEmployee,
   ApiRouteDetailsResponse,
@@ -12,168 +14,215 @@ import type {
   ApiServiceOrder,
 } from "./routes.types";
 
-import { toApiDate } from "./routes.parsers";
+import {
+  toApiDate,
+} from "./routes.parsers";
 
 export async function fetchRouteEmployees() {
-  const companyId = await getCompanyId();
+  const companyId =
+    await getCompanyId();
 
-  const data = await mappaFetch<unknown>(
-    `/api/companies/${companyId}/employees`,
+  const data =
+    await mappaFetch<unknown>(
+      `/api/companies/${companyId}/employees`,
+    );
+
+  return extractItems<ApiEmployee>(
+    data,
   );
-
-  return extractItems<ApiEmployee>(data);
 }
 
 export async function fetchWaitingExecutionServiceOrders(): Promise<
   ApiServiceOrder[]
 > {
-  const companyId = await getCompanyId();
+  const companyId =
+    await getCompanyId();
 
-  const data = await mappaFetch<unknown>(
-    `/api/companies/${companyId}/service-orders?status=WaitingExecution`,
-  );
+  const data =
+    await mappaFetch<unknown>(
+      `/api/companies/${companyId}/service-orders?status=WaitingExecution`,
+    );
 
   const summaries =
-    extractItems<ApiServiceOrder>(data);
+    extractItems<ApiServiceOrder>(
+      data,
+    );
 
   /*
-   * O endpoint de listagem pode retornar apenas um resumo da OS.
+   * O endpoint pode retornar somente
+   * um resumo da OS.
    *
-   * Para a criação da rota, precisamos obrigatoriamente de:
-   * - customerId
-   * - customerName
-   * - customerAddressId
-   * - endereço
+   * Uma falha recuperável ao buscar
+   * apenas um detalhe usa o resumo.
    *
-   * Por isso, buscamos os detalhes de cada ordem.
+   * 403 / 404 / 409 / redirects e bugs
+   * continuam subindo normalmente.
    */
-  const hydratedOrders = await Promise.all(
-    summaries.map(async (summary) => {
-      try {
-        const details =
-          await mappaFetch<ApiServiceOrder>(
-            `/api/companies/${companyId}/service-orders/${summary.id}`,
-          );
+  const hydratedOrders =
+    await Promise.all(
+      summaries.map(
+        (summary) =>
+          safeData({
+            resource:
+              `detalhes da OS ${summary.id} para criação de rota`,
 
-        return {
-          ...summary,
-          ...details,
+            fallback:
+              summary,
 
-          id: details.id || summary.id,
+            loader:
+              async () => {
+                const details =
+                  await mappaFetch<ApiServiceOrder>(
+                    `/api/companies/${companyId}/service-orders/${summary.id}`,
+                  );
 
-          orderNumber:
-            details.orderNumber ??
-            summary.orderNumber ??
-            null,
+                return {
+                  ...summary,
+                  ...details,
 
-          origin:
-            details.origin ||
-            summary.origin ||
-            null,
+                  id:
+                    details.id ||
+                    summary.id,
 
-          customerId:
-            details.customerId ||
-            summary.customerId ||
-            null,
+                  orderNumber:
+                    details.orderNumber ??
+                    summary.orderNumber ??
+                    null,
 
-          customerName:
-            details.customerName ||
-            summary.customerName ||
-            null,
+                  origin:
+                    details.origin ||
+                    summary.origin ||
+                    null,
 
-          customerAddressId:
-            details.customerAddressId ||
-            summary.customerAddressId ||
-            null,
+                  customerId:
+                    details.customerId ||
+                    summary.customerId ||
+                    null,
 
-          address:
-            details.address ||
-            summary.address ||
-            null,
+                  customerName:
+                    details.customerName ||
+                    summary.customerName ||
+                    null,
 
-          title:
-            details.title ||
-            summary.title ||
-            null,
+                  customerAddressId:
+                    details.customerAddressId ||
+                    summary.customerAddressId ||
+                    null,
 
-          description:
-            details.description ||
-            summary.description ||
-            null,
+                  address:
+                    details.address ||
+                    summary.address ||
+                    null,
 
-          scheduledDate:
-            details.scheduledDate ||
-            summary.scheduledDate ||
-            null,
+                  title:
+                    details.title ||
+                    summary.title ||
+                    null,
 
-          totalAmount:
-            details.totalAmount ??
-            summary.totalAmount ??
-            0,
+                  description:
+                    details.description ||
+                    summary.description ||
+                    null,
 
-          status:
-            details.status ||
-            summary.status ||
-            null,
+                  scheduledDate:
+                    details.scheduledDate ||
+                    summary.scheduledDate ||
+                    null,
 
-          createdAt:
-            details.createdAt ||
-            summary.createdAt ||
-            null,
-        } satisfies ApiServiceOrder;
-      } catch (error) {
-        console.error(
-          `[fetchWaitingExecutionServiceOrders] Não foi possível carregar os detalhes da OS ${summary.id}.`,
-          error,
-        );
+                  totalAmount:
+                    details.totalAmount ??
+                    summary.totalAmount ??
+                    0,
 
-        return summary;
-      }
-    }),
+                  status:
+                    details.status ||
+                    summary.status ||
+                    null,
+
+                  createdAt:
+                    details.createdAt ||
+                    summary.createdAt ||
+                    null,
+                } satisfies ApiServiceOrder;
+              },
+          }),
+      ),
+    );
+
+  return hydratedOrders.filter(
+    (order) => {
+      const origin =
+        String(
+          order.origin ||
+            "",
+        )
+          .replace(
+            /[_\s-]/g,
+            "",
+          )
+          .toUpperCase();
+
+      return (
+        origin !==
+        "SERVICEPLANAPPROVAL"
+      );
+    },
   );
-
-  return hydratedOrders.filter((order) => {
-    const origin = String(order.origin || "")
-      .replace(/[_\s-]/g, "")
-      .toUpperCase();
-
-    return origin !== "SERVICEPLANAPPROVAL";
-  });
 }
 
-export async function fetchRoutes(params?: {
-  routeDate?: string;
-  status?: string;
-  employeeUserId?: string;
-}) {
-  const companyId = await getCompanyId();
-  const query = new URLSearchParams();
+export async function fetchRoutes(
+  params?: {
+    routeDate?: string;
+    status?: string;
+    employeeUserId?: string;
+  },
+) {
+  const companyId =
+    await getCompanyId();
 
-  if (params?.routeDate) {
+  const query =
+    new URLSearchParams();
+
+  if (
+    params?.routeDate
+  ) {
     query.set(
       "routeDate",
-      toApiDate(params.routeDate),
+      toApiDate(
+        params.routeDate,
+      ),
     );
   }
 
-  if (params?.status) {
-    query.set("status", params.status);
+  if (
+    params?.status
+  ) {
+    query.set(
+      "status",
+      params.status,
+    );
   }
 
-  if (params?.employeeUserId) {
+  if (
+    params?.employeeUserId
+  ) {
     query.set(
       "employeeUserId",
       params.employeeUserId,
     );
   }
 
-  const queryString = query.toString();
+  const queryString =
+    query.toString();
 
-  const data = await mappaFetch<unknown>(
-    `/api/companies/${companyId}/routes${
-      queryString ? `?${queryString}` : ""
-    }`,
-  );
+  const data =
+    await mappaFetch<unknown>(
+      `/api/companies/${companyId}/routes${
+        queryString
+          ? `?${queryString}`
+          : ""
+      }`,
+    );
 
   return extractItems<ApiRouteListItem>(
     data,
@@ -183,7 +232,8 @@ export async function fetchRoutes(params?: {
 export async function fetchRouteDetails(
   routeId: string,
 ) {
-  const companyId = await getCompanyId();
+  const companyId =
+    await getCompanyId();
 
   if (!routeId) {
     throw new Error(
@@ -196,28 +246,35 @@ export async function fetchRouteDetails(
   );
 }
 
-export async function createRoute(params: {
-  title: string;
-  routeDate: string;
-  employeeUserId: string;
-}) {
-  const companyId = await getCompanyId();
+export async function createRoute(
+  params: {
+    title: string;
+    routeDate: string;
+    employeeUserId: string;
+  },
+) {
+  const companyId =
+    await getCompanyId();
 
   return mappaFetch<ApiRouteResponse>(
     `/api/companies/${companyId}/routes`,
     {
-      method: "POST",
+      method:
+        "POST",
 
-      body: JSON.stringify({
-        title: params.title.trim(),
+      body:
+        JSON.stringify({
+          title:
+            params.title.trim(),
 
-        routeDate: toApiDate(
-          params.routeDate,
-        ),
+          routeDate:
+            toApiDate(
+              params.routeDate,
+            ),
 
-        employeeUserId:
-          params.employeeUserId,
-      }),
+          employeeUserId:
+            params.employeeUserId,
+        }),
     },
   );
 }
@@ -232,7 +289,8 @@ export async function addServiceOrdersToRoute(
     }>;
   },
 ) {
-  const companyId = await getCompanyId();
+  const companyId =
+    await getCompanyId();
 
   if (!params.routeId) {
     throw new Error(
@@ -240,7 +298,9 @@ export async function addServiceOrdersToRoute(
     );
   }
 
-  if (!params.serviceOrders.length) {
+  if (
+    !params.serviceOrders.length
+  ) {
     throw new Error(
       "Adicione ao menos uma ordem à rota.",
     );
@@ -249,12 +309,14 @@ export async function addServiceOrdersToRoute(
   return mappaFetch<ApiRouteDetailsResponse>(
     `/api/companies/${companyId}/routes/${params.routeId}/service-orders`,
     {
-      method: "POST",
+      method:
+        "POST",
 
-      body: JSON.stringify({
-        serviceOrders:
-          params.serviceOrders,
-      }),
+      body:
+        JSON.stringify({
+          serviceOrders:
+            params.serviceOrders,
+        }),
     },
   );
 }
@@ -265,7 +327,8 @@ export async function updateRouteEmployee(
     employeeUserId: string;
   },
 ) {
-  const companyId = await getCompanyId();
+  const companyId =
+    await getCompanyId();
 
   if (!params.routeId) {
     throw new Error(
@@ -273,7 +336,9 @@ export async function updateRouteEmployee(
     );
   }
 
-  if (!params.employeeUserId) {
+  if (
+    !params.employeeUserId
+  ) {
     throw new Error(
       "ID do técnico não informado.",
     );
@@ -282,12 +347,14 @@ export async function updateRouteEmployee(
   return mappaFetch<ApiRouteResponse>(
     `/api/companies/${companyId}/routes/${params.routeId}/employee`,
     {
-      method: "PATCH",
+      method:
+        "PATCH",
 
-      body: JSON.stringify({
-        employeeUserId:
-          params.employeeUserId,
-      }),
+      body:
+        JSON.stringify({
+          employeeUserId:
+            params.employeeUserId,
+        }),
     },
   );
 }

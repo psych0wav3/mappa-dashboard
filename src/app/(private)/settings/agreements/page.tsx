@@ -1,22 +1,43 @@
 import type { Metadata } from "next";
-import AgreementsClient from "./AgreementsClient";
-import { listAgreementsAdmin } from "./actions";
 
-export const dynamic = "force-dynamic";
-export const fetchCache = "force-no-store";
+import AgreementsClient from "./AgreementsClient";
+
+import {
+  listAgreementsAdmin,
+} from "./actions";
+
+export const dynamic =
+  "force-dynamic";
+
+export const fetchCache =
+  "force-no-store";
 
 export const metadata: Metadata = {
-  title: "Termos e acordos — Aqua Mappa",
+  title:
+    "Termos e acordos — Aqua Mappa",
 };
 
 export default async function AgreementsPage() {
-  let agreements: Awaited<ReturnType<typeof listAgreementsAdmin>> = [];
+  /*
+   * A lista de termos é o dado principal
+   * desta página.
+   *
+   * Se a API falhar, não retornamos []
+   * fingindo que nenhum termo foi cadastrado.
+   *
+   * O erro sobe para:
+   * src/app/(private)/error.tsx
+   */
+  const agreements =
+    await listAgreementsAdmin(
+      false,
+    );
 
-  try {
-    agreements = await listAgreementsAdmin(false);
-  } catch {
-    agreements = [];
-  }
-
-  return <AgreementsClient initialAgreements={agreements} />;
+  return (
+    <AgreementsClient
+      initialAgreements={
+        agreements
+      }
+    />
+  );
 }

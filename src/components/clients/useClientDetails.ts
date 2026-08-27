@@ -3,6 +3,8 @@
 import * as React from "react";
 import { toast } from "sonner";
 
+import { getErrorMessage } from "@/lib/mappa/errors";
+
 import {
   addClientAddress,
   deleteClient,
@@ -102,9 +104,10 @@ export default function useClientDetails({
         }
 
         toast.error(
-          error instanceof Error
-            ? error.message
-            : "Não foi possível carregar os dados do cliente.",
+          getErrorMessage(
+            error,
+            "Não foi possível carregar os dados do cliente.",
+          ),
         );
       } finally {
         if (mounted) {
@@ -142,9 +145,10 @@ export default function useClientDetails({
         );
       } catch (error) {
         const message =
-          error instanceof Error
-            ? error.message
-            : "Não foi possível adicionar o endereço.";
+          getErrorMessage(
+            error,
+            "Não foi possível adicionar o endereço.",
+          );
 
         toast.error(message);
 
@@ -225,9 +229,10 @@ export default function useClientDetails({
       return true;
     } catch (error) {
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível excluir o cliente.",
+        getErrorMessage(
+          error,
+          "Não foi possível excluir o cliente.",
+        ),
       );
 
       return false;

@@ -19,6 +19,7 @@ import FormInfoBox from "@/components/form-layout/FormInfoBox";
 import StepFormSection from "@/components/form-layout/StepFormSection";
 import FormActionBar from "@/components/ui/FormActionBar";
 import { Input } from "@/components/ui/input";
+import { getErrorMessage } from "@/lib/mappa/errors";
 
 function normalizePhone(value: string) {
   return value.replace(/\D/g, "").slice(0, 11);
@@ -114,9 +115,10 @@ export default function NewTechnicianClient() {
       console.error(error);
 
       setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível cadastrar o técnico.",
+        getErrorMessage(
+          error,
+          "Não foi possível cadastrar o técnico.",
+        ),
       );
 
       setSubmitting(false);

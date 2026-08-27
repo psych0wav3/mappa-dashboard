@@ -118,10 +118,13 @@ export default function WorkOrderDataTable({
   renderExpandedRow,
   headerAction,
 }: WorkOrderDataTableProps) {
-  const safeOrders =
-    Array.isArray(orders)
-      ? orders
-      : [];
+  const safeOrders = React.useMemo(
+    () =>
+      Array.isArray(orders)
+        ? orders
+        : [],
+    [orders],
+  );
 
   const [
     currentPage,

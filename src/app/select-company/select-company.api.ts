@@ -307,18 +307,23 @@ export async function listCompanies(): Promise<
             .items ??
           (payload as Record<string, unknown>)
             .Items)
-        : [];
+        : undefined;
 
   if (!Array.isArray(rawItems)) {
-    return [];
+    throw new Error(
+      "A API retornou a lista de empresas em formato inválido.",
+    );
   }
 
-  return rawItems
-    .map(normalizeCompany)
-    .filter(
-      (company): company is CompanyItem =>
-        Boolean(company),
+  const companies = rawItems.map(normalizeCompany);
+
+  if (companies.some((company) => !company)) {
+    throw new Error(
+      "A API retornou dados inválidos na lista de empresas.",
     );
+  }
+
+  return companies as CompanyItem[];
 }
 
 export async function getCompanyById(

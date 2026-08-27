@@ -27,6 +27,7 @@ import type {
 
 import FormPageHeader from "@/components/form-layout/FormPageHeader";
 import { Button } from "@/components/ui/button";
+import { getErrorMessage } from "@/lib/mappa/errors";
 
 import { ServicePlanForm } from "./ServicePlanForm";
 import ServicePlanList from "./ServicePlanList";
@@ -231,9 +232,10 @@ export default function ServicePlansClient({
         requestAnimationFrame(scrollToTop);
       } catch (error) {
         toast.error(
-          error instanceof Error
-            ? error.message
-            : "Não foi possível criar a rotina.",
+          getErrorMessage(
+            error,
+            "Não foi possível criar a rotina.",
+          ),
         );
       }
     });
@@ -303,9 +305,10 @@ export default function ServicePlansClient({
         );
       } catch (error) {
         toast.error(
-          error instanceof Error
-            ? error.message
-            : "Não foi possível atualizar a rotina.",
+          getErrorMessage(
+            error,
+            "Não foi possível atualizar a rotina.",
+          ),
         );
       }
     });
@@ -328,9 +331,10 @@ export default function ServicePlansClient({
         );
       } catch (error) {
         toast.error(
-          error instanceof Error
-            ? error.message
-            : "Não foi possível gerar as visitas.",
+          getErrorMessage(
+            error,
+            "Não foi possível gerar as visitas.",
+          ),
         );
       }
     });

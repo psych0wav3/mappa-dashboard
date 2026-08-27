@@ -1,6 +1,13 @@
-import type { Metadata } from "next";
+import type {
+  Metadata,
+} from "next";
+
 import Link from "next/link";
-import type { LucideIcon } from "lucide-react";
+
+import type {
+  LucideIcon,
+} from "lucide-react";
+
 import {
   ArrowRight,
   CalendarCheck2,
@@ -14,19 +21,30 @@ import {
 } from "lucide-react";
 
 import OneTimeOrdersReminder from "@/components/dashboard/OneTimeOrdersReminder";
+import PartialLoadAlert from "@/components/feedback/PartialLoadAlert";
 import FormPageHeader from "@/components/form-layout/FormPageHeader";
 
 import {
+  getFailedResources,
+  safeLoad,
+} from "@/lib/mappa/safe-load";
+
+import {
+  createEmptyDashboardOneTimeOrderReminder,
   getDashboardMetrics,
   getDashboardOneTimeOrderReminder,
 } from "./actions";
 
 export const metadata: Metadata = {
-  title: "Painel de controle — Aqua Mappa",
+  title:
+    "Painel de controle — Aqua Mappa",
 };
 
-export const dynamic = "force-dynamic";
-export const fetchCache = "force-no-store";
+export const dynamic =
+  "force-dynamic";
+
+export const fetchCache =
+  "force-no-store";
 
 type MetricCardProps = {
   label: string;
@@ -34,16 +52,32 @@ type MetricCardProps = {
   description: string;
   href: string;
   icon: LucideIcon;
-  tone?: "sky" | "emerald" | "amber" | "violet" | "slate";
+
+  tone?:
+    | "sky"
+    | "emerald"
+    | "amber"
+    | "violet"
+    | "slate";
+
   detail?: string;
 };
 
 const tones = {
-  sky: "bg-sky-50 text-sky-600",
-  emerald: "bg-emerald-50 text-emerald-600",
-  amber: "bg-amber-50 text-amber-600",
-  violet: "bg-violet-50 text-violet-600",
-  slate: "bg-slate-100 text-slate-600",
+  sky:
+    "bg-sky-50 text-sky-600",
+
+  emerald:
+    "bg-emerald-50 text-emerald-600",
+
+  amber:
+    "bg-amber-50 text-amber-600",
+
+  violet:
+    "bg-violet-50 text-violet-600",
+
+  slate:
+    "bg-slate-100 text-slate-600",
 } as const;
 
 function MetricCard({
@@ -74,9 +108,11 @@ function MetricCard({
         <p className="text-2xl font-bold tracking-tight text-slate-900">
           {value}
         </p>
+
         <p className="mt-1 break-words text-sm font-semibold text-slate-800">
           {label}
         </p>
+
         <p className="mt-1 break-words text-xs leading-5 text-slate-500">
           {description}
         </p>
@@ -92,16 +128,52 @@ function MetricCard({
 }
 
 export default async function DashboardPage() {
-  const [metrics, oneTimeOrders] = await Promise.all([
+  const [
+    metrics,
+    oneTimeOrders,
+  ] = await Promise.all([
+    /*
+     * Dado principal.
+     *
+     * Se falhar:
+     * → error.tsx
+     */
     getDashboardMetrics(),
-    getDashboardOneTimeOrderReminder(),
+
+    /*
+     * O lembrete é um complemento do
+     * Dashboard.
+     *
+     * Se houver timeout / 5xx / rede,
+     * conseguimos manter as métricas
+     * visíveis e informar a falha.
+     */
+    safeLoad({
+      resource:
+        "OS avulsas para organizar",
+
+      loader:
+        getDashboardOneTimeOrderReminder,
+
+      fallback:
+        createEmptyDashboardOneTimeOrderReminder(),
+    }),
   ]);
 
+  const failedResources =
+    getFailedResources([
+      oneTimeOrders,
+    ]);
+
   const oneTimeDetail =
-    oneTimeOrders.totalAvailableCount > 0
-      ? oneTimeOrders.totalAvailableCount === 1
+    oneTimeOrders.data
+      .totalAvailableCount >
+    0
+      ? oneTimeOrders.data
+          .totalAvailableCount ===
+        1
         ? "1 é OS avulsa com data definida"
-        : `${oneTimeOrders.totalAvailableCount} são OS avulsas com data definida`
+        : `${oneTimeOrders.data.totalAvailableCount} são OS avulsas com data definida`
       : undefined;
 
   return (
@@ -112,11 +184,24 @@ export default async function DashboardPage() {
         description="Acompanhe os principais números e o andamento da operação da empresa."
       />
 
-      <OneTimeOrdersReminder data={oneTimeOrders} />
+      <PartialLoadAlert
+        resources={
+          failedResources
+        }
+      />
+
+      <OneTimeOrdersReminder
+        data={
+          oneTimeOrders.data
+        }
+      />
 
       <section className="min-w-0">
         <div className="mb-3">
-          <h2 className="text-sm font-semibold text-slate-900">Visão geral</h2>
+          <h2 className="text-sm font-semibold text-slate-900">
+            Visão geral
+          </h2>
+
           <p className="mt-1 text-xs text-slate-500">
             Cadastros e movimentação de hoje.
           </p>
@@ -125,34 +210,53 @@ export default async function DashboardPage() {
         <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Clientes"
-            value={metrics.totalCustomers}
+            value={
+              metrics.totalCustomers
+            }
             description="Clientes cadastrados na empresa."
             href="/clients"
-            icon={UserRound}
+            icon={
+              UserRound
+            }
             tone="sky"
           />
+
           <MetricCard
             label="Técnicos"
-            value={metrics.totalEmployees}
+            value={
+              metrics.totalEmployees
+            }
             description="Profissionais cadastrados na operação."
             href="/technicians"
-            icon={UsersRound}
+            icon={
+              UsersRound
+            }
             tone="violet"
           />
+
           <MetricCard
             label="Rotas planejadas hoje"
-            value={metrics.plannedRoutesToday}
+            value={
+              metrics.plannedRoutesToday
+            }
             description="Rotas organizadas para execução hoje."
             href="/routes/dashboard"
-            icon={Route}
+            icon={
+              Route
+            }
             tone="amber"
           />
+
           <MetricCard
             label="Concluídos hoje"
-            value={metrics.doneOrdersToday}
+            value={
+              metrics.doneOrdersToday
+            }
             description="Atendimentos finalizados no dia."
             href="/workorders"
-            icon={CheckCircle2}
+            icon={
+              CheckCircle2
+            }
             tone="emerald"
           />
         </div>
@@ -164,9 +268,9 @@ export default async function DashboardPage() {
             <h2 className="text-sm font-semibold text-slate-900">
               Ordens de serviço
             </h2>
+
             <p className="mt-1 break-words text-xs leading-5 text-slate-500">
-              Veja rapidamente em qual etapa estão as ordens que ainda exigem
-              acompanhamento.
+              Veja rapidamente em qual etapa estão as ordens que ainda exigem acompanhamento.
             </p>
           </div>
 
@@ -175,6 +279,7 @@ export default async function DashboardPage() {
             className="inline-flex shrink-0 items-center gap-1 self-start text-xs font-semibold text-sky-600 hover:text-sky-700"
           >
             Ver todas
+
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>
@@ -182,35 +287,56 @@ export default async function DashboardPage() {
         <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Aguardando precificação"
-            value={metrics.pendingCompanyPricingOrders}
+            value={
+              metrics.pendingCompanyPricingOrders
+            }
             description="OS que ainda precisam receber os valores da empresa."
             href="/workorders/pricing"
-            icon={CircleDollarSign}
+            icon={
+              CircleDollarSign
+            }
             tone="amber"
           />
+
           <MetricCard
             label="Aguardando aprovação"
-            value={metrics.pendingCustomerApprovalOrders}
+            value={
+              metrics.pendingCustomerApprovalOrders
+            }
             description="OS enviadas e ainda não aprovadas pelo cliente."
             href="/workorders/customer-approval"
-            icon={Clock3}
+            icon={
+              Clock3
+            }
             tone="violet"
           />
+
           <MetricCard
             label="Aguardando execução"
-            value={metrics.waitingExecutionOrders}
+            value={
+              metrics.waitingExecutionOrders
+            }
             description="OS aprovadas e prontas para entrar na operação."
             href="/routes/builder"
-            icon={CalendarCheck2}
+            icon={
+              CalendarCheck2
+            }
             tone="sky"
-            detail={oneTimeDetail}
+            detail={
+              oneTimeDetail
+            }
           />
+
           <MetricCard
             label="Em rota"
-            value={metrics.inRouteOrders}
+            value={
+              metrics.inRouteOrders
+            }
             description="Atendimentos que já estão incluídos em uma rota."
             href="/routes/dashboard"
-            icon={Route}
+            icon={
+              Route
+            }
             tone="emerald"
           />
         </div>

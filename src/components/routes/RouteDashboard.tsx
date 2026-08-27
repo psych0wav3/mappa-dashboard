@@ -11,6 +11,7 @@ import { getRouteOrder, saveRouteOrder } from "@/app/(private)/routes/route-orde
 import type { RouteOrderItem } from "@/app/(private)/routes/route-order.api";
 import { loadRouteWeek } from "@/app/(private)/routes/weekly-route-materialization.actions";
 
+import InlineErrorState from "@/components/feedback/InlineErrorState";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import RouteMapPanel from "@/components/routes/RouteMapPanel";
 import RouteTechnicianWeekSelector from "@/components/routes/RouteTechnicianWeekSelector";
@@ -18,6 +19,7 @@ import { addDays, formatDate, getTechnicianDayMeta, getTechnicianRouteForDate, g
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getErrorMessage } from "@/lib/mappa/errors";
 
 type RouteDashboardProps = {
   initialRoutes: RouteDashboardItem[];
@@ -30,9 +32,11 @@ function OneTimeOrdersPanel({
   routeExists,
   addingOrderId,
   loading,
+  error,
   disabled,
   search,
   onSearch,
+  onRetry,
   onAdd,
 }: {
   orders: AvailableRouteWorkOrder[];
@@ -40,9 +44,11 @@ function OneTimeOrdersPanel({
   routeExists: boolean;
   addingOrderId: string | null;
   loading: boolean;
+  error: string | null;
   disabled: boolean;
   search: string;
   onSearch: (value: string) => void;
+  onRetry: () => void;
   onAdd: (order: AvailableRouteWorkOrder) => void;
 }) {
   return (
@@ -70,6 +76,12 @@ function OneTimeOrdersPanel({
             <p className="mt-2 text-sm font-semibold text-slate-700">Buscando OS avulsas</p>
             <p className="mt-1 text-xs text-slate-400">Verificando as ordens disponíveis para {formatDate(selectedDate)}.</p>
           </div>
+        ) : error ? (
+          <InlineErrorState
+            title="Não foi possível carregar as OS avulsas"
+            message={error}
+            onRetry={onRetry}
+          />
         ) : orders.length > 0 ? (
           orders.map((order) => (
             <article key={order.id} className="rounded-xl border border-slate-200 bg-white p-3.5">
@@ -121,6 +133,7 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
   const [routes, setRoutes] = React.useState<RouteDashboardItem[]>(initialRoutes);
   const [oneTimeOrders, setOneTimeOrders] = React.useState<AvailableRouteWorkOrder[]>([]);
   const [loadingOneTimeOrders, setLoadingOneTimeOrders] = React.useState(false);
+  const [oneTimeOrdersError, setOneTimeOrdersError] = React.useState<string | null>(null);
   const [weekStartDate, setWeekStartDate] = React.useState(currentWeekStart);
   const [selectedDate, setSelectedDate] = React.useState(todayIso);
   const [loadingWeek, setLoadingWeek] = React.useState(false);
@@ -168,22 +181,34 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
     }
 
     loadedWeeksRef.current.add(weekStart);
-    setLoadingWeek(true);
 
-    const result = await loadRouteWeek({
-      dateFrom: weekStart,
-      dateTo: addDays(weekStart, 6),
-    });
+    try {
+      setLoadingWeek(true);
 
-    setLoadingWeek(false);
+      const result = await loadRouteWeek({
+        dateFrom: weekStart,
+        dateTo: addDays(weekStart, 6),
+      });
 
-    if (!result.ok) {
+      if (!result.ok) {
+        loadedWeeksRef.current.delete(weekStart);
+        toast.error(result.error || "Não foi possível sincronizar as rotas da semana.");
+        return;
+      }
+
+      setRoutes(result.routes);
+    } catch (error) {
       loadedWeeksRef.current.delete(weekStart);
-      toast.error(result.error || "Não foi possível sincronizar as rotas da semana.");
-      return;
-    }
 
-    setRoutes(result.routes);
+      toast.error(
+        getErrorMessage(
+          error,
+          "Não foi possível sincronizar as rotas da semana.",
+        ),
+      );
+    } finally {
+      setLoadingWeek(false);
+    }
   }, []);
 
   React.useEffect(() => {
@@ -191,12 +216,32 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
   }, [loadWeek, weekStartDate]);
 
   const loadOneTimeOrdersForDate = React.useCallback(async (date: string) => {
-    setLoadingOneTimeOrders(true);
+    try {
+      setLoadingOneTimeOrders(true);
+      setOneTimeOrdersError(null);
 
-    const orders = await listOneTimeServiceOrdersForDate(date);
+      const result = await listOneTimeServiceOrdersForDate(date);
 
-    setOneTimeOrders(orders);
-    setLoadingOneTimeOrders(false);
+      if (!result.ok) {
+        setOneTimeOrders([]);
+        setOneTimeOrdersError(result.error);
+        return;
+      }
+
+      setOneTimeOrders(result.orders);
+    } catch (error) {
+      console.error("[RouteDashboard.loadOneTimeOrdersForDate]", error);
+
+      setOneTimeOrders([]);
+      setOneTimeOrdersError(
+        getErrorMessage(
+          error,
+          "Não foi possível carregar as OS avulsas desta data.",
+        ),
+      );
+    } finally {
+      setLoadingOneTimeOrders(false);
+    }
   }, []);
 
   React.useEffect(() => {
@@ -253,28 +298,41 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
     setOrderDirty(false);
     setLoadingRouteOrder(true);
 
-    void Promise.all(selectedRouteIds.map((routeId) => getRouteOrder(routeId))).then((results) => {
-      if (!active) {
-        return;
-      }
+    void Promise.all(selectedRouteIds.map((routeId) => getRouteOrder(routeId)))
+      .then((results) => {
+        if (!active) {
+          return;
+        }
 
-      setLoadingRouteOrder(false);
+        const failed = results.find((result) => !result.ok);
 
-      const failed = results.find((result) => !result.ok);
+        if (failed) {
+          setRouteOrderMeta(results.flatMap((result) => (result.ok ? result.serviceOrders : [])));
+          toast.error(failed.error || "Não foi possível carregar todos os dados da rota.");
+          return;
+        }
 
-      if (failed) {
-        setRouteOrderMeta(results.flatMap((result) => (result.ok ? result.serviceOrders : [])));
-        toast.error(failed.error || "Não foi possível carregar todos os dados da rota.");
-        return;
-      }
+        setRouteOrderMeta(results.flatMap((result) => result.serviceOrders));
+      })
+      .catch((error) => {
+        if (!active) {
+          return;
+        }
 
-      setRouteOrderMeta(results.flatMap((result) => result.serviceOrders));
-    });
+        console.error("[RouteDashboard:getRouteOrder]", error);
+        setRouteOrderMeta([]);
+        toast.error(getErrorMessage(error, "Não foi possível carregar todos os dados da rota."));
+      })
+      .finally(() => {
+        if (active) {
+          setLoadingRouteOrder(false);
+        }
+      });
 
     return () => {
       active = false;
     };
-  }, [selectedRouteSignature, selectedRouteIds]);
+  }, [selectedRoute, selectedRouteSignature, selectedRouteIds]);
 
   const routeOrderMetaById = React.useMemo(() => {
     return new Map(routeOrderMeta.map((item) => [item.serviceOrderId, item]));
@@ -407,39 +465,44 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
 
     setSavingRouteOrder(true);
 
-    const result = await saveRouteOrder(selectedRoute.id, draftOrderIds);
+    try {
+      const result = await saveRouteOrder(selectedRoute.id, draftOrderIds);
 
-    setSavingRouteOrder(false);
+      if (!result.ok) {
+        toast.error(result.error || "Não foi possível salvar a ordem da rota.");
+        return;
+      }
 
-    if (!result.ok) {
-      toast.error(result.error || "Não foi possível salvar a ordem da rota.");
-      return;
+      const executionOrderById = new Map(draftOrderIds.map((id, index) => [id, index + 1]));
+
+      setRoutes((current) =>
+        current.map((route) => {
+          if (route.id !== selectedRoute.id) {
+            return route;
+          }
+
+          return {
+            ...route,
+            serviceOrders: [...route.serviceOrders]
+              .map((order) => ({
+                ...order,
+                executionOrder: executionOrderById.get(order.serviceOrderId) || order.executionOrder,
+              }))
+              .sort((first, second) => first.executionOrder - second.executionOrder),
+          };
+        }),
+      );
+
+      setRouteOrderMeta(result.serviceOrders);
+      setOrderDirty(false);
+
+      toast.success("Ordem da rota atualizada.");
+    } catch (error) {
+      console.error("[RouteDashboard:saveRouteOrder]", error);
+      toast.error(getErrorMessage(error, "Não foi possível salvar a ordem da rota."));
+    } finally {
+      setSavingRouteOrder(false);
     }
-
-    const executionOrderById = new Map(draftOrderIds.map((id, index) => [id, index + 1]));
-
-    setRoutes((current) =>
-      current.map((route) => {
-        if (route.id !== selectedRoute.id) {
-          return route;
-        }
-
-        return {
-          ...route,
-          serviceOrders: [...route.serviceOrders]
-            .map((order) => ({
-              ...order,
-              executionOrder: executionOrderById.get(order.serviceOrderId) || order.executionOrder,
-            }))
-            .sort((first, second) => first.executionOrder - second.executionOrder),
-        };
-      }),
-    );
-
-    setRouteOrderMeta(result.serviceOrders);
-    setOrderDirty(false);
-
-    toast.success("Ordem da rota atualizada.");
   }
 
   async function addOneTimeOrder(order: AvailableRouteWorkOrder) {
@@ -704,7 +767,19 @@ export default function RouteDashboard({ initialRoutes, technicians }: RouteDash
           </div>
 
           <div className="space-y-5">
-            <OneTimeOrdersPanel orders={filteredOneTimeOrders} selectedDate={selectedDate} routeExists={Boolean(selectedRoute)} addingOrderId={addingOrderId} loading={loadingOneTimeOrders} disabled={orderDirty || Boolean(removingOrderId)} search={oneTimeSearch} onSearch={setOneTimeSearch} onAdd={addOneTimeOrder} />
+            <OneTimeOrdersPanel
+              orders={filteredOneTimeOrders}
+              selectedDate={selectedDate}
+              routeExists={Boolean(selectedRoute)}
+              addingOrderId={addingOrderId}
+              loading={loadingOneTimeOrders}
+              error={oneTimeOrdersError}
+              disabled={orderDirty || Boolean(removingOrderId)}
+              search={oneTimeSearch}
+              onSearch={setOneTimeSearch}
+              onRetry={() => void loadOneTimeOrdersForDate(selectedDate)}
+              onAdd={addOneTimeOrder}
+            />
 
             <RouteMapPanel stops={orderedRouteOrders} height={330} />
           </div>

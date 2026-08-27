@@ -8,6 +8,8 @@ import {
   mappaFetch,
 } from "@/lib/mappa/api";
 
+import { safeData } from "@/lib/mappa/safe-load";
+
 export type ServicePlanStatus =
   | "PENDING_APPROVAL"
   | "ACTIVE"
@@ -86,39 +88,63 @@ export type SaveServicePlanInput = {
   recurrence: ServicePlanRecurrence;
 };
 
-function toApiDate(value?: string) {
+function toApiDate(
+  value?: string,
+) {
   if (!value) {
     return null;
   }
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+  if (
+    /^\d{4}-\d{2}-\d{2}$/.test(
+      value,
+    )
+  ) {
     return value;
   }
 
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
-    const [day, month, year] =
-      value.split("/");
+  if (
+    /^\d{2}\/\d{2}\/\d{4}$/.test(
+      value,
+    )
+  ) {
+    const [
+      day,
+      month,
+      year,
+    ] = value.split("/");
 
     return `${year}-${month}-${day}`;
   }
 
-  return value.slice(0, 10);
+  return value.slice(
+    0,
+    10,
+  );
 }
 
 function normalizeFrequency(
   value?: string | null,
 ): RecurrenceFrequencyType {
-  const normalized = String(
-    value || "WEEKLY",
-  )
-    .replace(/[_\s-]/g, "")
-    .toUpperCase();
+  const normalized =
+    String(
+      value || "WEEKLY",
+    )
+      .replace(
+        /[_\s-]/g,
+        "",
+      )
+      .toUpperCase();
 
-  if (normalized === "DAILY") {
+  if (
+    normalized === "DAILY"
+  ) {
     return "DAILY";
   }
 
-  if (normalized === "MONTHLY") {
+  if (
+    normalized === "MONTHLY"
+  ) {
     return "MONTHLY";
   }
 
@@ -128,32 +154,49 @@ function normalizeFrequency(
 function normalizeStatus(
   value?: string | null,
 ): ServicePlanStatus {
-  const normalized = String(
-    value || "PENDING_APPROVAL",
-  )
-    .replace(/[_\s-]/g, "")
-    .toUpperCase();
+  const normalized =
+    String(
+      value ||
+        "PENDING_APPROVAL",
+    )
+      .replace(
+        /[_\s-]/g,
+        "",
+      )
+      .toUpperCase();
 
-  if (normalized === "PENDINGAPPROVAL") {
+  if (
+    normalized ===
+    "PENDINGAPPROVAL"
+  ) {
     return "PENDING_APPROVAL";
   }
 
-  if (normalized === "ACTIVE") {
+  if (
+    normalized === "ACTIVE"
+  ) {
     return "ACTIVE";
   }
 
-  if (normalized === "PAUSED") {
+  if (
+    normalized === "PAUSED"
+  ) {
     return "PAUSED";
   }
 
   if (
-    normalized === "CANCELED" ||
-    normalized === "CANCELLED"
+    normalized ===
+      "CANCELED" ||
+    normalized ===
+      "CANCELLED"
   ) {
     return "CANCELED";
   }
 
-  if (normalized === "FINISHED") {
+  if (
+    normalized ===
+    "FINISHED"
+  ) {
     return "FINISHED";
   }
 
@@ -169,35 +212,55 @@ function toApiStatus(
   > = {
     PENDING_APPROVAL:
       "PendingApproval",
-    ACTIVE: "Active",
-    PAUSED: "Paused",
-    CANCELED: "Canceled",
-    FINISHED: "Finished",
+
+    ACTIVE:
+      "Active",
+
+    PAUSED:
+      "Paused",
+
+    CANCELED:
+      "Canceled",
+
+    FINISHED:
+      "Finished",
   };
 
   return values[value];
 }
 
 function positiveInteger(
-  value: number | null | undefined,
+  value:
+    | number
+    | null
+    | undefined,
   fallback: number,
 ) {
-  const normalized = Number(value);
+  const normalized =
+    Number(value);
 
   if (
-    !Number.isFinite(normalized) ||
+    !Number.isFinite(
+      normalized,
+    ) ||
     normalized <= 0
   ) {
     return fallback;
   }
 
-  return Math.floor(normalized);
+  return Math.floor(
+    normalized,
+  );
 }
 
 function normalizeDaysOfWeek(
   value?: number[] | null,
 ) {
-  if (!Array.isArray(value)) {
+  if (
+    !Array.isArray(
+      value,
+    )
+  ) {
     return [];
   }
 
@@ -207,13 +270,18 @@ function normalizeDaysOfWeek(
         .map(Number)
         .filter(
           (day) =>
-            Number.isInteger(day) &&
+            Number.isInteger(
+              day,
+            ) &&
             day >= 1 &&
             day <= 7,
         ),
     ),
   ).sort(
-    (first, second) =>
+    (
+      first,
+      second,
+    ) =>
       first - second,
   );
 }
@@ -223,67 +291,85 @@ function normalizePlan(
 ): ServicePlan {
   const frequencyType =
     normalizeFrequency(
-      plan.recurrence?.frequencyType,
+      plan.recurrence
+        ?.frequencyType,
     );
 
   return {
-    id: plan.id,
+    id:
+      plan.id,
 
     customerId:
-      plan.customerId ?? null,
+      plan.customerId ??
+      null,
 
     customerName:
       plan.customerName ||
       "Cliente não informado",
 
     customerAddressId:
-      plan.customerAddressId ?? null,
+      plan.customerAddressId ??
+      null,
 
     checklistTemplateId:
-      plan.checklistTemplateId ?? null,
+      plan.checklistTemplateId ??
+      null,
 
     measurementTemplateId:
-      plan.measurementTemplateId ?? null,
+      plan.measurementTemplateId ??
+      null,
 
     preferredEmployeeUserId:
-      plan.preferredEmployeeUserId ?? null,
+      plan.preferredEmployeeUserId ??
+      null,
 
     title:
       plan.title ||
       "Rotina de atendimento",
 
     description:
-      plan.description ?? null,
+      plan.description ??
+      null,
 
     startDate:
-      plan.startDate ?? null,
+      plan.startDate ??
+      null,
 
     endDate:
-      plan.endDate ?? null,
+      plan.endDate ??
+      null,
 
     totalAmount:
-      typeof plan.totalAmount === "number" &&
-      Number.isFinite(plan.totalAmount)
+      typeof plan.totalAmount ===
+        "number" &&
+      Number.isFinite(
+        plan.totalAmount,
+      )
         ? plan.totalAmount
         : null,
 
     status:
-      normalizeStatus(plan.status),
+      normalizeStatus(
+        plan.status,
+      ),
 
     createdAt:
-      plan.createdAt ?? null,
+      plan.createdAt ??
+      null,
 
     recurrence: {
       frequencyType,
 
       intervalValue:
         positiveInteger(
-          plan.recurrence?.intervalValue,
+          plan.recurrence
+            ?.intervalValue,
           1,
         ),
 
       daysOfWeek:
-        frequencyType === "WEEKLY"
+        frequencyType ===
+        "WEEKLY"
           ? normalizeDaysOfWeek(
               plan.recurrence
                 ?.daysOfWeek,
@@ -291,9 +377,11 @@ function normalizePlan(
           : [],
 
       dayOfMonth:
-        frequencyType === "MONTHLY"
+        frequencyType ===
+        "MONTHLY"
           ? plan.recurrence
-              ?.dayOfMonth ?? null
+              ?.dayOfMonth ??
+            null
           : null,
 
       generateDaysAhead:
@@ -309,25 +397,33 @@ function normalizePlan(
 function validateInput(
   input: SaveServicePlanInput,
 ) {
-  if (!input.customerId) {
+  if (
+    !input.customerId
+  ) {
     throw new Error(
       "Selecione o cliente/piscina.",
     );
   }
 
-  if (!input.customerAddressId) {
+  if (
+    !input.customerAddressId
+  ) {
     throw new Error(
       "O cliente selecionado não possui endereço válido.",
     );
   }
 
-  if (!input.title.trim()) {
+  if (
+    !input.title.trim()
+  ) {
     throw new Error(
       "Informe o nome da rotina.",
     );
   }
 
-  if (!input.startDate) {
+  if (
+    !input.startDate
+  ) {
     throw new Error(
       "Informe a data de início.",
     );
@@ -335,7 +431,8 @@ function validateInput(
 
   if (
     input.endDate &&
-    input.endDate < input.startDate
+    input.endDate <
+      input.startDate
   ) {
     throw new Error(
       "A data final não pode ser anterior à data inicial.",
@@ -343,10 +440,14 @@ function validateInput(
   }
 
   const totalAmount =
-    Number(input.totalAmount);
+    Number(
+      input.totalAmount,
+    );
 
   if (
-    !Number.isFinite(totalAmount) ||
+    !Number.isFinite(
+      totalAmount,
+    ) ||
     totalAmount <= 0
   ) {
     throw new Error(
@@ -354,13 +455,15 @@ function validateInput(
     );
   }
 
-  const recurrence = input.recurrence;
+  const recurrence =
+    input.recurrence;
 
   if (
     !Number.isInteger(
       recurrence.intervalValue,
     ) ||
-    recurrence.intervalValue <= 0
+    recurrence.intervalValue <=
+      0
   ) {
     throw new Error(
       "O intervalo deve ser maior que zero.",
@@ -370,7 +473,8 @@ function validateInput(
   if (
     recurrence.frequencyType ===
       "WEEKLY" &&
-    recurrence.daysOfWeek.length === 0
+    recurrence.daysOfWeek
+      .length === 0
   ) {
     throw new Error(
       "Selecione pelo menos um dia da semana.",
@@ -384,12 +488,16 @@ function validateInput(
     const hasInvalidDay =
       recurrence.daysOfWeek.some(
         (day) =>
-          !Number.isInteger(day) ||
+          !Number.isInteger(
+            day,
+          ) ||
           day < 1 ||
           day > 7,
       );
 
-    if (hasInvalidDay) {
+    if (
+      hasInvalidDay
+    ) {
       throw new Error(
         "Os dias da semana devem estar entre 1 e 7.",
       );
@@ -402,8 +510,10 @@ function validateInput(
   ) {
     if (
       !recurrence.dayOfMonth ||
-      recurrence.dayOfMonth < 1 ||
-      recurrence.dayOfMonth > 31
+      recurrence.dayOfMonth <
+        1 ||
+      recurrence.dayOfMonth >
+        31
     ) {
       throw new Error(
         "Informe um dia do mês entre 1 e 31.",
@@ -417,7 +527,8 @@ function buildCreatePayload(
 ) {
   validateInput(input);
 
-  const recurrence = input.recurrence;
+  const recurrence =
+    input.recurrence;
 
   return {
     customerId:
@@ -430,24 +541,35 @@ function buildCreatePayload(
       input.title.trim(),
 
     description:
-      input.description?.trim() || "",
+      input.description?.trim() ||
+      "",
 
     startDate:
-      toApiDate(input.startDate),
+      toApiDate(
+        input.startDate,
+      ),
 
     endDate:
-      toApiDate(input.endDate),
+      toApiDate(
+        input.endDate,
+      ),
 
     items: [
       {
-        type: "SERVICE",
+        type:
+          "SERVICE",
+
         description:
           input.title.trim() ||
           "Mensalidade da rotina",
-        quantity: 1,
-        unitPrice: Number(
-          input.totalAmount,
-        ),
+
+        quantity:
+          1,
+
+        unitPrice:
+          Number(
+            input.totalAmount,
+          ),
       },
     ],
 
@@ -507,14 +629,20 @@ export async function listServicePlans(
   const searchParams =
     new URLSearchParams();
 
-  if (filters?.status) {
+  if (
+    filters?.status
+  ) {
     searchParams.set(
       "status",
-      toApiStatus(filters.status),
+      toApiStatus(
+        filters.status,
+      ),
     );
   }
 
-  if (filters?.customerId) {
+  if (
+    filters?.customerId
+  ) {
     searchParams.set(
       "customerId",
       filters.customerId,
@@ -527,11 +655,16 @@ export async function listServicePlans(
   const response =
     await mappaFetch<unknown>(
       `/api/companies/${companyId}/service-plans${
-        query ? `?${query}` : ""
+        query
+          ? `?${query}`
+          : ""
       }`,
       {
-        method: "GET",
-        cache: "no-store",
+        method:
+          "GET",
+
+        cache:
+          "no-store",
       },
     );
 
@@ -540,58 +673,84 @@ export async function listServicePlans(
       response,
     );
 
+  /*
+   * A listagem devolve um resumo da rotina.
+   *
+   * Buscamos os detalhes individualmente,
+   * mas uma falha RECUPERÁVEL em uma rotina
+   * específica não deve derrubar toda a lista.
+   *
+   * NETWORK_ERROR / TIMEOUT / 5xx:
+   * → usa o resumo.
+   *
+   * 403 / 404 / 409 / bugs:
+   * → erro continua subindo.
+   */
   const hydrated =
     await Promise.all(
       summaries.map(
-        async (summary) => {
-          try {
-            const details =
-              await mappaFetch<ApiServicePlan>(
-                `/api/companies/${companyId}/service-plans/${summary.id}`,
-                {
-                  method: "GET",
-                  cache: "no-store",
-                },
-              );
+        (summary) =>
+          safeData({
+            resource:
+              `detalhes da rotina ${summary.id}`,
 
-            return {
-              ...summary,
-              ...details,
+            fallback:
+              summary,
 
-              customerId:
-                details.customerId ||
-                summary.customerId,
+            loader:
+              async () => {
+                const details =
+                  await mappaFetch<ApiServicePlan>(
+                    `/api/companies/${companyId}/service-plans/${summary.id}`,
+                    {
+                      method:
+                        "GET",
 
-              customerName:
-                details.customerName ||
-                summary.customerName,
+                      cache:
+                        "no-store",
+                    },
+                  );
 
-              title:
-                details.title ||
-                summary.title,
+                return {
+                  ...summary,
+                  ...details,
 
-              status:
-                details.status ||
-                summary.status,
+                  customerId:
+                    details.customerId ||
+                    summary.customerId,
 
-              recurrence:
-                details.recurrence ||
-                summary.recurrence,
-            };
-          } catch {
-            return summary;
-          }
-        },
+                  customerName:
+                    details.customerName ||
+                    summary.customerName,
+
+                  title:
+                    details.title ||
+                    summary.title,
+
+                  status:
+                    details.status ||
+                    summary.status,
+
+                  recurrence:
+                    details.recurrence ||
+                    summary.recurrence,
+                };
+              },
+          }),
       ),
     );
 
-  return hydrated.map(normalizePlan);
+  return hydrated.map(
+    normalizePlan,
+  );
 }
 
 export async function getServicePlanById(
   servicePlanId: string,
 ): Promise<ServicePlan> {
-  if (!servicePlanId) {
+  if (
+    !servicePlanId
+  ) {
     throw new Error(
       "Rotina não informada.",
     );
@@ -604,12 +763,17 @@ export async function getServicePlanById(
     await mappaFetch<ApiServicePlan>(
       `/api/companies/${companyId}/service-plans/${servicePlanId}`,
       {
-        method: "GET",
-        cache: "no-store",
+        method:
+          "GET",
+
+        cache:
+          "no-store",
       },
     );
 
-  return normalizePlan(response);
+  return normalizePlan(
+    response,
+  );
 }
 
 export async function createServicePlan(
@@ -619,32 +783,54 @@ export async function createServicePlan(
     await getCompanyId();
 
   const payload =
-    buildCreatePayload(input);
+    buildCreatePayload(
+      input,
+    );
 
   const response =
     await mappaFetch<ApiServicePlan>(
       `/api/companies/${companyId}/service-plans`,
       {
-        method: "POST",
-        body: JSON.stringify(payload),
+        method:
+          "POST",
+
+        body:
+          JSON.stringify(
+            payload,
+          ),
       },
     );
 
-  revalidatePath("/service-plans");
-  revalidatePath("/workorders");
+  revalidatePath(
+    "/service-plans",
+  );
+
+  revalidatePath(
+    "/workorders",
+  );
+
   revalidatePath(
     "/workorders/customer-approval",
   );
-  revalidatePath("/routes/builder");
 
-  return normalizePlan(response);
+  revalidatePath(
+    "/routes/builder",
+  );
+
+  return normalizePlan(
+    response,
+  );
 }
 
 export async function updateServicePlanStatus(
   servicePlanId: string,
-  status: "ACTIVE" | "PAUSED",
+  status:
+    | "ACTIVE"
+    | "PAUSED",
 ): Promise<ServicePlan> {
-  if (!servicePlanId) {
+  if (
+    !servicePlanId
+  ) {
     throw new Error(
       "Rotina não informada.",
     );
@@ -657,27 +843,43 @@ export async function updateServicePlanStatus(
     await mappaFetch<ApiServicePlan>(
       `/api/companies/${companyId}/service-plans/${servicePlanId}/status`,
       {
-        method: "PATCH",
-        body: JSON.stringify({
-          status:
-            status === "ACTIVE"
-              ? "Active"
-              : "Paused",
-        }),
+        method:
+          "PATCH",
+
+        body:
+          JSON.stringify({
+            status:
+              status ===
+              "ACTIVE"
+                ? "Active"
+                : "Paused",
+          }),
       },
     );
 
-  revalidatePath("/service-plans");
-  revalidatePath("/workorders");
-  revalidatePath("/routes/builder");
+  revalidatePath(
+    "/service-plans",
+  );
 
-  return normalizePlan(response);
+  revalidatePath(
+    "/workorders",
+  );
+
+  revalidatePath(
+    "/routes/builder",
+  );
+
+  return normalizePlan(
+    response,
+  );
 }
 
 export async function generateServicePlanOrders(
   servicePlanId: string,
 ) {
-  if (!servicePlanId) {
+  if (
+    !servicePlanId
+  ) {
     throw new Error(
       "Rotina não informada.",
     );
@@ -692,18 +894,32 @@ export async function generateServicePlanOrders(
     }>(
       `/api/companies/${companyId}/service-plans/${servicePlanId}/generate-orders`,
       {
-        method: "POST",
+        method:
+          "POST",
       },
     );
 
-  revalidatePath("/service-plans");
-  revalidatePath("/workorders");
-  revalidatePath("/routes/builder");
-  revalidatePath("/routes/dashboard");
+  revalidatePath(
+    "/service-plans",
+  );
+
+  revalidatePath(
+    "/workorders",
+  );
+
+  revalidatePath(
+    "/routes/builder",
+  );
+
+  revalidatePath(
+    "/routes/dashboard",
+  );
 
   return {
-    ordersGenerated: Number(
-      response.ordersGenerated || 0,
-    ),
+    ordersGenerated:
+      Number(
+        response.ordersGenerated ||
+        0,
+      ),
   };
 }

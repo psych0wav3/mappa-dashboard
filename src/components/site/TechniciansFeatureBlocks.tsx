@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { Camera, Check, CheckCircle2, ClipboardCheck, FlaskConical, MapPinned } from "lucide-react";
+import { Camera, Check, CheckCircle2, ClipboardCheck, FlaskConical } from "lucide-react";
 
 type StoryProps = {
   eyebrow: string;

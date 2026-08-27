@@ -8,6 +8,8 @@ import {
   mappaFetch,
 } from "@/lib/mappa/api";
 
+import { safeData } from "@/lib/mappa/safe-load";
+
 type ApiAddress = {
   id?: string | null;
   street?: string | null;
@@ -188,13 +190,6 @@ export type WorkOrderListItem = {
     firstName?: string | null;
     lastName?: string | null;
   } | null;
-};
-
-export type PriceWorkOrderInput = {
-  serviceOrderId: string;
-  scheduledDate: string;
-  totalAmount: number;
-  notes?: string;
 };
 
 export type CreateAdminWorkOrderInput = {
@@ -420,9 +415,11 @@ function normalizeWorkOrderItems(
       const quantity = Number(
         item.quantity || 0,
       );
+
       const unitPrice = Number(
         item.unitPrice || 0,
       );
+
       const subtotal = Number(
         item.subtotal ??
           quantity * unitPrice,
@@ -430,12 +427,19 @@ function normalizeWorkOrderItems(
 
       return {
         id: item.id || undefined,
-        type: String(item.type || "SERVICE"),
+
+        type: String(
+          item.type || "SERVICE",
+        ),
+
         description: String(
           item.description || "",
         ),
+
         quantity,
+
         unitPrice,
+
         subtotal,
       };
     })
@@ -460,16 +464,26 @@ function normalizeWorkOrder(
 
   return {
     id: order.id,
+
     code:
       orderNumber != null
         ? String(orderNumber)
         : order.id,
+
     orderNumber,
+
     serviceOrderType:
       order.serviceOrderType ?? null,
-    origin: order.origin ?? null,
-    customerId: order.customerId || "",
-    clientId: order.customerId || "",
+
+    origin:
+      order.origin ?? null,
+
+    customerId:
+      order.customerId || "",
+
+    clientId:
+      order.customerId || "",
+
     technicianId: null,
 
     customerName:
@@ -479,12 +493,14 @@ function normalizeWorkOrder(
     customerAddressId:
       order.customerAddressId ?? null,
 
-    address: serviceOrderAddressLabel(
-      order.address,
-    ),
+    address:
+      serviceOrderAddressLabel(
+        order.address,
+      ),
 
     title:
-      order.title || "Ordem de serviço",
+      order.title ||
+      "Ordem de serviço",
 
     description:
       order.description || "",
@@ -498,15 +514,22 @@ function normalizeWorkOrder(
       order.pricingNotes ?? null,
 
     amountCents:
-      Math.round(totalAmount * 100),
+      Math.round(
+        totalAmount * 100,
+      ),
 
-    status: normalizeStatus(order.status),
+    status:
+      normalizeStatus(
+        order.status,
+      ),
 
     createdAt:
       order.createdAt ?? null,
 
     deletedAt: null,
+
     startTime: null,
+
     endTime: null,
 
     openedByUserId:
@@ -530,13 +553,16 @@ function normalizeWorkOrder(
     visits:
       order.visits ?? [],
 
-    items: normalizeWorkOrderItems(
-      order.items,
-    ),
+    items:
+      normalizeWorkOrderItems(
+        order.items,
+      ),
 
     client: {
       firstName:
-        order.customerName || "Cliente",
+        order.customerName ||
+        "Cliente",
+
       lastName: "",
     },
 
@@ -552,15 +578,22 @@ export async function listWorkOrders(
     hideServicePlanExecutions?: boolean;
   },
 ): Promise<WorkOrderListItem[]> {
-  const companyId = await getCompanyId();
-  const params = new URLSearchParams();
+  const companyId =
+    await getCompanyId();
 
-  const status = toApiStatus(
-    options?.status,
-  );
+  const params =
+    new URLSearchParams();
+
+  const status =
+    toApiStatus(
+      options?.status,
+    );
 
   if (status) {
-    params.set("status", status);
+    params.set(
+      "status",
+      status,
+    );
   }
 
   if (options?.customerId) {
@@ -579,70 +612,91 @@ export async function listWorkOrders(
     );
   }
 
-  const query = params.toString();
+  const query =
+    params.toString();
 
-  const data = await mappaFetch<unknown>(
-    `/api/companies/${companyId}/service-orders${
-      query ? `?${query}` : ""
-    }`,
-  );
+  const data =
+    await mappaFetch<unknown>(
+      `/api/companies/${companyId}/service-orders${
+        query
+          ? `?${query}`
+          : ""
+      }`,
+    );
 
   const summaries =
-    extractItems<ApiServiceOrder>(data);
+    extractItems<ApiServiceOrder>(
+      data,
+    );
 
   const summariesToHydrate =
     options?.hideServicePlanExecutions
-      ? summaries.filter((order) => {
-          const origin =
-            normalizeServiceOrderOrigin(
-              order.origin,
-            );
+      ? summaries.filter(
+          (order) => {
+            const origin =
+              normalizeServiceOrderOrigin(
+                order.origin,
+              );
 
-          return (
-            !origin ||
-            origin !==
-              "SERVICEPLANEXECUTION"
-          );
-        })
+            return (
+              !origin ||
+              origin !==
+                "SERVICEPLANEXECUTION"
+            );
+          },
+        )
       : summaries;
 
-  const hydrated = await Promise.all(
-    summariesToHydrate.map(
-      async (summary) => {
-        try {
-          const details =
-            await mappaFetch<ApiServiceOrder>(
-              `/api/companies/${companyId}/service-orders/${summary.id}`,
-            );
+  const hydrated =
+    await Promise.all(
+      summariesToHydrate.map(
+        (summary) =>
+          safeData({
+            resource:
+              `detalhes da ordem de serviço ${summary.id}`,
 
-          return {
-            ...summary,
-            ...details,
-            serviceOrderType:
-              details.serviceOrderType ??
-              summary.serviceOrderType,
-            origin:
-              details.origin ??
-              summary.origin,
-            customerName:
-              details.customerName ||
-              summary.customerName,
-            customerId:
-              details.customerId ||
-              summary.customerId,
-            customerAddressId:
-              details.customerAddressId ||
-              summary.customerAddressId,
-            address:
-              details.address ||
-              summary.address,
-          };
-        } catch {
-          return summary;
-        }
-      },
-    ),
-  );
+            fallback:
+              summary,
+
+            loader:
+              async () => {
+                const details =
+                  await mappaFetch<ApiServiceOrder>(
+                    `/api/companies/${companyId}/service-orders/${summary.id}`,
+                  );
+
+                return {
+                  ...summary,
+                  ...details,
+
+                  serviceOrderType:
+                    details.serviceOrderType ??
+                    summary.serviceOrderType,
+
+                  origin:
+                    details.origin ??
+                    summary.origin,
+
+                  customerName:
+                    details.customerName ||
+                    summary.customerName,
+
+                  customerId:
+                    details.customerId ||
+                    summary.customerId,
+
+                  customerAddressId:
+                    details.customerAddressId ||
+                    summary.customerAddressId,
+
+                  address:
+                    details.address ||
+                    summary.address,
+                };
+              },
+          }),
+      ),
+    );
 
   const visibleOrders =
     options?.hideServicePlanExecutions
@@ -663,7 +717,8 @@ export async function listWorkOrders(
 export async function getWorkOrderById(
   serviceOrderId: string,
 ) {
-  const companyId = await getCompanyId();
+  const companyId =
+    await getCompanyId();
 
   if (!serviceOrderId) {
     throw new Error(
@@ -676,202 +731,277 @@ export async function getWorkOrderById(
       `/api/companies/${companyId}/service-orders/${serviceOrderId}`,
     );
 
-  return normalizeWorkOrder(data);
+  return normalizeWorkOrder(
+    data,
+  );
 }
 
 export async function listWorkOrderCustomers(): Promise<
   WorkOrderCustomerOption[]
 > {
-  const companyId = await getCompanyId();
+  const companyId =
+    await getCompanyId();
 
-  const data = await mappaFetch<unknown>(
-    `/api/companies/${companyId}/customers?status=ACTIVE`,
-  );
+  const data =
+    await mappaFetch<unknown>(
+      `/api/companies/${companyId}/customers?status=ACTIVE`,
+    );
 
   const summaries =
-    extractItems<ApiCustomer>(data);
+    extractItems<ApiCustomer>(
+      data,
+    );
 
-  const customers = await Promise.all(
-    summaries.map(async (summary) => {
-      try {
-        return await mappaFetch<ApiCustomer>(
-          `/api/companies/${companyId}/customers/${summary.id}`,
-        );
-      } catch {
-        return summary;
-      }
-    }),
-  );
+  const customers =
+    await Promise.all(
+      summaries.map(
+        (summary) =>
+          safeData({
+            resource:
+              `detalhes do cliente ${summary.id}`,
+
+            fallback:
+              summary,
+
+            loader:
+              () =>
+                mappaFetch<ApiCustomer>(
+                  `/api/companies/${companyId}/customers/${summary.id}`,
+                ),
+          }),
+      ),
+    );
 
   return customers
-    .map((customer) => {
-      const mainAddress =
-        getMainAddress(customer);
+    .map(
+      (customer) => {
+        const mainAddress =
+          getMainAddress(
+            customer,
+          );
 
-      const addressId =
-        mainAddress?.id || "";
+        const addressId =
+          mainAddress?.id ||
+          "";
 
-      return {
-        id: customer.id,
+        return {
+          id:
+            customer.id,
 
-        name:
-          customer.name ||
-          "Cliente sem nome",
+          name:
+            customer.name ||
+            "Cliente sem nome",
 
-        email:
-          customer.email ?? null,
+          email:
+            customer.email ??
+            null,
 
-        phone:
-          customer.phone ?? null,
+          phone:
+            customer.phone ??
+            null,
 
-        document:
-          customer.document ?? null,
+          document:
+            customer.document ??
+            null,
 
-        addressId,
-        customerAddressId: addressId,
+          addressId,
 
-        addressLabel:
-          addressLabel(mainAddress),
+          customerAddressId:
+            addressId,
 
-        hasValidAddress:
-          Boolean(addressId),
-      };
-    })
-    .sort((first, second) =>
-      first.name.localeCompare(
-        second.name,
-        "pt-BR",
-      ),
+          addressLabel:
+            addressLabel(
+              mainAddress,
+            ),
+
+          hasValidAddress:
+            Boolean(
+              addressId,
+            ),
+        };
+      },
+    )
+    .sort(
+      (
+        first,
+        second,
+      ) =>
+        first.name.localeCompare(
+          second.name,
+          "pt-BR",
+        ),
     );
 }
 
 export async function listWorkOrderTechnicians(): Promise<
   WorkOrderTechnicianOption[]
 > {
-  const companyId = await getCompanyId();
+  const companyId =
+    await getCompanyId();
 
-  const data = await mappaFetch<unknown>(
-    `/api/companies/${companyId}/employees`,
-  );
+  const data =
+    await mappaFetch<unknown>(
+      `/api/companies/${companyId}/employees`,
+    );
 
-  return extractItems<ApiEmployee>(data)
+  return extractItems<ApiEmployee>(
+    data,
+  )
     .filter(
       (employee) =>
-        String(employee.status || "")
-          .toUpperCase() !== "INACTIVE",
+        String(
+          employee.status ||
+          "",
+        ).toUpperCase() !==
+        "INACTIVE",
     )
-    .map((employee) => ({
-      id:
-        employee.userId ||
-        employee.id,
+    .map(
+      (employee) => ({
+        id:
+          employee.userId ||
+          employee.id,
 
-      name:
-        employee.name ||
-        employee.email ||
-        "Técnico sem nome",
+        name:
+          employee.name ||
+          employee.email ||
+          "Técnico sem nome",
 
-      email:
-        employee.email ?? null,
+        email:
+          employee.email ??
+          null,
 
-      phone:
-        employee.phone ?? null,
-    }))
-    .sort((first, second) =>
-      first.name.localeCompare(
-        second.name,
-        "pt-BR",
-      ),
+        phone:
+          employee.phone ??
+          null,
+      }),
+    )
+    .sort(
+      (
+        first,
+        second,
+      ) =>
+        first.name.localeCompare(
+          second.name,
+          "pt-BR",
+        ),
     );
 }
 
 export async function listWorkOrderChecklistTemplates(): Promise<
   WorkOrderChecklistTemplateOption[]
 > {
-  const companyId = await getCompanyId();
+  const companyId =
+    await getCompanyId();
 
-  const data = await mappaFetch<unknown>(
-    `/api/companies/${companyId}/checklist-templates?activeOnly=true`,
-  );
+  const data =
+    await mappaFetch<unknown>(
+      `/api/companies/${companyId}/checklist-templates?activeOnly=true`,
+    );
 
   return extractItems<ApiChecklistTemplate>(
     data,
   )
-    .map((template) => ({
-      id: template.id,
+    .map(
+      (template) => ({
+        id:
+          template.id,
 
-      name:
-        template.name ||
-        "Checklist sem nome",
+        name:
+          template.name ||
+          "Checklist sem nome",
 
-      description:
-        template.description ?? null,
+        description:
+          template.description ??
+          null,
 
-      isActive:
-        template.isActive !== false,
+        isActive:
+          template.isActive !==
+          false,
 
-      itemsCount:
-        Array.isArray(template.items)
-          ? template.items.length
-          : 0,
-    }))
+        itemsCount:
+          Array.isArray(
+            template.items,
+          )
+            ? template.items.length
+            : 0,
+      }),
+    )
     .filter(
       (template) =>
         template.isActive,
     )
-    .sort((first, second) =>
-      first.name.localeCompare(
-        second.name,
-        "pt-BR",
-      ),
+    .sort(
+      (
+        first,
+        second,
+      ) =>
+        first.name.localeCompare(
+          second.name,
+          "pt-BR",
+        ),
     );
 }
 
 export async function listWorkOrderMeasurementTemplates(): Promise<
   WorkOrderMeasurementTemplateOption[]
 > {
-  const companyId = await getCompanyId();
+  const companyId =
+    await getCompanyId();
 
-  const data = await mappaFetch<unknown>(
-    `/api/companies/${companyId}/measurement-templates?activeOnly=true`,
-  );
+  const data =
+    await mappaFetch<unknown>(
+      `/api/companies/${companyId}/measurement-templates?activeOnly=true`,
+    );
 
   return extractItems<ApiMeasurementTemplate>(
     data,
   )
-    .map((template) => ({
-      id: template.id,
+    .map(
+      (template) => ({
+        id:
+          template.id,
 
-      name:
-        template.name ||
-        "Template sem nome",
+        name:
+          template.name ||
+          "Template sem nome",
 
-      description:
-        template.description ?? null,
+        description:
+          template.description ??
+          null,
 
-      isActive:
-        template.isActive !== false,
+        isActive:
+          template.isActive !==
+          false,
 
-      fieldsCount:
-        Array.isArray(template.fields)
-          ? template.fields.length
-          : 0,
-    }))
+        fieldsCount:
+          Array.isArray(
+            template.fields,
+          )
+            ? template.fields.length
+            : 0,
+      }),
+    )
     .filter(
       (template) =>
         template.isActive,
     )
-    .sort((first, second) =>
-      first.name.localeCompare(
-        second.name,
-        "pt-BR",
-      ),
+    .sort(
+      (
+        first,
+        second,
+      ) =>
+        first.name.localeCompare(
+          second.name,
+          "pt-BR",
+        ),
     );
 }
 
 export async function createAdminWorkOrder(
   input: CreateAdminWorkOrderInput,
 ) {
-  const companyId = await getCompanyId();
+  const companyId =
+    await getCompanyId();
 
   if (!input.customerId) {
     throw new Error(
@@ -879,189 +1009,199 @@ export async function createAdminWorkOrder(
     );
   }
 
-  if (!input.customerAddressId) {
+  if (
+    !input.customerAddressId
+  ) {
     throw new Error(
       "O cliente selecionado não possui endereço principal válido.",
     );
   }
 
-  if (!input.title.trim()) {
+  if (
+    !input.title.trim()
+  ) {
     throw new Error(
       "Informe o título da ordem de serviço.",
     );
   }
 
-  if (!input.scheduledDate) {
+  if (
+    !input.scheduledDate
+  ) {
     throw new Error(
       "Informe a data agendada.",
     );
   }
 
   if (
-    !Array.isArray(input.items) ||
-    input.items.length === 0
+    !Array.isArray(
+      input.items,
+    ) ||
+    input.items.length ===
+      0
   ) {
     throw new Error(
       "Adicione pelo menos um item à ordem de serviço.",
     );
   }
 
-  const items = input.items.map(
-    (item, index) => {
-      const description =
-        item.description.trim();
-      const quantity = Number(
-        item.quantity,
-      );
-      const unitPrice = Number(
-        item.unitPrice,
-      );
+  const items =
+    input.items.map(
+      (
+        item,
+        index,
+      ) => {
+        const description =
+          item.description.trim();
 
-      if (!description) {
-        throw new Error(
-          `Informe a descrição do item ${index + 1}.`,
-        );
-      }
+        const quantity =
+          Number(
+            item.quantity,
+          );
 
-      if (
-        !Number.isFinite(quantity) ||
-        quantity <= 0
-      ) {
-        throw new Error(
-          `Informe uma quantidade válida para o item ${index + 1}.`,
-        );
-      }
+        const unitPrice =
+          Number(
+            item.unitPrice,
+          );
 
-      if (
-        !Number.isFinite(unitPrice) ||
-        unitPrice < 0
-      ) {
-        throw new Error(
-          `Informe um valor válido para o item ${index + 1}.`,
-        );
-      }
+        if (
+          !description
+        ) {
+          throw new Error(
+            `Informe a descrição do item ${
+              index + 1
+            }.`,
+          );
+        }
 
-      return {
-        type: item.type,
-        description,
-        quantity,
-        unitPrice,
-      };
-    },
-  );
+        if (
+          !Number.isFinite(
+            quantity,
+          ) ||
+          quantity <= 0
+        ) {
+          throw new Error(
+            `Informe uma quantidade válida para o item ${
+              index + 1
+            }.`,
+          );
+        }
 
-  const totalAmount = items.reduce(
-    (total, item) =>
-      total + item.quantity * item.unitPrice,
-    0,
-  );
+        if (
+          !Number.isFinite(
+            unitPrice,
+          ) ||
+          unitPrice <= 0
+        ) {
+          throw new Error(
+            `Informe um valor maior que zero para o item ${
+              index + 1
+            }.`,
+          );
+        }
 
-  if (totalAmount <= 0) {
+        return {
+          type:
+            item.type,
+
+          description,
+
+          quantity,
+
+          unitPrice,
+        };
+      },
+    );
+
+  const totalAmount =
+    items.reduce(
+      (
+        total,
+        item,
+      ) =>
+        total +
+        item.quantity *
+          item.unitPrice,
+      0,
+    );
+
+  if (
+    totalAmount <= 0
+  ) {
     throw new Error(
       "O valor total deve ser maior que zero.",
     );
   }
 
   const payload = {
-    customerId: input.customerId,
+    customerId:
+      input.customerId,
 
     customerAddressId:
       input.customerAddressId,
 
-    title: input.title.trim(),
+    title:
+      input.title.trim(),
 
     description:
-      sanitizeOptionalText(input.description) ||
-      "",
+      sanitizeOptionalText(
+        input.description,
+      ) || "",
 
     scheduledDate:
-      toApiDate(input.scheduledDate),
+      toApiDate(
+        input.scheduledDate,
+      ),
 
-    notes: sanitizeOptionalText(input.notes),
+    notes:
+      sanitizeOptionalText(
+        input.notes,
+      ),
 
     items,
 
-    checklistTemplateId: null,
+    checklistTemplateId:
+      null,
 
-    measurementTemplateId: null,
+    measurementTemplateId:
+      null,
   };
 
   const created =
     await mappaFetch<ApiServiceOrder>(
       `/api/companies/${companyId}/service-orders/admin`,
       {
-        method: "POST",
-        body: JSON.stringify(payload),
-      },
-    );
+        method:
+          "POST",
 
-  revalidatePath("/workorders");
-  revalidatePath("/workorders/new");
-  revalidatePath(
-    "/workorders/customer-approval",
-  );
-  revalidatePath("/routes/builder");
-  revalidatePath("/routes/dashboard");
-
-  return normalizeWorkOrder(created);
-}
-
-export async function priceWorkOrder(
-  input: PriceWorkOrderInput,
-) {
-  const companyId = await getCompanyId();
-
-  if (!input.serviceOrderId) {
-    throw new Error(
-      "ID da ordem de serviço não informado.",
-    );
-  }
-
-  if (!input.scheduledDate) {
-    throw new Error(
-      "Informe a data prevista para o serviço.",
-    );
-  }
-
-  const totalAmount = Number(input.totalAmount);
-
-  if (
-    !Number.isFinite(totalAmount) ||
-    totalAmount <= 0
-  ) {
-    throw new Error(
-      "O valor do orçamento deve ser maior que zero.",
-    );
-  }
-
-  const updated =
-    await mappaFetch<ApiServiceOrder>(
-      `/api/companies/${companyId}/service-orders/${input.serviceOrderId}/pricing`,
-      {
-        method: "PATCH",
-        body: JSON.stringify({
-          scheduledDate: toApiDate(
-            input.scheduledDate,
+        body:
+          JSON.stringify(
+            payload,
           ),
-          notes:
-            input.notes?.trim() || null,
-          items: [
-            {
-              type: "SERVICE",
-              description: "Orçamento do serviço",
-              quantity: 1,
-              unitPrice: totalAmount,
-            },
-          ],
-        }),
       },
     );
 
-  revalidatePath("/workorders");
-  revalidatePath("/workorders/pricing");
+  revalidatePath(
+    "/workorders",
+  );
+
+  revalidatePath(
+    "/workorders/new",
+  );
+
   revalidatePath(
     "/workorders/customer-approval",
   );
 
-  return normalizeWorkOrder(updated);
+  revalidatePath(
+    "/routes/builder",
+  );
+
+  revalidatePath(
+    "/routes/dashboard",
+  );
+
+  return normalizeWorkOrder(
+    created,
+  );
 }

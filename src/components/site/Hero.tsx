@@ -4,7 +4,7 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, Check, LogIn } from "lucide-react";
+import { ArrowRight, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function Hero() {

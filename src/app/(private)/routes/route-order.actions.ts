@@ -5,6 +5,11 @@ import {
 } from "next/cache";
 
 import {
+  getErrorMessage,
+  isMappaApiError,
+} from "@/lib/mappa/errors";
+
+import {
   fetchRouteOrder,
   updateRouteOrder,
 } from "./route-order.api";
@@ -19,16 +24,32 @@ export type RouteOrderActionResult = {
   error?: string;
 };
 
+function failure(
+  message: string,
+): RouteOrderActionResult {
+  return {
+    ok: false,
+    serviceOrders: [],
+    error: message,
+  };
+}
+
 export async function getRouteOrder(
   routeId: string,
 ): Promise<RouteOrderActionResult> {
-  try {
-    if (!routeId) {
-      throw new Error(
-        "Rota não informada.",
-      );
-    }
+  /*
+   * Validação esperada da action.
+   *
+   * Mantemos o contrato { ok: false }
+   * sem transformar a validação em exception.
+   */
+  if (!routeId) {
+    return failure(
+      "Rota não informada.",
+    );
+  }
 
+  try {
     const response =
       await fetchRouteOrder(
         routeId,
@@ -41,19 +62,39 @@ export async function getRouteOrder(
         [],
     };
   } catch (error) {
+    /*
+     * Somente erros conhecidos da API
+     * viram um resultado amigável.
+     *
+     * Bugs, redirects do Next e erros
+     * inesperados continuam subindo.
+     */
+    if (
+      !isMappaApiError(
+        error,
+      )
+    ) {
+      throw error;
+    }
+
     console.error(
       "[getRouteOrder]",
-      error,
+      {
+        code: error.code,
+        status: error.status,
+        retryable:
+          error.retryable,
+        message:
+          error.message,
+      },
     );
 
-    return {
-      ok: false,
-      serviceOrders: [],
-      error:
-        error instanceof Error
-          ? error.message
-          : "Não foi possível carregar a ordem da rota.",
-    };
+    return failure(
+      getErrorMessage(
+        error,
+        "Não foi possível carregar a ordem da rota.",
+      ),
+    );
   }
 }
 
@@ -61,31 +102,30 @@ export async function saveRouteOrder(
   routeId: string,
   serviceOrderIds: string[],
 ): Promise<RouteOrderActionResult> {
+  if (!routeId) {
+    return failure(
+      "Rota não informada.",
+    );
+  }
+
+  const ids = Array.from(
+    new Set(
+      serviceOrderIds.filter(
+        Boolean,
+      ),
+    ),
+  );
+
+  if (
+    ids.length !==
+    serviceOrderIds.length
+  ) {
+    return failure(
+      "A rota possui uma OS duplicada.",
+    );
+  }
+
   try {
-    if (!routeId) {
-      throw new Error(
-        "Rota não informada.",
-      );
-    }
-
-    const ids =
-      Array.from(
-        new Set(
-          serviceOrderIds.filter(
-            Boolean,
-          ),
-        ),
-      );
-
-    if (
-      ids.length !==
-      serviceOrderIds.length
-    ) {
-      throw new Error(
-        "A rota possui uma OS duplicada.",
-      );
-    }
-
     const response =
       await updateRouteOrder(
         routeId,
@@ -112,18 +152,31 @@ export async function saveRouteOrder(
         [],
     };
   } catch (error) {
+    if (
+      !isMappaApiError(
+        error,
+      )
+    ) {
+      throw error;
+    }
+
     console.error(
       "[saveRouteOrder]",
-      error,
+      {
+        code: error.code,
+        status: error.status,
+        retryable:
+          error.retryable,
+        message:
+          error.message,
+      },
     );
 
-    return {
-      ok: false,
-      serviceOrders: [],
-      error:
-        error instanceof Error
-          ? error.message
-          : "Não foi possível salvar a ordem da rota.",
-    };
+    return failure(
+      getErrorMessage(
+        error,
+        "Não foi possível salvar a ordem da rota.",
+      ),
+    );
   }
 }

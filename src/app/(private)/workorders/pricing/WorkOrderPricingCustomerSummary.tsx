@@ -1,41 +1,38 @@
-"use client";
+import type {
+  WorkOrderListItem,
+} from "../actions";
 
 import {
-  BadgeCheck,
-  BadgeX,
-} from "lucide-react";
+  getInitials,
+} from "./work-order-pricing.helpers";
 
-import type { Client } from "@/app/(private)/clients/actions";
+type WorkOrderPricingCustomerSummaryProps = {
+  order: WorkOrderListItem;
+};
 
-import { getInitials } from "./client-form.utils";
-
-export default function ClientIdentityCard({
-  client,
-}: {
-  client: Client;
-}) {
+export default function WorkOrderPricingCustomerSummary({
+  order,
+}: WorkOrderPricingCustomerSummaryProps) {
   return (
     <section className="overflow-hidden rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-white">
       <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 flex-1 items-center gap-4">
           <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-sky-600 text-xl font-bold text-white shadow-sm">
-            {getInitials(client.name)}
+            {getInitials(
+              order.customerName,
+            )}
           </div>
 
           <div className="min-w-0 flex-1">
             <h3 className="break-words text-xl font-bold leading-tight text-slate-950 sm:text-2xl">
-              {client.name || "Cliente sem nome"}
+              {
+                order.customerName
+              }
             </h3>
 
             <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-500">
-              <span className="inline-flex items-center gap-1.5">
-                {client.active ? (
-                  <BadgeCheck className="h-4 w-4 shrink-0 text-emerald-600" />
-                ) : (
-                  <BadgeX className="h-4 w-4 shrink-0 text-amber-600" />
-                )}
-
-                {client.active ? "Cliente ativo" : "Cliente inativo"}
+              <span className="truncate">
+                {order.title}
               </span>
             </div>
           </div>

@@ -47,6 +47,7 @@ import StepFormSection from "@/components/form-layout/StepFormSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { getErrorMessage } from "@/lib/mappa/errors";
 
 type ServiceType =
   | "POOL_CLEANING"
@@ -647,9 +648,10 @@ export default function NewWorkOrderClient({
         router.refresh();
       } catch (error) {
         toast.error(
-          error instanceof Error
-            ? error.message
-            : "Não foi possível criar a ordem de serviço.",
+          getErrorMessage(
+            error,
+            "Não foi possível criar a ordem de serviço.",
+          ),
         );
       }
     });
@@ -684,15 +686,20 @@ export default function NewWorkOrderClient({
       >
         <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
           {SERVICE_TYPES.map((option) => {
-            const selected = option.value === serviceType;
-            const Icon = option.icon;
+            const selected =
+              option.value === serviceType;
+
+            const Icon =
+              option.icon;
 
             return (
               <button
                 key={option.value}
                 type="button"
                 onClick={() =>
-                  handleServiceTypeChange(option.value)
+                  handleServiceTypeChange(
+                    option.value,
+                  )
                 }
                 aria-pressed={selected}
                 disabled={pending}
@@ -767,14 +774,17 @@ export default function NewWorkOrderClient({
             label="Cliente/Piscina"
             required
             error={
-              customerId && !isCustomerValid
+              customerId &&
+              !isCustomerValid
                 ? "O cliente selecionado não possui endereço principal válido."
                 : undefined
             }
           >
             <Popover
               open={customerPickerOpen}
-              onOpenChange={setCustomerPickerOpen}
+              onOpenChange={
+                setCustomerPickerOpen
+              }
             >
               <PopoverTrigger asChild>
                 <Button
@@ -782,9 +792,12 @@ export default function NewWorkOrderClient({
                   type="button"
                   variant="outline"
                   role="combobox"
-                  aria-expanded={customerPickerOpen}
+                  aria-expanded={
+                    customerPickerOpen
+                  }
                   aria-invalid={
-                    Boolean(customerId) && !isCustomerValid
+                    Boolean(customerId) &&
+                    !isCustomerValid
                   }
                   disabled={pending}
                   className="h-11 w-full justify-between rounded-xl border-slate-300 bg-white px-3 text-left font-normal text-slate-800 hover:bg-white"
@@ -822,59 +835,77 @@ export default function NewWorkOrderClient({
                     </CommandEmpty>
 
                     <CommandGroup>
-                      {customers.map((customer) => {
-                        const selected =
-                          customer.id === customerId;
+                      {customers.map(
+                        (customer) => {
+                          const selected =
+                            customer.id ===
+                            customerId;
 
-                        return (
-                          <CommandItem
-                            key={customer.id}
-                            value={[
-                              customer.name,
-                              customer.addressLabel,
-                            ]
-                              .filter(Boolean)
-                              .join(" ")}
-                            disabled={!customer.hasValidAddress}
-                            onSelect={() => {
-                              if (!customer.hasValidAddress) {
-                                return;
+                          return (
+                            <CommandItem
+                              key={
+                                customer.id
                               }
+                              value={[
+                                customer.name,
+                                customer.addressLabel,
+                              ]
+                                .filter(
+                                  Boolean,
+                                )
+                                .join(" ")}
+                              disabled={
+                                !customer.hasValidAddress
+                              }
+                              onSelect={() => {
+                                if (
+                                  !customer.hasValidAddress
+                                ) {
+                                  return;
+                                }
 
-                              setCustomerId(customer.id);
-                              setCustomerPickerOpen(false);
-                            }}
-                            className="items-start gap-3 py-3"
-                          >
-                            <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-sky-50 text-sky-700">
-                              <UserRound className="h-4 w-4" />
-                            </div>
+                                setCustomerId(
+                                  customer.id,
+                                );
 
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className="truncate text-sm font-medium text-slate-900">
-                                  {customer.name}
-                                </span>
+                                setCustomerPickerOpen(
+                                  false,
+                                );
+                              }}
+                              className="items-start gap-3 py-3"
+                            >
+                              <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-sky-50 text-sky-700">
+                                <UserRound className="h-4 w-4" />
+                              </div>
 
-                                {!customer.hasValidAddress && (
-                                  <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                                    Sem endereço
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="truncate text-sm font-medium text-slate-900">
+                                    {
+                                      customer.name
+                                    }
                                   </span>
-                                )}
+
+                                  {!customer.hasValidAddress && (
+                                    <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                                      Sem endereço
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="mt-0.5 truncate text-xs text-slate-500">
+                                  {customer.addressLabel ||
+                                    "Endereço principal não informado"}
+                                </div>
                               </div>
 
-                              <div className="mt-0.5 truncate text-xs text-slate-500">
-                                {customer.addressLabel ||
-                                  "Endereço principal não informado"}
-                              </div>
-                            </div>
-
-                            {selected && (
-                              <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-sky-600" />
-                            )}
-                          </CommandItem>
-                        );
-                      })}
+                              {selected && (
+                                <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-sky-600" />
+                              )}
+                            </CommandItem>
+                          );
+                        },
+                      )}
                     </CommandGroup>
                   </CommandList>
                 </Command>
@@ -927,449 +958,610 @@ export default function NewWorkOrderClient({
         )}
       </StepFormSection>
 
-<StepFormSection
-  step={3}
-  icon={CircleDollarSign}
-  title="Itens e valores"
-  description="Informe o valor da mão de obra e adicione produtos, materiais ou serviços complementares."
->
-  {/* Desktop */}
-  <div className="hidden overflow-hidden rounded-xl border border-slate-200 lg:block">
-    <table className="w-full table-fixed text-sm">
-      <colgroup>
-        <col className="w-[17%]" />
-        <col className="w-[31%]" />
-        <col className="w-[11%]" />
-        <col className="w-[17%]" />
-        <col className="w-[16%]" />
-        <col className="w-[8%]" />
-      </colgroup>
-
-      <thead className="bg-slate-50">
-        <tr>
-          <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            Tipo
-          </th>
-
-          <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            Descrição
-          </th>
-
-          <th className="px-3 py-2.5 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            Qtd.
-          </th>
-
-          <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            Valor unitário
-          </th>
-
-          <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            Subtotal
-          </th>
-
-          <th className="px-3 py-2.5 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            Ação
-          </th>
-        </tr>
-      </thead>
-
-      <tbody>
-        {items.map((item, index) => (
-          <tr
-            key={item.id}
-            className={[
-              "border-t border-slate-200",
-              item.locked
-                ? "bg-sky-50/40"
-                : "bg-white",
-            ].join(" ")}
-          >
-            <td className="px-3 py-2">
-              <select
-                id={`item-type-${item.id}`}
-                value={item.type}
-                disabled={item.locked || pending}
-                onChange={(event) =>
-                  updateItem(item.id, {
-                    type: event.target
-                      .value as ChargeItemType,
-                  })
-                }
-                className="h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100 disabled:cursor-not-allowed disabled:border-sky-100 disabled:bg-sky-50 disabled:font-medium disabled:text-sky-800"
-              >
-                <option value="LABOR">
-                  Mão de obra
-                </option>
-
-                <option value="PRODUCT">
-                  Produto
-                </option>
-
-                <option value="MATERIAL">
-                  Material
-                </option>
-
-                <option value="SERVICE">
-                  Serviço adicional
-                </option>
-              </select>
-            </td>
-
-            <td className="px-3 py-2">
-              <div className="relative">
-                <Input
-                  id={`item-description-${item.id}`}
-                  value={item.description}
-                  disabled={item.locked || pending}
-                  onChange={(event) =>
-                    updateItem(item.id, {
-                      description: event.target.value,
-                    })
-                  }
-                  placeholder="Ex.: Areia para filtro"
-                  className="h-9 rounded-lg text-xs disabled:bg-sky-50 disabled:font-medium disabled:text-sky-800"
-                />
-
-                {item.locked && (
-                  <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded-full border border-sky-100 bg-white px-2 py-0.5 text-[9px] font-semibold text-sky-700">
-                    Obrigatório
-                  </span>
-                )}
-              </div>
-            </td>
-
-            <td className="px-3 py-2">
-              <Input
-                id={`item-quantity-${item.id}`}
-                type="number"
-                min={1}
-                step={1}
-                value={item.quantity}
-                disabled={item.locked || pending}
-                onChange={(event) =>
-                  updateItem(item.id, {
-                    quantity: Math.max(
-                      1,
-                      Number(event.target.value || 1),
-                    ),
-                  })
-                }
-                className="h-9 rounded-lg px-2 text-center text-xs disabled:bg-sky-50 disabled:text-sky-800"
-              />
-            </td>
-
-            <td className="px-3 py-2">
-              <div className="relative">
-                <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">
-                  R$
-                </span>
-
-                <Input
-                  id={`item-price-${item.id}`}
-                  inputMode="numeric"
-                  value={item.unitPrice}
-                  onChange={(event) =>
-                    updateItem(item.id, {
-                      unitPrice: formatMoneyInput(
-                        event.target.value,
-                      ),
-                    })
-                  }
-                  placeholder="0,00"
-                  disabled={pending}
-                  className={[
-                    "h-9 rounded-lg pl-8 text-xs",
-                    item.unitPrice.trim() &&
-                    parseMoney(item.unitPrice) <= 0
-                      ? "border-red-300 focus-visible:ring-red-200"
-                      : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                />
-              </div>
-            </td>
-
-            <td className="px-3 py-2 text-right">
-              <div className="text-sm font-semibold text-slate-900">
-                {formatCurrency(itemTotal(item))}
-              </div>
-
-              <div className="text-[9px] text-slate-400">
-                Item {index + 1}
-              </div>
-            </td>
-
-            <td className="px-3 py-2 text-center">
-              {item.locked ? (
-                <div
-                  className="mx-auto grid h-8 w-8 place-items-center rounded-lg bg-sky-50 text-sky-500"
-                  title="A mão de obra é obrigatória"
-                >
-                  <Check className="h-3.5 w-3.5" />
-                </div>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8 w-8 rounded-lg border-red-100 p-0 text-red-500 hover:border-red-200 hover:bg-red-50 hover:text-red-700"
-                  onClick={() => removeItem(item.id)}
-                  disabled={pending}
-                  aria-label="Excluir item"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              )}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-
-    <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-3 py-2.5">
-      <Button
-        type="button"
-        variant="outline"
-        onClick={addItem}
-        disabled={pending}
-        className="h-9 rounded-lg border-sky-200 bg-white px-3 text-xs text-sky-700 hover:bg-sky-50 hover:text-sky-800"
+      <StepFormSection
+        step={3}
+        icon={CircleDollarSign}
+        title="Itens e valores"
+        description="Informe o valor da mão de obra e adicione produtos, materiais ou serviços complementares."
       >
-        <Plus className="mr-1.5 h-3.5 w-3.5" />
+        {/* Desktop */}
+        <div className="hidden overflow-hidden rounded-xl border border-slate-200 lg:block">
+          <table className="w-full table-fixed text-sm">
+            <colgroup>
+              <col className="w-[17%]" />
+              <col className="w-[31%]" />
+              <col className="w-[11%]" />
+              <col className="w-[17%]" />
+              <col className="w-[16%]" />
+              <col className="w-[8%]" />
+            </colgroup>
 
-        Adicionar item
-      </Button>
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Tipo
+                </th>
 
-      <div className="flex items-center gap-4">
-        <div className="text-right">
-          <div className="text-[11px] text-slate-500">
-            Mão de obra + {additionalItemsCount}{" "}
-            {additionalItemsCount === 1
-              ? "adicional"
-              : "adicionais"}
-          </div>
+                <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Descrição
+                </th>
 
-          <div className="text-xs font-semibold text-slate-700">
-            {items.length}{" "}
-            {items.length === 1
-              ? "item cadastrado"
-              : "itens cadastrados"}
-          </div>
-        </div>
+                <th className="px-3 py-2.5 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Qtd.
+                </th>
 
-        <div className="h-8 w-px bg-slate-200" />
+                <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Valor unitário
+                </th>
 
-        <div className="text-right">
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-            Total da OS
-          </div>
+                <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Subtotal
+                </th>
 
-          <div className="text-base font-bold text-sky-700">
-            {formatCurrency(totalAmount)}
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+                <th className="px-3 py-2.5 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Ação
+                </th>
+              </tr>
+            </thead>
 
-  {/* Mobile e tablet */}
-  <div className="space-y-3 lg:hidden">
-    {items.map((item, index) => (
-      <div
-        key={item.id}
-        className={[
-          "rounded-xl border p-3",
-          item.locked
-            ? "border-sky-200 bg-sky-50/50"
-            : "border-slate-200 bg-white",
-        ].join(" ")}
-      >
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-              Item {index + 1}
-            </div>
+            <tbody>
+              {items.map(
+                (item, index) => (
+                  <tr
+                    key={item.id}
+                    className={[
+                      "border-t border-slate-200",
+                      item.locked
+                        ? "bg-sky-50/40"
+                        : "bg-white",
+                    ].join(" ")}
+                  >
+                    <td className="px-3 py-2">
+                      <select
+                        id={`item-type-${item.id}`}
+                        value={
+                          item.type
+                        }
+                        disabled={
+                          item.locked ||
+                          pending
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          updateItem(
+                            item.id,
+                            {
+                              type: event
+                                .target
+                                .value as ChargeItemType,
+                            },
+                          )
+                        }
+                        className="h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100 disabled:cursor-not-allowed disabled:border-sky-100 disabled:bg-sky-50 disabled:font-medium disabled:text-sky-800"
+                      >
+                        <option value="LABOR">
+                          Mão de obra
+                        </option>
 
-            <div className="mt-0.5 flex items-center gap-2 text-xs font-semibold text-slate-900">
-              {ITEM_TYPE_LABELS[item.type]}
+                        <option value="PRODUCT">
+                          Produto
+                        </option>
 
-              {item.locked && (
-                <span className="rounded-full border border-sky-200 bg-white px-2 py-0.5 text-[9px] font-semibold text-sky-700">
-                  Obrigatório
-                </span>
+                        <option value="MATERIAL">
+                          Material
+                        </option>
+
+                        <option value="SERVICE">
+                          Serviço adicional
+                        </option>
+                      </select>
+                    </td>
+
+                    <td className="px-3 py-2">
+                      <div className="relative">
+                        <Input
+                          id={`item-description-${item.id}`}
+                          value={
+                            item.description
+                          }
+                          disabled={
+                            item.locked ||
+                            pending
+                          }
+                          onChange={(
+                            event,
+                          ) =>
+                            updateItem(
+                              item.id,
+                              {
+                                description:
+                                  event
+                                    .target
+                                    .value,
+                              },
+                            )
+                          }
+                          placeholder="Ex.: Areia para filtro"
+                          className="h-9 rounded-lg text-xs disabled:bg-sky-50 disabled:font-medium disabled:text-sky-800"
+                        />
+
+                        {item.locked && (
+                          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded-full border border-sky-100 bg-white px-2 py-0.5 text-[9px] font-semibold text-sky-700">
+                            Obrigatório
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
+                    <td className="px-3 py-2">
+                      <Input
+                        id={`item-quantity-${item.id}`}
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={
+                          item.quantity
+                        }
+                        disabled={
+                          item.locked ||
+                          pending
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          updateItem(
+                            item.id,
+                            {
+                              quantity:
+                                Math.max(
+                                  1,
+                                  Number(
+                                    event
+                                      .target
+                                      .value ||
+                                      1,
+                                  ),
+                                ),
+                            },
+                          )
+                        }
+                        className="h-9 rounded-lg px-2 text-center text-xs disabled:bg-sky-50 disabled:text-sky-800"
+                      />
+                    </td>
+
+                    <td className="px-3 py-2">
+                      <div className="relative">
+                        <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">
+                          R$
+                        </span>
+
+                        <Input
+                          id={`item-price-${item.id}`}
+                          inputMode="numeric"
+                          value={
+                            item.unitPrice
+                          }
+                          onChange={(
+                            event,
+                          ) =>
+                            updateItem(
+                              item.id,
+                              {
+                                unitPrice:
+                                  formatMoneyInput(
+                                    event
+                                      .target
+                                      .value,
+                                  ),
+                              },
+                            )
+                          }
+                          placeholder="0,00"
+                          disabled={
+                            pending
+                          }
+                          className={[
+                            "h-9 rounded-lg pl-8 text-xs",
+                            item.unitPrice.trim() &&
+                            parseMoney(
+                              item.unitPrice,
+                            ) <= 0
+                              ? "border-red-300 focus-visible:ring-red-200"
+                              : "",
+                          ]
+                            .filter(
+                              Boolean,
+                            )
+                            .join(
+                              " ",
+                            )}
+                        />
+                      </div>
+                    </td>
+
+                    <td className="px-3 py-2 text-right">
+                      <div className="text-sm font-semibold text-slate-900">
+                        {formatCurrency(
+                          itemTotal(
+                            item,
+                          ),
+                        )}
+                      </div>
+
+                      <div className="text-[9px] text-slate-400">
+                        Item{" "}
+                        {index + 1}
+                      </div>
+                    </td>
+
+                    <td className="px-3 py-2 text-center">
+                      {item.locked ? (
+                        <div
+                          className="mx-auto grid h-8 w-8 place-items-center rounded-lg bg-sky-50 text-sky-500"
+                          title="A mão de obra é obrigatória"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </div>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 rounded-lg border-red-100 p-0 text-red-500 hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+                          onClick={() =>
+                            removeItem(
+                              item.id,
+                            )
+                          }
+                          disabled={
+                            pending
+                          }
+                          aria-label="Excluir item"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ),
               )}
-            </div>
-          </div>
+            </tbody>
+          </table>
 
-          {!item.locked && (
+          <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-3 py-2.5">
             <Button
               type="button"
               variant="outline"
-              size="sm"
-              className="h-8 w-8 rounded-lg border-red-100 p-0 text-red-500"
-              onClick={() => removeItem(item.id)}
-              disabled={pending}
-              aria-label="Excluir item"
+              onClick={
+                addItem
+              }
+              disabled={
+                pending
+              }
+              className="h-9 rounded-lg border-sky-200 bg-white px-3 text-xs text-sky-700 hover:bg-sky-50 hover:text-sky-800"
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+
+              Adicionar item
             </Button>
-          )}
-        </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <FormField
-            htmlFor={`mobile-item-type-${item.id}`}
-            label="Tipo"
-          >
-            <select
-              id={`mobile-item-type-${item.id}`}
-              value={item.type}
-              disabled={item.locked || pending}
-              onChange={(event) =>
-                updateItem(item.id, {
-                  type: event.target
-                    .value as ChargeItemType,
-                })
-              }
-              className="h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs disabled:bg-sky-50"
-            >
-              <option value="LABOR">
-                Mão de obra
-              </option>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <div className="text-[11px] text-slate-500">
+                  Mão de obra +{" "}
+                  {
+                    additionalItemsCount
+                  }{" "}
+                  {additionalItemsCount ===
+                  1
+                    ? "adicional"
+                    : "adicionais"}
+                </div>
 
-              <option value="PRODUCT">
-                Produto
-              </option>
+                <div className="text-xs font-semibold text-slate-700">
+                  {items.length}{" "}
+                  {items.length ===
+                  1
+                    ? "item cadastrado"
+                    : "itens cadastrados"}
+                </div>
+              </div>
 
-              <option value="MATERIAL">
-                Material
-              </option>
+              <div className="h-8 w-px bg-slate-200" />
 
-              <option value="SERVICE">
-                Serviço adicional
-              </option>
-            </select>
-          </FormField>
+              <div className="text-right">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  Total da OS
+                </div>
 
-          <FormField
-            htmlFor={`mobile-item-description-${item.id}`}
-            label="Descrição"
-            required
-          >
-            <Input
-              id={`mobile-item-description-${item.id}`}
-              value={item.description}
-              disabled={item.locked || pending}
-              onChange={(event) =>
-                updateItem(item.id, {
-                  description: event.target.value,
-                })
-              }
-              placeholder="Ex.: Areia para filtro"
-              className="h-9 rounded-lg text-xs"
-            />
-          </FormField>
-
-          <FormField
-            htmlFor={`mobile-item-quantity-${item.id}`}
-            label="Quantidade"
-            required
-          >
-            <Input
-              id={`mobile-item-quantity-${item.id}`}
-              type="number"
-              min={1}
-              step={1}
-              value={item.quantity}
-              disabled={item.locked || pending}
-              onChange={(event) =>
-                updateItem(item.id, {
-                  quantity: Math.max(
-                    1,
-                    Number(event.target.value || 1),
-                  ),
-                })
-              }
-              className="h-9 rounded-lg text-xs"
-            />
-          </FormField>
-
-          <FormField
-            htmlFor={`mobile-item-price-${item.id}`}
-            label="Valor unitário"
-            required
-          >
-            <div className="relative">
-              <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400">
-                R$
-              </span>
-
-              <Input
-                id={`mobile-item-price-${item.id}`}
-                inputMode="numeric"
-                value={item.unitPrice}
-                onChange={(event) =>
-                  updateItem(item.id, {
-                    unitPrice: formatMoneyInput(
-                      event.target.value,
-                    ),
-                  })
-                }
-                placeholder="0,00"
-                disabled={pending}
-                className="h-9 rounded-lg pl-8 text-xs"
-              />
+                <div className="text-base font-bold text-sky-700">
+                  {formatCurrency(
+                    totalAmount,
+                  )}
+                </div>
+              </div>
             </div>
-          </FormField>
+          </div>
         </div>
 
-        <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-            Subtotal
-          </span>
+        {/* Mobile e tablet */}
+        <div className="space-y-3 lg:hidden">
+          {items.map(
+            (item, index) => (
+              <div
+                key={item.id}
+                className={[
+                  "rounded-xl border p-3",
+                  item.locked
+                    ? "border-sky-200 bg-sky-50/50"
+                    : "border-slate-200 bg-white",
+                ].join(" ")}
+              >
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                      Item{" "}
+                      {index + 1}
+                    </div>
 
-          <span className="text-sm font-bold text-slate-900">
-            {formatCurrency(itemTotal(item))}
-          </span>
+                    <div className="mt-0.5 flex items-center gap-2 text-xs font-semibold text-slate-900">
+                      {
+                        ITEM_TYPE_LABELS[
+                          item.type
+                        ]
+                      }
+
+                      {item.locked && (
+                        <span className="rounded-full border border-sky-200 bg-white px-2 py-0.5 text-[9px] font-semibold text-sky-700">
+                          Obrigatório
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {!item.locked && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-8 rounded-lg border-red-100 p-0 text-red-500"
+                      onClick={() =>
+                        removeItem(
+                          item.id,
+                        )
+                      }
+                      disabled={
+                        pending
+                      }
+                      aria-label="Excluir item"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <FormField
+                    htmlFor={`mobile-item-type-${item.id}`}
+                    label="Tipo"
+                  >
+                    <select
+                      id={`mobile-item-type-${item.id}`}
+                      value={
+                        item.type
+                      }
+                      disabled={
+                        item.locked ||
+                        pending
+                      }
+                      onChange={(
+                        event,
+                      ) =>
+                        updateItem(
+                          item.id,
+                          {
+                            type: event
+                              .target
+                              .value as ChargeItemType,
+                          },
+                        )
+                      }
+                      className="h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs disabled:bg-sky-50"
+                    >
+                      <option value="LABOR">
+                        Mão de obra
+                      </option>
+
+                      <option value="PRODUCT">
+                        Produto
+                      </option>
+
+                      <option value="MATERIAL">
+                        Material
+                      </option>
+
+                      <option value="SERVICE">
+                        Serviço adicional
+                      </option>
+                    </select>
+                  </FormField>
+
+                  <FormField
+                    htmlFor={`mobile-item-description-${item.id}`}
+                    label="Descrição"
+                    required
+                  >
+                    <Input
+                      id={`mobile-item-description-${item.id}`}
+                      value={
+                        item.description
+                      }
+                      disabled={
+                        item.locked ||
+                        pending
+                      }
+                      onChange={(
+                        event,
+                      ) =>
+                        updateItem(
+                          item.id,
+                          {
+                            description:
+                              event
+                                .target
+                                .value,
+                          },
+                        )
+                      }
+                      placeholder="Ex.: Areia para filtro"
+                      className="h-9 rounded-lg text-xs"
+                    />
+                  </FormField>
+
+                  <FormField
+                    htmlFor={`mobile-item-quantity-${item.id}`}
+                    label="Quantidade"
+                    required
+                  >
+                    <Input
+                      id={`mobile-item-quantity-${item.id}`}
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={
+                        item.quantity
+                      }
+                      disabled={
+                        item.locked ||
+                        pending
+                      }
+                      onChange={(
+                        event,
+                      ) =>
+                        updateItem(
+                          item.id,
+                          {
+                            quantity:
+                              Math.max(
+                                1,
+                                Number(
+                                  event
+                                    .target
+                                    .value ||
+                                    1,
+                                ),
+                              ),
+                          },
+                        )
+                      }
+                      className="h-9 rounded-lg text-xs"
+                    />
+                  </FormField>
+
+                  <FormField
+                    htmlFor={`mobile-item-price-${item.id}`}
+                    label="Valor unitário"
+                    required
+                  >
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                        R$
+                      </span>
+
+                      <Input
+                        id={`mobile-item-price-${item.id}`}
+                        inputMode="numeric"
+                        value={
+                          item.unitPrice
+                        }
+                        onChange={(
+                          event,
+                        ) =>
+                          updateItem(
+                            item.id,
+                            {
+                              unitPrice:
+                                formatMoneyInput(
+                                  event
+                                    .target
+                                    .value,
+                                ),
+                            },
+                          )
+                        }
+                        placeholder="0,00"
+                        disabled={
+                          pending
+                        }
+                        className="h-9 rounded-lg pl-8 text-xs"
+                      />
+                    </div>
+                  </FormField>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                    Subtotal
+                  </span>
+
+                  <span className="text-sm font-bold text-slate-900">
+                    {formatCurrency(
+                      itemTotal(
+                        item,
+                      ),
+                    )}
+                  </span>
+                </div>
+              </div>
+            ),
+          )}
+
+          <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={
+                addItem
+              }
+              disabled={
+                pending
+              }
+              className="h-9 rounded-lg border-dashed border-sky-300 bg-white text-xs text-sky-700"
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+
+              Adicionar item
+            </Button>
+
+            <div className="text-right">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                Total da OS
+              </div>
+
+              <div className="text-base font-bold text-sky-700">
+                {formatCurrency(
+                  totalAmount,
+                )}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-    ))}
 
-    <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
-      <Button
-        type="button"
-        variant="outline"
-        onClick={addItem}
-        disabled={pending}
-        className="h-9 rounded-lg border-dashed border-sky-300 bg-white text-xs text-sky-700"
-      >
-        <Plus className="mr-1.5 h-3.5 w-3.5" />
-
-        Adicionar item
-      </Button>
-
-      <div className="text-right">
-        <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-          Total da OS
-        </div>
-
-        <div className="text-base font-bold text-sky-700">
-          {formatCurrency(totalAmount)}
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <FormInfoBox
-    icon={CircleDollarSign}
-    variant="warning"
-    compact
-    className="mt-4"
-  >
-    A mão de obra é obrigatória e todos os itens precisam
-    possuir valor maior que zero.
-  </FormInfoBox>
-</StepFormSection>
+        <FormInfoBox
+          icon={
+            CircleDollarSign
+          }
+          variant="warning"
+          compact
+          className="mt-4"
+        >
+          A mão de obra é
+          obrigatória e todos os
+          itens precisam possuir
+          valor maior que zero.
+        </FormInfoBox>
+      </StepFormSection>
 
       <StepFormSection
         step={4}
@@ -1387,14 +1579,21 @@ export default function NewWorkOrderClient({
               id="work-order-date"
               type="date"
               min={todayIso()}
-              value={scheduledDate}
-              onChange={(event) =>
+              value={
+                scheduledDate
+              }
+              onChange={(
+                event,
+              ) =>
                 setScheduledDate(
-                  event.target.value,
+                  event.target
+                    .value,
                 )
               }
               className="h-11 rounded-xl"
-              disabled={pending}
+              disabled={
+                pending
+              }
             />
           </FormField>
 
@@ -1406,16 +1605,23 @@ export default function NewWorkOrderClient({
           >
             <Textarea
               id="work-order-description"
-              value={description}
-              onChange={(event) =>
+              value={
+                description
+              }
+              onChange={(
+                event,
+              ) =>
                 setDescription(
-                  event.target.value,
+                  event.target
+                    .value,
                 )
               }
               placeholder="Ex.: Bomba apresentando ruído. Verificar rolamento, registrar diagnóstico e enviar orçamento."
               rows={6}
               className="min-h-[148px] resize-y rounded-xl"
-              disabled={pending}
+              disabled={
+                pending
+              }
             />
           </FormField>
         </div>
