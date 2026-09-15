@@ -45,6 +45,18 @@ function slugify(value: string) {
     .replace(/^_+|_+$/g, "");
 }
 
+function numberOrNull(value: string) {
+  if (!value.trim()) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatRange(field: MeasurementTemplateField) {
+  if (field.fieldType !== "NUMBER") return null;
+  if (field.minValue == null && field.maxValue == null) return null;
+  return `${field.minValue ?? "—"} a ${field.maxValue ?? "—"}`;
+}
+
 function createLocalId() {
   if (
     typeof crypto !== "undefined" &&
@@ -171,6 +183,10 @@ export default function MeasurementTemplatesClient({
     React.useState<MeasurementFieldType>("NUMBER");
 
   const [fieldUnit, setFieldUnit] = React.useState("");
+  const [fieldMinValue, setFieldMinValue] =
+    React.useState<number | null>(null);
+  const [fieldMaxValue, setFieldMaxValue] =
+    React.useState<number | null>(null);
 
   const [fieldRequired, setFieldRequired] =
     React.useState(true);
@@ -182,6 +198,8 @@ export default function MeasurementTemplatesClient({
     setFieldName("");
     setFieldType("NUMBER");
     setFieldUnit("");
+    setFieldMinValue(null);
+    setFieldMaxValue(null);
     setFieldRequired(true);
   }
 
@@ -263,6 +281,22 @@ export default function MeasurementTemplatesClient({
       return;
     }
 
+    const nextMinValue =
+      fieldType === "NUMBER" ? fieldMinValue : null;
+    const nextMaxValue =
+      fieldType === "NUMBER" ? fieldMaxValue : null;
+
+    if (
+      nextMinValue !== null &&
+      nextMaxValue !== null &&
+      nextMinValue > nextMaxValue
+    ) {
+      toast.error(
+        "O valor mínimo não pode ser maior que o máximo.",
+      );
+      return;
+    }
+
     setFields((current) => [
       ...current,
       {
@@ -274,8 +308,8 @@ export default function MeasurementTemplatesClient({
           fieldType === "NUMBER"
             ? fieldUnit.trim() || null
             : null,
-        minValue: 0,
-        maxValue: 0,
+        minValue: nextMinValue,
+        maxValue: nextMaxValue,
         isRequired: fieldRequired,
         displayOrder: current.length + 1,
         isActive: true,
@@ -283,6 +317,19 @@ export default function MeasurementTemplatesClient({
     ]);
 
     resetFieldForm();
+  }
+
+  function updateField(
+    fieldId: string,
+    patch: Partial<MeasurementTemplateField>,
+  ) {
+    setFields((current) =>
+      current.map((field) =>
+        field.id === fieldId
+          ? { ...field, ...patch }
+          : field,
+      ),
+    );
   }
 
   function removeField(fieldId: string) {
@@ -590,7 +637,7 @@ export default function MeasurementTemplatesClient({
               </span>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
               <div className="xl:col-span-2">
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
                   Rótulo exibido
@@ -641,6 +688,8 @@ export default function MeasurementTemplatesClient({
                       nextType !== "NUMBER"
                     ) {
                       setFieldUnit("");
+                      setFieldMinValue(null);
+                      setFieldMaxValue(null);
                     }
                   }}
                   className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-sky-400"
@@ -707,6 +756,50 @@ export default function MeasurementTemplatesClient({
                 </select>
               </div>
 
+              {fieldType === "NUMBER" && (
+                <>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-700">
+                      Valor mínimo
+                    </label>
+
+                    <Input
+                      type="number"
+                      step="any"
+                      value={fieldMinValue ?? ""}
+                      onChange={(event) =>
+                        setFieldMinValue(
+                          numberOrNull(
+                            event.target.value,
+                          ),
+                        )
+                      }
+                      placeholder="Opcional"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-700">
+                      Valor máximo
+                    </label>
+
+                    <Input
+                      type="number"
+                      step="any"
+                      value={fieldMaxValue ?? ""}
+                      onChange={(event) =>
+                        setFieldMaxValue(
+                          numberOrNull(
+                            event.target.value,
+                          ),
+                        )
+                      }
+                      placeholder="Opcional"
+                    />
+                  </div>
+                </>
+              )}
+
               <div className="flex items-end">
                 <Button
                   type="button"
@@ -723,11 +816,12 @@ export default function MeasurementTemplatesClient({
             <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
               <table className="w-full table-fixed text-sm">
                 <colgroup>
-                  <col className="w-[28%]" />
                   <col className="w-[22%]" />
                   <col className="w-[16%]" />
-                  <col className="w-[14%]" />
                   <col className="w-[12%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[22%]" />
+                  <col className="w-[10%]" />
                   <col className="w-[8%]" />
                 </colgroup>
 
@@ -747,6 +841,10 @@ export default function MeasurementTemplatesClient({
 
                     <th className="p-3 text-left font-semibold text-slate-700">
                       Unidade
+                    </th>
+
+                    <th className="p-3 text-left font-semibold text-slate-700">
+                      Faixa
                     </th>
 
                     <th className="p-3 text-left font-semibold text-slate-700">
@@ -784,6 +882,69 @@ export default function MeasurementTemplatesClient({
                       </td>
 
                       <td className="p-3 text-slate-600">
+                        {field.fieldType ===
+                        "NUMBER" ? (
+                          <div className="flex items-center gap-1.5">
+                            <Input
+                              type="number"
+                              step="any"
+                              value={
+                                field.minValue ??
+                                ""
+                              }
+                              onChange={(
+                                event,
+                              ) =>
+                                updateField(
+                                  field.id,
+                                  {
+                                    minValue:
+                                      numberOrNull(
+                                        event
+                                          .target
+                                          .value,
+                                      ),
+                                  },
+                                )
+                              }
+                              placeholder="Mín"
+                              className="h-8 px-2"
+                            />
+                            <span className="text-slate-400">
+                              a
+                            </span>
+                            <Input
+                              type="number"
+                              step="any"
+                              value={
+                                field.maxValue ??
+                                ""
+                              }
+                              onChange={(
+                                event,
+                              ) =>
+                                updateField(
+                                  field.id,
+                                  {
+                                    maxValue:
+                                      numberOrNull(
+                                        event
+                                          .target
+                                          .value,
+                                      ),
+                                  },
+                                )
+                              }
+                              placeholder="Máx"
+                              className="h-8 px-2"
+                            />
+                          </div>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+
+                      <td className="p-3 text-slate-600">
                         {field.isRequired
                           ? "Sim"
                           : "Não"}
@@ -813,7 +974,7 @@ export default function MeasurementTemplatesClient({
                   {fields.length === 0 && (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={7}
                         className="p-8 text-center text-sm text-slate-500"
                       >
                         Nenhum campo adicionado
@@ -967,8 +1128,10 @@ export default function MeasurementTemplatesClient({
               </div>
 
               <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                {template.fields.map(
-                  (field) => (
+                {template.fields.map((field) => {
+                  const range = formatRange(field);
+
+                  return (
                     <div
                       key={field.id}
                       className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
@@ -990,9 +1153,13 @@ export default function MeasurementTemplatesClient({
 
                             {field.unit && (
                               <span className="rounded-full bg-white px-2 py-0.5 text-slate-600 ring-1 ring-slate-200">
-                                {
-                                  field.unit
-                                }
+                                {field.unit}
+                              </span>
+                            )}
+
+                            {range && (
+                              <span className="rounded-full bg-white px-2 py-0.5 text-slate-600 ring-1 ring-slate-200">
+                                {range}
                               </span>
                             )}
 
@@ -1005,8 +1172,8 @@ export default function MeasurementTemplatesClient({
                         </div>
                       </div>
                     </div>
-                  ),
-                )}
+                  );
+                })}
 
                 {template.fields.length ===
                   0 && (

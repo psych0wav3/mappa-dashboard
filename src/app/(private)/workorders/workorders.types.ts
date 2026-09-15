@@ -193,4 +193,6 @@ export type CreateAdminWorkOrderInput = {
     quantity: number;
     unitPrice: number;
   }>;
+  checklistTemplateId?: string | null;
+  measurementTemplateId?: string | null;
 };

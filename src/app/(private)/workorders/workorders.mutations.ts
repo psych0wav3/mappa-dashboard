@@ -182,9 +182,11 @@ export async function createAdminWorkOrder(
     items,
 
     checklistTemplateId:
+      input.checklistTemplateId ||
       null,
 
     measurementTemplateId:
+      input.measurementTemplateId ||
       null,
   };
 

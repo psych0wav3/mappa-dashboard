@@ -6,7 +6,13 @@ import FormPageHeader from "@/components/form-layout/FormPageHeader";
 
 import NewWorkOrderClient from "./NewWorkOrderClient";
 
-import { listWorkOrderCustomers } from "../actions";
+import {
+  listWorkOrderChecklistTemplates,
+  listWorkOrderCustomers,
+  listWorkOrderMeasurementTemplates,
+} from "../actions";
+
+import { safeLoad } from "@/lib/mappa/safe-load";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -16,7 +22,20 @@ export const metadata: Metadata = {
 };
 
 export default async function NewWorkOrderPage() {
-  const customers = await listWorkOrderCustomers();
+  const [customers, checklistTemplates, measurementTemplates] =
+    await Promise.all([
+      listWorkOrderCustomers(),
+      safeLoad({
+        resource: "checklists",
+        loader: listWorkOrderChecklistTemplates,
+        fallback: [],
+      }),
+      safeLoad({
+        resource: "medições",
+        loader: listWorkOrderMeasurementTemplates,
+        fallback: [],
+      }),
+    ]);
 
   return (
     <FormPage>
@@ -27,7 +46,11 @@ export default async function NewWorkOrderPage() {
         description="Cadastre reparos, visitas técnicas, trocas de areia, entregas de produtos e outros serviços pontuais."
       />
 
-      <NewWorkOrderClient customers={customers} />
+      <NewWorkOrderClient
+        customers={customers}
+        checklistTemplates={checklistTemplates.data}
+        measurementTemplates={measurementTemplates.data}
+      />
     </FormPage>
   );
 }

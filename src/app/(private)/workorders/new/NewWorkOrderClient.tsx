@@ -37,7 +37,9 @@ import { toast } from "sonner";
 
 import {
   createAdminWorkOrder,
+  type WorkOrderChecklistTemplateOption,
   type WorkOrderCustomerOption,
+  type WorkOrderMeasurementTemplateOption,
 } from "../actions";
 
 import FormActionBar from "@/components/ui/FormActionBar";
@@ -255,10 +257,17 @@ function itemTotal(item: ChargeItem) {
   return quantity * parseMoney(item.unitPrice);
 }
 
+const SELECT_CLASS_NAME =
+  "h-11 w-full appearance-none rounded-xl border border-slate-300 bg-white px-3 pr-10 text-sm text-slate-800 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400";
+
 export default function NewWorkOrderClient({
   customers,
+  checklistTemplates,
+  measurementTemplates,
 }: {
   customers: WorkOrderCustomerOption[];
+  checklistTemplates: WorkOrderChecklistTemplateOption[];
+  measurementTemplates: WorkOrderMeasurementTemplateOption[];
 }) {
   const router = useRouter();
 
@@ -286,6 +295,16 @@ export default function NewWorkOrderClient({
 
   const [scheduledDate, setScheduledDate] =
     React.useState(todayIso());
+
+  const [
+    checklistTemplateId,
+    setChecklistTemplateId,
+  ] = React.useState("");
+
+  const [
+    measurementTemplateId,
+    setMeasurementTemplateId,
+  ] = React.useState("");
 
   const [items, setItems] = React.useState<
     ChargeItem[]
@@ -635,6 +654,14 @@ export default function NewWorkOrderClient({
           scheduledDate,
 
           items: payloadItems,
+
+          checklistTemplateId:
+            checklistTemplateId ||
+            null,
+
+          measurementTemplateId:
+            measurementTemplateId ||
+            null,
         });
 
         toast.success(
@@ -1569,6 +1596,68 @@ export default function NewWorkOrderClient({
         title="Agendamento e observações"
         description="Defina a data prevista e registre informações importantes para a execução do atendimento."
       >
+        <div className="grid gap-4 md:grid-cols-2">
+          <FormField
+            htmlFor="work-order-checklist"
+            label="Checklist da visita"
+            optional
+            description="Se vazio, a API usa o checklist padrão ativo da empresa."
+          >
+            <div className="relative">
+              <select
+                id="work-order-checklist"
+                value={checklistTemplateId}
+                onChange={(event) =>
+                  setChecklistTemplateId(event.target.value)
+                }
+                disabled={pending}
+                className={SELECT_CLASS_NAME}
+              >
+                <option value="">Usar checklist padrão ativo</option>
+                {checklistTemplates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
+                    {template.itemsCount
+                      ? ` — ${template.itemsCount} itens`
+                      : ""}
+                  </option>
+                ))}
+              </select>
+              <ChevronsUpDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            </div>
+          </FormField>
+
+          <FormField
+            htmlFor="work-order-measurement"
+            label="Template de medição"
+            optional
+            description="Se vazio, a API usa o template de medição padrão ativo."
+          >
+            <div className="relative">
+              <select
+                id="work-order-measurement"
+                value={measurementTemplateId}
+                onChange={(event) =>
+                  setMeasurementTemplateId(event.target.value)
+                }
+                disabled={pending}
+                className={SELECT_CLASS_NAME}
+              >
+                <option value="">Usar template padrão ativo</option>
+                {measurementTemplates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
+                    {template.fieldsCount
+                      ? ` — ${template.fieldsCount} campos`
+                      : ""}
+                  </option>
+                ))}
+              </select>
+              <ChevronsUpDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            </div>
+          </FormField>
+        </div>
+
         <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
           <FormField
             htmlFor="work-order-date"
